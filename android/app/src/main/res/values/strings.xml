@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Seedling</string>
+    <string name="widget_description">See your memory tree and recent entries at a glance.</string>
+    <string name="action_capture_memory">Capture a Memory</string>
+    <string name="action_open_today">Open Today</string>
+</resources>

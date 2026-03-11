@@ -1,0 +1,240 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:980722598120104709",
+      "lastPropertyId": "23:8840600702752248780",
+      "name": "Entry",
+      "properties": [
+        {
+          "id": "1:269502239998818654",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4422281124207185487",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "3:353915068729339971",
+          "name": "typeIndex",
+          "type": 6
+        },
+        {
+          "id": "4:3708880826332420230",
+          "name": "text",
+          "type": 9
+        },
+        {
+          "id": "5:7375884822086644768",
+          "name": "mediaPath",
+          "type": 9
+        },
+        {
+          "id": "6:6053545043161884039",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "7:226156736396886711",
+          "name": "context",
+          "type": 9
+        },
+        {
+          "id": "8:5791614792974334851",
+          "name": "mood",
+          "type": 9
+        },
+        {
+          "id": "9:3041290548098779867",
+          "name": "tags",
+          "type": 9
+        },
+        {
+          "id": "10:5610169781178833264",
+          "name": "isReleased",
+          "type": 1
+        },
+        {
+          "id": "11:1952791767777103688",
+          "name": "isDeleted",
+          "type": 1
+        },
+        {
+          "id": "12:95477390163426456",
+          "name": "deletedAt",
+          "type": 10
+        },
+        {
+          "id": "13:4412152896935047327",
+          "name": "detectedTheme",
+          "type": 9
+        },
+        {
+          "id": "14:4459816486174533736",
+          "name": "connectionIds",
+          "type": 9
+        },
+        {
+          "id": "15:4010109162980093924",
+          "name": "sentimentScore",
+          "type": 8
+        },
+        {
+          "id": "16:6242043607225809772",
+          "name": "lastAnalyzedAt",
+          "type": 10
+        },
+        {
+          "id": "17:4822441182230169529",
+          "name": "connectedIds",
+          "type": 27
+        },
+        {
+          "id": "18:7049565280661572356",
+          "name": "capsuleUnlockDate",
+          "type": 10
+        },
+        {
+          "id": "19:6989500767525477215",
+          "name": "transcription",
+          "type": 9
+        },
+        {
+          "id": "20:5287589025787022643",
+          "name": "syncUUID",
+          "type": 9
+        },
+        {
+          "id": "21:2626856446788976910",
+          "name": "modifiedAt",
+          "type": 10
+        },
+        {
+          "id": "22:3618374170569244160",
+          "name": "deviceId",
+          "type": 9
+        },
+        {
+          "id": "23:8840600702752248780",
+          "name": "manualLinkIds",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "2:3362048758403623883",
+      "lastPropertyId": "5:5939974100987378786",
+      "name": "Tree",
+      "properties": [
+        {
+          "id": "1:5290125901850262022",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1715661857793943423",
+          "name": "year",
+          "type": 6
+        },
+        {
+          "id": "3:4617615204353589173",
+          "name": "entryCount",
+          "type": 6
+        },
+        {
+          "id": "4:404156755750246248",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "5:5939974100987378786",
+          "name": "stateIndex",
+          "type": 6
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:8814026308694728405",
+      "lastPropertyId": "11:786135456654185868",
+      "name": "Ritual",
+      "properties": [
+        {
+          "id": "1:9126252907033325446",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1024230205657674547",
+          "name": "uuid",
+          "type": 9
+        },
+        {
+          "id": "3:5723073435690232525",
+          "name": "name",
+          "type": 9
+        },
+        {
+          "id": "4:496945034011078349",
+          "name": "signature",
+          "type": 9
+        },
+        {
+          "id": "5:3643181829478333684",
+          "name": "statusIndex",
+          "type": 6
+        },
+        {
+          "id": "6:7552542947224669242",
+          "name": "cadenceDays",
+          "type": 6
+        },
+        {
+          "id": "7:7014604637639458632",
+          "name": "preferredHour",
+          "type": 6
+        },
+        {
+          "id": "8:6648556305350325062",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "9:6459583029169323667",
+          "name": "lastObservedAt",
+          "type": 10
+        },
+        {
+          "id": "10:6610698839710776274",
+          "name": "nextDueAt",
+          "type": 10
+        },
+        {
+          "id": "11:786135456654185868",
+          "name": "occurrenceCount",
+          "type": 6
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "3:8814026308694728405",
+  "lastIndexId": "0:0",
+  "lastRelationId": "0:0",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [],
+  "retiredRelationUids": [],
+  "version": 1
+}

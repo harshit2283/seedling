@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actions>
+    <action intentName="actions.intent.CREATE_NOTE">
+        <action-display
+            actionLabel="@string/action_capture_memory"
+            icon="@mipmap/ic_launcher"/>
+        <fulfillment urlTemplate="seedling://capture"/>
+    </action>
+    <action intentName="actions.intent.OPEN_APP_FEATURE">
+        <action-display
+            actionLabel="@string/action_open_today"
+            icon="@mipmap/ic_launcher"/>
+        <fulfillment urlTemplate="seedling://today"/>
+    </action>
+</actions>

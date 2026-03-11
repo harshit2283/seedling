@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub get:*)",
+      "Bash(dart run build_runner build:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter test:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(echo:*)",
+      "Bash(qmd query:*)",
+      "Bash(qmd search:*)",
+      "Bash(qmd vsearch:*)",
+      "Bash(qmd get:*)"
+    ]
+  }
+}

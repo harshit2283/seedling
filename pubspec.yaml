@@ -1,0 +1,82 @@
+name: seedling
+description: "Memory-keeping that feels like breathing, not documenting."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Database - ObjectBox (Isar abandoned)
+  objectbox: ^5.1.0
+  objectbox_flutter_libs: any
+
+  # State management
+  flutter_riverpod: ^3.2.0
+
+  # Routing
+  go_router: ^17.0.1
+
+  # Utilities
+  path_provider: ^2.1.5
+  intl: ^0.20.2
+
+  # Media capture (Phase 2)
+  image_picker: ^1.1.2
+  record: ^6.2.0
+  permission_handler: ^11.3.1
+  flutter_image_compress: ^2.3.0
+  audioplayers: ^6.6.0
+  uuid: ^4.5.1
+
+  # iOS style icons
+  cupertino_icons: ^1.0.8
+
+  # Export/sharing (Phase 3)
+  share_plus: ^10.0.0
+  archive: ^4.0.4
+  shared_preferences: ^2.5.4
+  file_picker: ^10.3.2
+  google_sign_in: ^7.2.0
+  googleapis: ^14.0.0
+  extension_google_sign_in_as_googleapis_auth: ^3.0.0
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
+
+  # Share Extension (Phase 4.5)
+  receive_sharing_intent: ^1.8.1
+
+  # Home Screen Widgets (Phase 4.5)
+  home_widget: ^0.7.0
+
+  # Collage grid view
+  flutter_staggered_grid_view: ^0.7.0
+
+  # Security
+  local_auth: ^2.3.0
+  cryptography: ^2.7.0
+  flutter_secure_storage: ^9.2.2
+  pointycastle: ^4.0.0
+
+dependency_overrides:
+  audioplayers_android:
+    path: third_party/flutter_packages/audioplayers_android
+  receive_sharing_intent:
+    path: third_party/flutter_packages/receive_sharing_intent
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  objectbox_generator: ^5.1.0
+  build_runner: ^2.10.0
+  mocktail: ^1.0.4
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
+
+flutter:
+  uses-material-design: true
