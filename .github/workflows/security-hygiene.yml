@@ -3,7 +3,7 @@ name: Security Hygiene
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main]
 
 jobs:
   secret-hygiene:
