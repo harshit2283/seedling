@@ -7,6 +7,7 @@
 - [ ] `flutter test`
 
 ## Testing
+- [ ] Docs/config/tooling-only change
 - [ ] Unit tests added/updated for behavior changes
 - [ ] Regression test added for bug fix (if applicable)
 
@@ -19,4 +20,3 @@
 ## Migration / Compatibility Notes
 - [ ] No migration required
 - [ ] Migration documented below
-
