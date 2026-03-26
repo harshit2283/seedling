@@ -1,4 +1,5 @@
 import 'package:objectbox/objectbox.dart';
+import 'package:uuid/uuid.dart';
 
 /// Status of a ritual in the user's life
 enum RitualStatus { active, paused, archived }
@@ -88,10 +89,8 @@ class Ritual {
   }) : uuid = uuid ?? _generateUuid(),
        createdAt = createdAt ?? DateTime.now();
 
-  static String _generateUuid() {
-    final now = DateTime.now().microsecondsSinceEpoch;
-    return '${now.toRadixString(36)}-${(now * 31337).toRadixString(36)}';
-  }
+  static const _uuidGen = Uuid();
+  static String _generateUuid() => _uuidGen.v4();
 
   /// Human-readable cadence description
   String get cadenceDescription {

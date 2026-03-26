@@ -4,7 +4,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/media/file_storage_service.dart';
@@ -441,11 +443,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
       child: GestureDetector(
         onTap: () {
           HapticFeedback.selectionClick();
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => EntryDetailScreen(entryId: linked.id),
-            ),
-          );
+          context.push(AppRoutes.entryRoute(linked.id));
         },
         onLongPress: () => _confirmUnlink(context, current, linked),
         child: _LinkedMemoryCardContent(entry: linked),

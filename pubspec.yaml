@@ -12,7 +12,7 @@ dependencies:
 
   # Database - ObjectBox (Isar abandoned)
   objectbox: ^5.1.0
-  objectbox_flutter_libs: any
+  objectbox_flutter_libs: ^5.1.0
 
   # State management
   flutter_riverpod: ^3.2.0

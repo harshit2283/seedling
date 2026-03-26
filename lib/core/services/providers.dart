@@ -200,11 +200,16 @@ final entriesProvider = Provider<List<Entry>>((ref) {
   return entriesAsync.value ?? [];
 });
 
+/// Stream provider for all entries across all years (includes locked capsules).
+final allEntriesStreamProvider = StreamProvider<List<Entry>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.watchAllEntries();
+});
+
 /// Provider for all entries across all years (includes locked capsules).
 final allEntriesProvider = Provider<List<Entry>>((ref) {
-  final db = ref.watch(databaseProvider);
-  ref.watch(entriesStreamProvider);
-  return db.getAllEntries();
+  final allEntriesAsync = ref.watch(allEntriesStreamProvider);
+  return allEntriesAsync.value ?? [];
 });
 
 const int _memoriesPageSize = 50;
@@ -329,27 +334,23 @@ final treeProgressProvider = Provider<double>((ref) {
 
 /// Notifier for tree growth celebration state
 class TreeGrowthNotifier extends Notifier<bool> {
+  bool _disposed = false;
+
   @override
-  bool build() => false;
+  bool build() {
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
+    return false;
+  }
 
   void triggerCelebration() {
     state = true;
     // Auto-reset after celebration animation completes
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
+      if (!_disposed) {
         state = false;
       }
     });
-  }
-
-  bool get mounted {
-    try {
-      // Check if notifier is still mounted by accessing state
-      final _ = state;
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 }
 
@@ -377,15 +378,25 @@ class EntryCreatorNotifier extends Notifier<void> {
   @override
   void build() {}
 
+  /// Ensure sync UUID is set on entry before saving, so the UUID gets persisted
+  /// in the same DB write. Then queue a sync push after save.
+  Future<Entry> _saveAndSync(Entry entry) async {
+    final db = ref.read(databaseProvider);
+    final syncEngine = ref.read(syncEngineProvider);
+    syncEngine.ensureSyncUUID(entry);
+    final saved = await db.saveEntry(entry);
+    syncEngine.queuePush(saved, SyncChangeType.create);
+    return saved;
+  }
+
   /// Create a LINE entry from text
   Future<Entry> createLineEntry(
     String text, {
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.line(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
@@ -395,10 +406,9 @@ class EntryCreatorNotifier extends Notifier<void> {
     String? text, {
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.release(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
@@ -408,53 +418,49 @@ class EntryCreatorNotifier extends Notifier<void> {
     String? text, {
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.fragment(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
 
-  /// Create a PHOTO entry (placeholder for Phase 2)
+  /// Create a PHOTO entry
   Future<Entry> createPhotoEntry(
     String mediaPath, {
     String? text,
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.photo(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
 
-  /// Create a VOICE entry (placeholder for Phase 2)
+  /// Create a VOICE entry
   Future<Entry> createVoiceEntry(
     String mediaPath, {
     String? text,
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.voice(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
 
-  /// Create an OBJECT entry (placeholder for Phase 2)
+  /// Create an OBJECT entry
   Future<Entry> createObjectEntry(
     String title, {
     String? mediaPath,
     String? text,
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.object(title: title, mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
@@ -462,19 +468,39 @@ class EntryCreatorNotifier extends Notifier<void> {
   /// Soft delete an entry (recoverable for 30 days)
   Future<bool> deleteEntry(int id) async {
     final db = ref.read(databaseProvider);
-    return db.softDeleteEntry(id);
+    // Grab entry before soft delete so we have its syncUUID
+    final entry = db.getEntry(id);
+    final result = await db.softDeleteEntry(id);
+    if (result && entry != null) {
+      // Soft delete is an update, not a hard delete — entry still exists
+      ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
+    }
+    return result;
   }
 
   /// Permanently delete an entry
   Future<bool> permanentlyDeleteEntry(int id) async {
     final db = ref.read(databaseProvider);
-    return db.deleteEntry(id);
+    // Grab entry before hard delete so we have its syncUUID
+    final entry = db.getEntry(id);
+    final result = await db.deleteEntry(id);
+    if (result && entry != null && entry.syncUUID != null) {
+      ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.delete);
+    }
+    return result;
   }
 
   /// Restore a soft-deleted entry
   Future<bool> restoreEntry(int id) async {
     final db = ref.read(databaseProvider);
-    return db.restoreEntry(id);
+    final result = await db.restoreEntry(id);
+    if (result) {
+      final entry = db.getEntry(id);
+      if (entry != null) {
+        ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
+      }
+    }
+    return result;
   }
 
   /// Update entry text/title
@@ -486,13 +512,13 @@ class EntryCreatorNotifier extends Notifier<void> {
     if (text != null) entry.text = text;
     if (title != null) entry.title = title;
     db.updateEntry(entry);
+    ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
   }
 
   /// Create a CAPSULE entry (time capsule)
   Future<Entry> createCapsuleEntry(String? text, DateTime unlockDate) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.capsule(text: text, unlockDate: unlockDate);
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
