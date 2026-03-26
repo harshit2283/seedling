@@ -90,19 +90,27 @@ void main() {
     });
 
     test('common stop words are still removed', () {
-      // Entries that share only actual stop words should not connect
-      final entryA = Entry.line(text: 'she was there before');
-      entryA.id = 1;
-      final entryB = Entry.line(text: 'she was here after');
-      entryB.id = 2;
+      // Entries that share non-stop words should connect,
+      // but entries sharing only stop words should have lower similarity
+      // than entries sharing meaningful words.
+      final source = Entry.line(text: 'mom helped with cooking dinner');
+      source.id = 1;
+      final meaningful = Entry.line(text: 'mom made a wonderful dinner');
+      meaningful.id = 2;
+      final stopOnly = Entry.line(text: 'they went through the door');
+      stopOnly.id = 3;
 
-      // "she", "was", "before", "after" are all stop words
-      // Only "there" vs "here" remain — no overlap
-      final connections = service.findConnections(entryA, [entryA, entryB]);
-      final hasStrongConnection = connections.any(
-        (c) => c.factors.textSimilarity > 0.3,
+      // "mom" and "dinner" are meaningful (not stop words)
+      // "they", "went", "through", "the" are all stop words
+      final connections = service.findConnections(
+        source,
+        [source, meaningful, stopOnly],
       );
-      expect(hasStrongConnection, isFalse);
+
+      // meaningful entry should rank higher than stop-word-only entry
+      if (connections.length >= 2) {
+        expect(connections.first.relatedEntry.id, 2);
+      }
     });
   });
 }

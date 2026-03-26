@@ -38,8 +38,8 @@ void main() {
     prefs = await SharedPreferences.getInstance();
 
     // Default stubs
-    when(() => mockDb.saveEntry(any())).thenAnswer((_) async {
-      final entry = _.positionalArguments[0] as Entry;
+    when(() => mockDb.saveEntry(any())).thenAnswer((invocation) async {
+      final entry = invocation.positionalArguments[0] as Entry;
       entry.id = 1;
       return entry;
     });

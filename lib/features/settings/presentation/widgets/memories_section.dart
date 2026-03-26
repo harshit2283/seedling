@@ -17,7 +17,7 @@ class MemoriesSection extends ConsumerWidget {
         header: const Text('Memories'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.tree,
               SeedlingColors.forestGreen,
             ),

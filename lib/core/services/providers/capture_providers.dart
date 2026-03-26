@@ -5,8 +5,10 @@ import '../../../features/prompts/data/prompt_preferences.dart';
 import '../../../features/prompts/domain/prompt_selector.dart';
 import '../entry_type_usage_service.dart';
 import '../../../features/onboarding/data/onboarding_preferences.dart';
+import '../sync/sync_models.dart';
 import 'database_providers.dart';
 import 'ai_providers.dart';
+import 'sync_providers.dart';
 
 // ============================================================================
 // Entry Creator
@@ -17,15 +19,25 @@ class EntryCreatorNotifier extends Notifier<void> {
   @override
   void build() {}
 
+  /// Ensure sync UUID is set on entry before saving, so the UUID gets persisted
+  /// in the same DB write. Then queue a sync push after save.
+  Future<Entry> _saveAndSync(Entry entry) async {
+    final db = ref.read(databaseProvider);
+    final syncEngine = ref.read(syncEngineProvider);
+    syncEngine.ensureSyncUUID(entry);
+    final saved = await db.saveEntry(entry);
+    syncEngine.queuePush(saved, SyncChangeType.create);
+    return saved;
+  }
+
   /// Create a LINE entry from text
   Future<Entry> createLineEntry(
     String text, {
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.line(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
@@ -35,10 +47,9 @@ class EntryCreatorNotifier extends Notifier<void> {
     String? text, {
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.release(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
@@ -48,53 +59,49 @@ class EntryCreatorNotifier extends Notifier<void> {
     String? text, {
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.fragment(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
 
-  /// Create a PHOTO entry (placeholder for Phase 2)
+  /// Create a PHOTO entry
   Future<Entry> createPhotoEntry(
     String mediaPath, {
     String? text,
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.photo(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
 
-  /// Create a VOICE entry (placeholder for Phase 2)
+  /// Create a VOICE entry
   Future<Entry> createVoiceEntry(
     String mediaPath, {
     String? text,
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.voice(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
 
-  /// Create an OBJECT entry (placeholder for Phase 2)
+  /// Create an OBJECT entry
   Future<Entry> createObjectEntry(
     String title, {
     String? mediaPath,
     String? text,
     DateTime? capsuleUnlockDate,
   }) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.object(title: title, mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
@@ -102,19 +109,36 @@ class EntryCreatorNotifier extends Notifier<void> {
   /// Soft delete an entry (recoverable for 30 days)
   Future<bool> deleteEntry(int id) async {
     final db = ref.read(databaseProvider);
-    return db.softDeleteEntry(id);
+    final entry = db.getEntry(id);
+    final result = await db.softDeleteEntry(id);
+    if (result && entry != null) {
+      ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
+    }
+    return result;
   }
 
   /// Permanently delete an entry
   Future<bool> permanentlyDeleteEntry(int id) async {
     final db = ref.read(databaseProvider);
-    return db.deleteEntry(id);
+    final entry = db.getEntry(id);
+    final result = await db.deleteEntry(id);
+    if (result && entry != null && entry.syncUUID != null) {
+      ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.delete);
+    }
+    return result;
   }
 
   /// Restore a soft-deleted entry
   Future<bool> restoreEntry(int id) async {
     final db = ref.read(databaseProvider);
-    return db.restoreEntry(id);
+    final result = await db.restoreEntry(id);
+    if (result) {
+      final entry = db.getEntry(id);
+      if (entry != null) {
+        ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
+      }
+    }
+    return result;
   }
 
   /// Update entry text/title
@@ -126,13 +150,13 @@ class EntryCreatorNotifier extends Notifier<void> {
     if (text != null) entry.text = text;
     if (title != null) entry.title = title;
     db.updateEntry(entry);
+    ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
   }
 
   /// Create a CAPSULE entry (time capsule)
   Future<Entry> createCapsuleEntry(String? text, DateTime unlockDate) async {
-    final db = ref.read(databaseProvider);
     final entry = Entry.capsule(text: text, unlockDate: unlockDate);
-    final saved = await db.saveEntry(entry);
+    final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }

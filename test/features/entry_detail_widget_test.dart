@@ -127,8 +127,8 @@ void main() {
       await tester.pumpWidget(buildTestWidget(entry));
       await tester.pumpAndSettle();
 
-      // The AppBar title should show the type name
-      expect(find.text('Line'), findsOneWidget);
+      // The type name appears in both the AppBar title and the type badge
+      expect(find.text('Line'), findsAtLeast(1));
     });
 
     testWidgets('shows not found state for missing entry', (tester) async {

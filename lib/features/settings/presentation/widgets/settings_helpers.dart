@@ -10,6 +10,7 @@ import '../../../../core/services/storage/storage_usage_service.dart';
 
 /// Shared icon box used across all settings sections (iOS).
 Widget buildSettingsIconBox(
+  BuildContext context,
   IconData icon,
   Color color, {
   bool isLight = false,

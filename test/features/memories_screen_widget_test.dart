@@ -107,14 +107,20 @@ void main() {
         ritualServiceProvider.overrideWithValue(mockRitualService),
         syncEngineProvider.overrideWithValue(mockSyncEngine),
       ],
-      child: const MaterialApp(
-        home: MemoriesScreen(),
+      child: MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(400, 800)),
+          child: const MemoriesScreen(),
+        ),
       ),
     );
   }
 
   group('MemoriesScreen', () {
     testWidgets('renders entries list', (tester) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
       final entries = createTestEntries();
       await tester.pumpWidget(buildTestWidget(entries: entries));
       await tester.pumpAndSettle();
@@ -129,6 +135,9 @@ void main() {
     });
 
     testWidgets('search bar is displayed', (tester) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
       final entries = createTestEntries();
       await tester.pumpWidget(buildTestWidget(entries: entries));
       await tester.pumpAndSettle();
@@ -149,6 +158,9 @@ void main() {
     });
 
     testWidgets('filter chips are displayed', (tester) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
       final entries = createTestEntries();
       await tester.pumpWidget(buildTestWidget(entries: entries));
       await tester.pumpAndSettle();

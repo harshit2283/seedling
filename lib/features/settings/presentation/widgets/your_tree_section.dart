@@ -22,7 +22,7 @@ class YourTreeSection extends ConsumerWidget {
         header: const Text('Your tree'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.tree,
               SeedlingColors.forestGreen,
             ),
@@ -32,7 +32,7 @@ class YourTreeSection extends ConsumerWidget {
             ),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.list,
               SeedlingColors.forestGreen,
             ),
@@ -40,7 +40,7 @@ class YourTreeSection extends ConsumerWidget {
             subtitle: const Text('This year'),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.clock,
               SeedlingColors.forestGreen,
             ),

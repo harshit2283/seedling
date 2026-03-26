@@ -30,7 +30,7 @@ class PrivacySection extends ConsumerWidget {
         header: const Text('Privacy'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.smartphone,
               SeedlingColors.forestGreen,
             ),
@@ -41,7 +41,7 @@ class PrivacySection extends ConsumerWidget {
           ),
           const CupertinoListTile(title: SyncStatusTile()),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.square_grid_2x2,
               SeedlingColors.forestGreen,
             ),
@@ -59,7 +59,7 @@ class PrivacySection extends ConsumerWidget {
             ),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.lock,
               SeedlingColors.forestGreen,
             ),
@@ -73,7 +73,7 @@ class PrivacySection extends ConsumerWidget {
             onTap: () => _configureSyncPassphrase(context, ref),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.lock,
               SeedlingColors.forestGreen,
             ),
@@ -88,7 +88,7 @@ class PrivacySection extends ConsumerWidget {
             ),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.lock,
               SeedlingColors.forestGreen,
             ),

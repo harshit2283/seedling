@@ -20,7 +20,7 @@ class ExperimentalSection extends ConsumerWidget {
         ),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.waveform,
               SeedlingColors.accentVoice,
             ),
@@ -37,7 +37,7 @@ class ExperimentalSection extends ConsumerWidget {
             ),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.square_grid_2x2,
               SeedlingColors.accentPhoto,
             ),

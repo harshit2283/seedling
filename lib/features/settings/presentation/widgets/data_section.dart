@@ -40,7 +40,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         header: const Text('Your data'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.download,
               SeedlingColors.forestGreen,
             ),
@@ -52,7 +52,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             onTap: _isExporting ? null : _exportJson,
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.archivebox,
               SeedlingColors.forestGreen,
             ),
@@ -64,7 +64,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             onTap: _isExporting ? null : _exportZip,
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.lock,
               SeedlingColors.forestGreen,
             ),
@@ -76,7 +76,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             onTap: _isExporting ? null : _exportEncryptedBackup,
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.download,
               SeedlingColors.forestGreen,
             ),
@@ -88,7 +88,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             onTap: _isExporting ? null : _importEncryptedBackup,
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.download,
               SeedlingColors.forestGreen,
             ),
@@ -100,7 +100,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             onTap: _isExporting ? null : _importZipArchive,
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.refresh,
               SeedlingColors.forestGreen,
             ),
@@ -176,7 +176,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
   Widget _buildStorageTileIOS(AsyncValue<StorageUsage> storageAsync) {
     return storageAsync.when(
       data: (storage) => CupertinoListTile(
-        leading: buildSettingsIconBox(
+        leading: buildSettingsIconBox(context,
           CupertinoIcons.chart_pie,
           SeedlingColors.forestGreen,
         ),
@@ -186,7 +186,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         onTap: () => showStorageDetails(context, storage),
       ),
       loading: () => CupertinoListTile(
-        leading: buildSettingsIconBox(
+        leading: buildSettingsIconBox(context,
           CupertinoIcons.chart_pie,
           SeedlingColors.forestGreen,
         ),
@@ -194,7 +194,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         trailing: const CupertinoActivityIndicator(),
       ),
       error: (error, stackTrace) => CupertinoListTile(
-        leading: buildSettingsIconBox(
+        leading: buildSettingsIconBox(context,
           CupertinoIcons.chart_pie,
           SeedlingColors.textMuted,
           isLight: true,

@@ -28,7 +28,7 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
         header: const Text('Danger zone'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               AdaptiveIcons.trash,
               SeedlingColors.error,
               isDanger: true,
@@ -39,7 +39,7 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
             onTap: () => context.push(AppRoutes.deletedEntries),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.trash_fill,
               SeedlingColors.error,
               isDanger: true,

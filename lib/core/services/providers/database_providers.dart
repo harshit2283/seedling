@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../constants/prefs_keys.dart';
 import '../../../data/datasources/local/objectbox_database.dart';
 import '../../../data/models/entry.dart';
 import '../../../data/models/tree.dart';
@@ -51,11 +52,16 @@ final entriesProvider = Provider<List<Entry>>((ref) {
   return entriesAsync.value ?? [];
 });
 
+/// Stream provider for all entries across all years (includes locked capsules).
+final allEntriesStreamProvider = StreamProvider<List<Entry>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.watchAllEntries();
+});
+
 /// Provider for all entries across all years (includes locked capsules).
 final allEntriesProvider = Provider<List<Entry>>((ref) {
-  final db = ref.watch(databaseProvider);
-  ref.watch(entriesStreamProvider);
-  return db.getAllEntries();
+  final allEntriesAsync = ref.watch(allEntriesStreamProvider);
+  return allEntriesAsync.value ?? [];
 });
 
 const int _memoriesPageSize = 50;
@@ -182,27 +188,23 @@ final treeProgressProvider = Provider<double>((ref) {
 
 /// Notifier for tree growth celebration state
 class TreeGrowthNotifier extends Notifier<bool> {
+  bool _disposed = false;
+
   @override
-  bool build() => false;
+  bool build() {
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
+    return false;
+  }
 
   void triggerCelebration() {
     state = true;
     // Auto-reset after celebration animation completes
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
+      if (!_disposed) {
         state = false;
       }
     });
-  }
-
-  bool get mounted {
-    try {
-      // Check if notifier is still mounted by accessing state
-      final _ = state;
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 }
 

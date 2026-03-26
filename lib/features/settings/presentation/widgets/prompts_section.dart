@@ -25,7 +25,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
         header: const Text('Prompts'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.sparkles,
               SeedlingColors.forestGreen,
             ),
@@ -44,7 +44,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             ),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(
+            leading: buildSettingsIconBox(context,
               CupertinoIcons.bell,
               SeedlingColors.forestGreen,
             ),
@@ -64,7 +64,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
           ),
           if (reminderSettings.enabled)
             CupertinoListTile(
-              leading: buildSettingsIconBox(
+              leading: buildSettingsIconBox(context,
                 CupertinoIcons.calendar,
                 SeedlingColors.forestGreen,
               ),
@@ -75,7 +75,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             ),
           if (reminderSettings.enabled)
             CupertinoListTile(
-              leading: buildSettingsIconBox(
+              leading: buildSettingsIconBox(context,
                 CupertinoIcons.time,
                 SeedlingColors.forestGreen,
               ),
