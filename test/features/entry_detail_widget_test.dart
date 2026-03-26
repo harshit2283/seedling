@@ -25,7 +25,7 @@ void main() {
   late SharedPreferences prefs;
 
   setUpAll(() {
-    registerFallbackValue(Entry());
+    registerFallbackValue(Entry.line(text: ''));
     registerFallbackValue(EntryType.line);
   });
 

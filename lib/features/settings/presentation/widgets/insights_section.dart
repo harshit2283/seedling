@@ -383,7 +383,7 @@ class InsightsSection extends ConsumerWidget {
           preferredHour: preferredHour,
         );
 
-    HapticFeedback.mediumImpact();
+    HapticFeedback.lightImpact();
     if (context.mounted) {
       showSettingsSuccess(context, 'Ritual created');
     }

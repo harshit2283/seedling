@@ -26,7 +26,7 @@ void main() {
   late SharedPreferences prefs;
 
   setUpAll(() {
-    registerFallbackValue(Entry());
+    registerFallbackValue(Entry.line(text: ''));
     registerFallbackValue(EntryType.line);
   });
 
@@ -123,7 +123,10 @@ void main() {
     testWidgets('renders entries list', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
       tester.view.devicePixelRatio = 3.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       final entries = createTestEntries();
       await tester.pumpWidget(buildTestWidget(entries: entries));
       await tester.pumpAndSettle();
@@ -140,7 +143,10 @@ void main() {
     testWidgets('search bar is displayed', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
       tester.view.devicePixelRatio = 3.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       final entries = createTestEntries();
       await tester.pumpWidget(buildTestWidget(entries: entries));
       await tester.pumpAndSettle();
@@ -163,7 +169,10 @@ void main() {
     testWidgets('filter chips are displayed', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
       tester.view.devicePixelRatio = 3.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       final entries = createTestEntries();
       await tester.pumpWidget(buildTestWidget(entries: entries));
       await tester.pumpAndSettle();

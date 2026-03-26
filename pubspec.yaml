@@ -61,6 +61,9 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   pointycastle: ^4.0.0
 
+  # App info
+  package_info_plus: ^8.0.0
+
 dependency_overrides:
   audioplayers_android:
     path: third_party/flutter_packages/audioplayers_android

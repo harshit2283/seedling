@@ -12,6 +12,7 @@ class MemoriesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final reviewYear = DateTime.now().year;
     if (PlatformUtils.isIOS) {
       return CupertinoListSection.insetGrouped(
         header: const Text('Memories'),
@@ -23,9 +24,9 @@ class MemoriesSection extends ConsumerWidget {
               SeedlingColors.forestGreen,
             ),
             title: const Text('Year in Review'),
-            subtitle: Text('${DateTime.now().year}'),
+            subtitle: Text('$reviewYear'),
             trailing: const CupertinoListTileChevron(),
-            onTap: () => context.push('/review/${DateTime.now().year}'),
+            onTap: () => context.push('/review/$reviewYear'),
           ),
         ],
       );
@@ -39,8 +40,8 @@ class MemoriesSection extends ConsumerWidget {
           context,
           icon: Icons.park_outlined,
           title: 'Year in Review',
-          subtitle: '${DateTime.now().year}',
-          onTap: () => context.push('/review/${DateTime.now().year}'),
+          subtitle: '$reviewYear',
+          onTap: () => context.push('/review/$reviewYear'),
         ),
       ],
     );

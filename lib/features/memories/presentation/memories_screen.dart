@@ -322,9 +322,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                     child: Text(
                       'Load more',
                       style: TextStyle(
-                        color:
-                            Theme.of(context).textTheme.bodyLarge?.color ??
-                            SeedlingColors.textPrimary,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
                   )
@@ -839,9 +837,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                     child: Text(
                       'Load more',
                       style: TextStyle(
-                        color:
-                            Theme.of(context).textTheme.bodyLarge?.color ??
-                            SeedlingColors.textPrimary,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
                   )

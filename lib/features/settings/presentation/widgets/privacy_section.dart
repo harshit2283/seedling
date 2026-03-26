@@ -197,12 +197,12 @@ class PrivacySection extends ConsumerWidget {
     }
 
     try {
+      await ref.read(appLockEnabledProvider.notifier).setEnabled(enabled);
       if (enabled) {
         await ref
             .read(widgetMemoryPreviewsEnabledProvider.notifier)
             .setEnabled(false);
       }
-      await ref.read(appLockEnabledProvider.notifier).setEnabled(enabled);
     } catch (e) {
       if (!context.mounted) return;
       showSettingsError(

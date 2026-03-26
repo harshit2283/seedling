@@ -31,17 +31,17 @@ final compressionServiceProvider = Provider<MediaCompressionService>((ref) {
 /// Provider for the photo capture service
 final photoCaptureServiceProvider = Provider<PhotoCaptureService>((ref) {
   return PhotoCaptureService(
-    permissionService: ref.watch(permissionServiceProvider),
-    storageService: ref.watch(fileStorageServiceProvider),
-    compressionService: ref.watch(compressionServiceProvider),
+    permissionService: ref.read(permissionServiceProvider),
+    storageService: ref.read(fileStorageServiceProvider),
+    compressionService: ref.read(compressionServiceProvider),
   );
 });
 
 /// Provider for the voice recording service
 final voiceRecordingServiceProvider = Provider<VoiceRecordingService>((ref) {
   return VoiceRecordingService(
-    permissionService: ref.watch(permissionServiceProvider),
-    storageService: ref.watch(fileStorageServiceProvider),
+    permissionService: ref.read(permissionServiceProvider),
+    storageService: ref.read(fileStorageServiceProvider),
   );
 });
 

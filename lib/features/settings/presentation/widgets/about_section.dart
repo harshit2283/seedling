@@ -1,19 +1,40 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import 'settings_helpers.dart';
 
-const _appVersion = '1.0.0';
-
 /// Settings section showing app version and about dialog.
-class AboutSection extends ConsumerWidget {
+class AboutSection extends ConsumerStatefulWidget {
   const AboutSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AboutSection> createState() => _AboutSectionState();
+}
+
+class _AboutSectionState extends ConsumerState<AboutSection> {
+  String _appVersion = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _appVersion = info.version);
+    } catch (_) {
+      if (mounted) setState(() => _appVersion = 'unknown');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     if (PlatformUtils.isIOS) {
       return CupertinoListSection.insetGrouped(
         header: const Text('About'),
@@ -26,7 +47,7 @@ class AboutSection extends ConsumerWidget {
               isLight: true,
             ),
             title: const Text('About Seedling'),
-            additionalInfo: const Text('v$_appVersion'),
+            additionalInfo: Text('v$_appVersion'),
             trailing: const CupertinoListTileChevron(),
             onTap: () => _showAboutDialog(context),
           ),

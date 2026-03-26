@@ -247,8 +247,8 @@ final treeDescriptionProvider = Provider<String>((ref) {
 /// Provider for soft-deleted entries (for recovery screen)
 final deletedEntriesProvider = Provider<List<Entry>>((ref) {
   final db = ref.watch(databaseProvider);
-  // Re-fetch when entries change
-  ref.watch(entriesStreamProvider);
+  // Re-fetch when entries change (cross-year data, so watch all entries)
+  ref.watch(allEntriesStreamProvider);
   return db.getDeletedEntries();
 });
 
@@ -259,8 +259,8 @@ final deletedEntriesProvider = Provider<List<Entry>>((ref) {
 /// Provider for all capsules (locked and unlocked)
 final capsulesProvider = Provider<List<Entry>>((ref) {
   final db = ref.watch(databaseProvider);
-  // Re-fetch when entries change
-  ref.watch(entriesStreamProvider);
+  // Re-fetch when entries change (cross-year data, so watch all entries)
+  ref.watch(allEntriesStreamProvider);
   return db.getAllCapsules();
 });
 
@@ -279,7 +279,8 @@ final unlockedCapsulesProvider = Provider<List<Entry>>((ref) {
 /// Provider for capsules that unlock today
 final capsulesToUnlockTodayProvider = Provider<List<Entry>>((ref) {
   final db = ref.watch(databaseProvider);
-  ref.watch(entriesStreamProvider);
+  // Cross-year data, so watch all entries
+  ref.watch(allEntriesStreamProvider);
   return db.getCapsulesToUnlockToday();
 });
 
@@ -308,8 +309,8 @@ final linkedEntriesProvider = Provider.family<List<Entry>, List<String>>((
   syncUUIDs,
 ) {
   final db = ref.watch(databaseProvider);
-  // Re-evaluate when entries change
-  ref.watch(entriesStreamProvider);
+  // Re-evaluate when entries change (linked entries may span years)
+  ref.watch(allEntriesStreamProvider);
   if (syncUUIDs.isEmpty) return [];
   return db.getEntriesBySyncUUIDs(syncUUIDs);
 });

@@ -26,6 +26,10 @@ class EntryCreatorNotifier extends Notifier<void> {
     final syncEngine = ref.read(syncEngineProvider);
     syncEngine.ensureSyncUUID(entry);
     final saved = await db.saveEntry(entry);
+    // Record entry type usage for smart button ordering
+    await ref
+        .read(entryTypeUsageServiceProvider)
+        .recordUsage(saved.type, isCapsule: saved.isCapsule);
     syncEngine.queuePush(saved, SyncChangeType.create);
     return saved;
   }
@@ -109,10 +113,15 @@ class EntryCreatorNotifier extends Notifier<void> {
   /// Soft delete an entry (recoverable for 30 days)
   Future<bool> deleteEntry(int id) async {
     final db = ref.read(databaseProvider);
-    final entry = db.getEntry(id);
     final result = await db.softDeleteEntry(id);
-    if (result && entry != null) {
-      ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
+    if (result) {
+      // Re-fetch the tombstoned record so sync payload has isDeleted/deletedAt
+      final updatedEntry = db.getEntry(id);
+      if (updatedEntry != null) {
+        ref
+            .read(syncEngineProvider)
+            .queuePush(updatedEntry, SyncChangeType.update);
+      }
     }
     return result;
   }

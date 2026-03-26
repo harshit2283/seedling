@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../data/models/entry.dart';
 import '../../../data/models/ritual.dart';
 import '../ai/theme_detector_service.dart';
 import '../ai/connection_finder_service.dart';
@@ -219,14 +220,24 @@ final dueRitualsProvider = Provider<List<Ritual>>((ref) {
 final reviewDataProvider = Provider.family<YearReviewData?, int>((ref, year) {
   final db = ref.watch(databaseProvider);
   ref.watch(entriesStreamProvider);
-  final allEntries = db.getEntriesPage(
-    limit: 10000,
-    offset: 0,
-    year: year,
-    includeLockedCapsules: true,
-  );
-  if (allEntries.length < 10) return null;
 
+  // Page through all entries for the year
+  final allEntries = <Entry>[];
+  const pageSize = 500;
+  var offset = 0;
+  while (true) {
+    final page = db.getEntriesPage(
+      limit: pageSize,
+      offset: offset,
+      year: year,
+      includeLockedCapsules: true,
+    );
+    allEntries.addAll(page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  if (allEntries.length < 10) return null;
   final themeDetector = ref.watch(themeDetectorProvider);
   final generator = ReviewGenerator(themeDetector: themeDetector);
   return generator.generate(year, allEntries);

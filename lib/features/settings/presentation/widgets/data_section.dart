@@ -584,8 +584,12 @@ class _DataSectionState extends ConsumerState<DataSection> {
         .toSet();
 
     if (mode == _ImportMode.replace) {
-      await fileStorage.clearAllMedia();
-      await database.clearAllData();
+      // Stage deletion: soft-delete existing entries instead of destroying
+      // immediately. If import fails, entries remain recoverable.
+      final existing = database.getAllEntries();
+      for (final entry in existing) {
+        await database.softDeleteEntry(entry.id);
+      }
       seenFingerprints.clear();
     }
 
@@ -615,25 +619,62 @@ class _DataSectionState extends ConsumerState<DataSection> {
           DateTime.tryParse((entryMap['createdAt'] as String?) ?? '') ??
           DateTime.now();
       final type = _parseEntryType(entryMap['type'] as String?);
-      final entry = Entry(
-        createdAt: createdAt,
-        typeIndex: type.index,
-        text: entryMap['text'] as String?,
-        mediaPath: restoredMediaPath,
-        title: entryMap['title'] as String?,
-        context: entryMap['context'] as String?,
-        mood: entryMap['mood'] as String?,
-        tags: entryMap['tags'] as String?,
-        isReleased: (entryMap['isReleased'] as bool?) ?? false,
-        detectedTheme: entryMap['detectedTheme'] as String?,
-        sentimentScore: (entryMap['sentimentScore'] as num?)?.toDouble(),
-        lastAnalyzedAt: DateTime.tryParse(
-          (entryMap['lastAnalyzedAt'] as String?) ?? '',
-        ),
-        capsuleUnlockDate: DateTime.tryParse(
-          (entryMap['capsuleUnlockDate'] as String?) ?? '',
-        ),
+
+      // Use factory constructors for proper type initialization
+      final Entry entry;
+      switch (type) {
+        case EntryType.line:
+          entry = Entry.line(
+            text: entryMap['text'] as String?,
+            context: entryMap['context'] as String?,
+            mood: entryMap['mood'] as String?,
+          );
+        case EntryType.photo:
+          entry = Entry.photo(
+            mediaPath: restoredMediaPath ?? '',
+            text: entryMap['text'] as String?,
+          );
+        case EntryType.voice:
+          entry = Entry.voice(
+            mediaPath: restoredMediaPath ?? '',
+            text: entryMap['text'] as String?,
+          );
+        case EntryType.object:
+          entry = Entry.object(
+            title: entryMap['title'] as String? ?? '',
+            mediaPath: restoredMediaPath,
+            text: entryMap['text'] as String?,
+          );
+        case EntryType.fragment:
+          entry = Entry.fragment(text: entryMap['text'] as String?);
+        case EntryType.ritual:
+          entry = Entry.ritual(
+            title: entryMap['title'] as String? ?? '',
+            text: entryMap['text'] as String?,
+          );
+        case EntryType.release:
+          entry = Entry.release(text: entryMap['text'] as String?);
+      }
+
+      // Rehydrate fields not set by factories
+      entry.createdAt = createdAt;
+      if (restoredMediaPath != null) entry.mediaPath = restoredMediaPath;
+      entry.title ??= entryMap['title'] as String?;
+      entry.context ??= entryMap['context'] as String?;
+      entry.mood ??= entryMap['mood'] as String?;
+      entry.tags = entryMap['tags'] as String?;
+      entry.isReleased = (entryMap['isReleased'] as bool?) ?? false;
+      entry.detectedTheme = entryMap['detectedTheme'] as String?;
+      entry.sentimentScore = (entryMap['sentimentScore'] as num?)?.toDouble();
+      entry.lastAnalyzedAt = DateTime.tryParse(
+        (entryMap['lastAnalyzedAt'] as String?) ?? '',
       );
+      entry.capsuleUnlockDate = DateTime.tryParse(
+        (entryMap['capsuleUnlockDate'] as String?) ?? '',
+      );
+      // Rehydrate sync identity
+      entry.syncUUID = entryMap['syncUUID'] as String?;
+      entry.deviceId = entryMap['deviceId'] as String?;
 
       await database.saveEntry(entry);
       seenFingerprints.add(fingerprint);
@@ -641,6 +682,16 @@ class _DataSectionState extends ConsumerState<DataSection> {
     }
 
     await database.recountTrees();
+
+    // Import succeeded — permanently remove old data for replace mode
+    if (mode == _ImportMode.replace) {
+      final deleted = database.getDeletedEntries();
+      for (final entry in deleted) {
+        await database.deleteEntry(entry.id);
+      }
+      await fileStorage.clearAllMedia();
+    }
+
     return ImportResult.success(
       importedEntries: importedEntries,
       importedMediaFiles: importedMediaFiles,

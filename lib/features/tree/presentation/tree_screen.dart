@@ -218,7 +218,9 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).cardTheme.color,
+                  color:
+                      Theme.of(context).cardTheme.color ??
+                      Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(28),
                   border: Border.all(color: Theme.of(context).dividerColor),
                   boxShadow: [
@@ -340,7 +342,9 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color,
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
@@ -403,7 +407,9 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).cardTheme.color,
+                  color:
+                      Theme.of(context).cardTheme.color ??
+                      Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Theme.of(context).dividerColor),
                 ),

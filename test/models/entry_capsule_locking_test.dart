@@ -47,9 +47,7 @@ void main() {
         // This test validates that the query optimization is safe:
         // isLocked checks capsuleUnlockDate (not encrypted) so we can
         // filter at the query level without decrypting entries.
-        final entry = Entry();
-        entry.text = null; // Simulate encrypted/missing text
-        entry.title = null;
+        final entry = Entry.fragment(); // fragment allows null text
         entry.capsuleUnlockDate = DateTime.now().add(const Duration(days: 10));
 
         // isLocked should still work even with no text/title

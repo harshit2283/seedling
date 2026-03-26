@@ -78,13 +78,16 @@ void main() {
       ]);
 
       // candidate1 shares "mom" with source, should rank higher
-      if (connections.isNotEmpty) {
-        expect(
-          connections.first.relatedEntry.id,
-          2,
-          reason: 'Family-themed entry should be the strongest connection',
-        );
-      }
+      expect(
+        connections,
+        isNotEmpty,
+        reason: 'Should find connections for family-themed entries',
+      );
+      expect(
+        connections.first.relatedEntry.id,
+        2,
+        reason: 'Family-themed entry should be the strongest connection',
+      );
     });
 
     test('common stop words are still removed', () {
@@ -107,9 +110,12 @@ void main() {
       ]);
 
       // meaningful entry should rank higher than stop-word-only entry
-      if (connections.length >= 2) {
-        expect(connections.first.relatedEntry.id, 2);
-      }
+      expect(
+        connections,
+        isNotEmpty,
+        reason: 'Should find connections for entries with shared words',
+      );
+      expect(connections.first.relatedEntry.id, 2);
     });
   });
 }

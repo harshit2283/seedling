@@ -223,18 +223,18 @@ class _CollageViewFlagNotifier extends Notifier<bool> {
   @override
   bool build() {
     final prefs = ref.watch(sharedPreferencesProvider);
-    return prefs.getBool(PrefsKeys.flagMoodVisualization) ?? false;
+    return prefs.getBool(PrefsKeys.flagCollageView) ?? false;
   }
 
   Future<void> toggle() async {
     state = !state;
     final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setBool(PrefsKeys.flagMoodVisualization, state);
+    await prefs.setBool(PrefsKeys.flagCollageView, state);
   }
 
   Future<void> set(bool value) async {
     state = value;
     final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setBool(PrefsKeys.flagMoodVisualization, value);
+    await prefs.setBool(PrefsKeys.flagCollageView, value);
   }
 }

@@ -5,6 +5,7 @@ import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
 import 'package:seedling/core/services/ritual/ritual_service.dart';
+import 'package:seedling/core/services/entry_type_usage_service.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
 
@@ -14,22 +15,27 @@ class MockSyncEngine extends Mock implements SyncEngine {}
 
 class MockRitualService extends Mock implements RitualService {}
 
+class MockEntryTypeUsageService extends Mock implements EntryTypeUsageService {}
+
 void main() {
   setUpAll(() {
-    registerFallbackValue(Entry());
+    registerFallbackValue(Entry.line(text: ''));
     registerFallbackValue(SyncChangeType.create);
+    registerFallbackValue(EntryType.line);
   });
 
   group('EntryCreatorNotifier sync integration', () {
     late MockObjectBoxDatabase mockDb;
     late MockSyncEngine mockSyncEngine;
     late MockRitualService mockRitualService;
+    late MockEntryTypeUsageService mockUsageService;
     late ProviderContainer container;
 
     setUp(() {
       mockDb = MockObjectBoxDatabase();
       mockSyncEngine = MockSyncEngine();
       mockRitualService = MockRitualService();
+      mockUsageService = MockEntryTypeUsageService();
 
       // Default stubs
       when(() => mockSyncEngine.ensureSyncUUID(any())).thenReturn(null);
@@ -37,12 +43,19 @@ void main() {
       when(
         () => mockRitualService.updateAfterEntry(any()),
       ).thenAnswer((_) async {});
+      when(
+        () => mockUsageService.recordUsage(
+          any(),
+          isCapsule: any(named: 'isCapsule'),
+        ),
+      ).thenAnswer((_) async {});
 
       container = ProviderContainer(
         overrides: [
           databaseProvider.overrideWithValue(mockDb),
           syncEngineProvider.overrideWithValue(mockSyncEngine),
           ritualServiceProvider.overrideWithValue(mockRitualService),
+          entryTypeUsageServiceProvider.overrideWithValue(mockUsageService),
         ],
       );
     });
@@ -151,33 +164,35 @@ void main() {
     });
 
     test(
-      'deleteEntry grabs entry before soft delete, pushes as update',
+      'deleteEntry re-fetches after soft delete, pushes tombstoned entry',
       () async {
-        final entry = Entry.line(text: 'to delete')
+        final tombstonedEntry = Entry.line(text: 'to delete')
           ..id = 10
-          ..syncUUID = '550e8400-e29b-41d4-a716-446655440010';
+          ..syncUUID = '550e8400-e29b-41d4-a716-446655440010'
+          ..isDeleted = true
+          ..deletedAt = DateTime.now();
 
-        when(() => mockDb.getEntry(10)).thenReturn(entry);
         when(() => mockDb.softDeleteEntry(10)).thenAnswer((_) async => true);
+        when(() => mockDb.getEntry(10)).thenReturn(tombstonedEntry);
 
         final notifier = container.read(entryCreatorProvider.notifier);
         final result = await notifier.deleteEntry(10);
 
         expect(result, isTrue);
-        // Verify getEntry is called BEFORE softDeleteEntry
+        // Verify getEntry is called AFTER softDeleteEntry to get tombstone
         verifyInOrder([
-          () => mockDb.getEntry(10),
           () => mockDb.softDeleteEntry(10),
+          () => mockDb.getEntry(10),
         ]);
-        // Soft delete should use SyncChangeType.update, not delete
+        // Soft delete should use SyncChangeType.update with tombstoned entry
         verify(
-          () => mockSyncEngine.queuePush(entry, SyncChangeType.update),
+          () =>
+              mockSyncEngine.queuePush(tombstonedEntry, SyncChangeType.update),
         ).called(1);
       },
     );
 
     test('deleteEntry does not push sync if soft delete fails', () async {
-      when(() => mockDb.getEntry(10)).thenReturn(Entry()..id = 10);
       when(() => mockDb.softDeleteEntry(10)).thenAnswer((_) async => false);
 
       final notifier = container.read(entryCreatorProvider.notifier);

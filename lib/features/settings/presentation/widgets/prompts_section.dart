@@ -37,8 +37,6 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
               activeTrackColor: SeedlingColors.forestGreen,
               onChanged: (value) {
                 ref.read(promptSelectorProvider).setEnabled(value);
-                // Force rebuild
-                setState(() {});
               },
             ),
           ),
@@ -100,7 +98,6 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
           value: ref.watch(promptsEnabledProvider),
           onChanged: (value) {
             ref.read(promptSelectorProvider).setEnabled(value);
-            setState(() {});
           },
         ),
         buildMaterialSwitchTile(
@@ -145,6 +142,31 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
 
   Future<void> _pickReminderCadence() async {
     final current = ref.read(reminderSettingsProvider);
+
+    if (PlatformUtils.isIOS) {
+      final selected = await showCupertinoModalPopup<ReminderCadence>(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: const Text('Reminder Cadence'),
+          actions: ReminderCadence.values.map((cadence) {
+            return CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(context).pop(cadence),
+              child: Text(cadence.label),
+            );
+          }).toList(),
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ),
+      );
+      if (selected != null) {
+        await ref.read(reminderSettingsProvider.notifier).setCadence(selected);
+      }
+      return;
+    }
+
+    // Android: existing showModalBottomSheet code
     final selected = await showModalBottomSheet<ReminderCadence>(
       context: context,
       builder: (context) {
@@ -164,7 +186,6 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
         );
       },
     );
-
     if (selected != null) {
       await ref.read(reminderSettingsProvider.notifier).setCadence(selected);
     }
@@ -172,6 +193,63 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
 
   Future<void> _pickReminderTime() async {
     final current = ref.read(reminderSettingsProvider);
+
+    if (PlatformUtils.isIOS) {
+      var selectedTime = TimeOfDay(hour: current.hour, minute: current.minute);
+      await showCupertinoModalPopup<void>(
+        context: context,
+        builder: (context) => Container(
+          height: 250,
+          color: CupertinoColors.systemBackground.resolveFrom(context),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    child: const Text('Cancel'),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  CupertinoButton(
+                    child: const Text('Done'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      ref
+                          .read(reminderSettingsProvider.notifier)
+                          .setTime(
+                            hour: selectedTime.hour,
+                            minute: selectedTime.minute,
+                          );
+                    },
+                  ),
+                ],
+              ),
+              Expanded(
+                child: CupertinoDatePicker(
+                  mode: CupertinoDatePickerMode.time,
+                  initialDateTime: DateTime(
+                    2024,
+                    1,
+                    1,
+                    current.hour,
+                    current.minute,
+                  ),
+                  onDateTimeChanged: (dateTime) {
+                    selectedTime = TimeOfDay(
+                      hour: dateTime.hour,
+                      minute: dateTime.minute,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Android: existing showTimePicker code
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: current.hour, minute: current.minute),

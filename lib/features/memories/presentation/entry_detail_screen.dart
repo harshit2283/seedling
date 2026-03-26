@@ -340,7 +340,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
 
   Widget _buildLinkedMemories(BuildContext context, Entry entry) {
     // Watch entries stream so linked entries update when they change
-    final db = ref.watch(databaseProvider);
+    final db = ref.read(databaseProvider);
     ref.watch(entriesStreamProvider);
     final linkedEntries = db.getEntriesBySyncUUIDs(entry.manualLinkList);
 
