@@ -120,7 +120,7 @@ class ForestScreen extends ConsumerWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: SeedlingColors.softCream,
+                    color: Theme.of(context).dividerColor,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: SeedlingColors.lightBark.withValues(alpha: 0.3),
@@ -208,7 +208,7 @@ class ForestScreen extends ConsumerWidget {
     return Container(
       height: 82,
       decoration: BoxDecoration(
-        color: SeedlingColors.softCream.withValues(alpha: 0.65),
+        color: Theme.of(context).dividerColor.withValues(alpha: 0.65),
         border: Border(
           top: BorderSide(
             color: SeedlingColors.lightBark.withValues(alpha: 0.18),

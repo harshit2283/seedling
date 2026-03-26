@@ -193,7 +193,7 @@ class _RelatedMemoryCard extends StatelessWidget {
               shape: BoxShape.circle,
               color: isActive
                   ? SeedlingColors.forestGreen
-                  : SeedlingColors.softCream,
+                  : Theme.of(context).dividerColor,
             ),
           );
         }),

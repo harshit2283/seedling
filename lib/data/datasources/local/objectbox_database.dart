@@ -214,16 +214,14 @@ class ObjectBoxDatabase {
       year: year,
       includeDeleted: includeDeleted,
       descending: descending,
+      excludeLockedCapsules: !includeLockedCapsules,
     );
     query.offset = offset;
-    query.limit = includeLockedCapsules ? limit : limit * 3;
+    query.limit = limit;
     final results = query.find();
     query.close();
     _decryptEntries(results);
-    if (includeLockedCapsules) {
-      return results.take(limit).toList();
-    }
-    return results.where((entry) => !entry.isLocked).take(limit).toList();
+    return results;
   }
 
   /// Count entries with optional year and deletion filters.
@@ -235,14 +233,11 @@ class ObjectBoxDatabase {
     final query = _buildEntriesQuery(
       year: year,
       includeDeleted: includeDeleted,
+      excludeLockedCapsules: !includeLockedCapsules,
     );
-    final entries = query.find();
+    final count = query.count();
     query.close();
-    _decryptEntries(entries);
-    if (includeLockedCapsules) {
-      return entries.length;
-    }
-    return entries.where((entry) => !entry.isLocked).length;
+    return count;
   }
 
   /// Soft delete an entry (recoverable for 30 days) and update tree count
@@ -543,23 +538,37 @@ class ObjectBoxDatabase {
     int? year,
     bool includeDeleted = false,
     bool descending = true,
+    bool excludeLockedCapsules = false,
   }) {
-    QueryBuilder<Entry> queryBuilder;
+    Condition<Entry>? condition;
+
     if (year != null) {
       final startOfYear = DateTime(year);
       final endOfYear = DateTime(year + 1);
-      final yearCondition = Entry_.createdAt.between(
+      condition = Entry_.createdAt.between(
         startOfYear.millisecondsSinceEpoch,
         endOfYear.millisecondsSinceEpoch - 1,
       );
-      queryBuilder = includeDeleted
-          ? _entryBox.query(yearCondition)
-          : _entryBox.query(yearCondition.and(Entry_.isDeleted.equals(false)));
-    } else {
-      queryBuilder = includeDeleted
-          ? _entryBox.query()
-          : _entryBox.query(Entry_.isDeleted.equals(false));
     }
+
+    if (!includeDeleted) {
+      final notDeleted = Entry_.isDeleted.equals(false);
+      condition = condition != null ? condition.and(notDeleted) : notDeleted;
+    }
+
+    if (excludeLockedCapsules) {
+      // Exclude entries with capsuleUnlockDate in the future (locked capsules).
+      // capsuleUnlockDate is stored unencrypted, so this is query-level filtering.
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final notLocked = Entry_.capsuleUnlockDate.isNull().or(
+        Entry_.capsuleUnlockDate.lessThan(now),
+      );
+      condition = condition != null ? condition.and(notLocked) : notLocked;
+    }
+
+    final queryBuilder = condition != null
+        ? _entryBox.query(condition)
+        : _entryBox.query();
 
     return queryBuilder
         .order(Entry_.createdAt, flags: descending ? Order.descending : 0)

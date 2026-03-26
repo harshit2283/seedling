@@ -61,3 +61,4 @@ android/key.properties
 ios/Runner/GoogleService-Info.plist
 ios/Flutter/*.private.xcconfig
 ios/Flutter/LocalSecrets.xcconfig
+.claude/worktrees/

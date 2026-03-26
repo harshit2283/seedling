@@ -97,7 +97,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
 
   Widget _buildNotFound(BuildContext context) {
     return Scaffold(
-      backgroundColor: SeedlingColors.creamPaper,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: PlatformUtils.isIOS
           ? CupertinoNavigationBar(
                   middle: const Text('Memory'),
@@ -139,14 +139,14 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
     // Embedded mode: no scaffold/nav bar, just the content body
     if (widget.embedded) {
       return ColoredBox(
-        color: SeedlingColors.creamPaper,
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(child: _buildContent(context, entry, typeColor)),
       );
     }
 
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
-        backgroundColor: SeedlingColors.creamPaper,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         navigationBar: CupertinoNavigationBar(
           middle: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
           backgroundColor: Colors.transparent,
@@ -165,7 +165,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
     }
 
     return Scaffold(
-      backgroundColor: SeedlingColors.creamPaper,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
         backgroundColor: Colors.transparent,
@@ -339,7 +339,9 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
   // ---------------------------------------------------------------------------
 
   Widget _buildLinkedMemories(BuildContext context, Entry entry) {
+    // Watch entries stream so linked entries update when they change
     final db = ref.read(databaseProvider);
+    ref.watch(entriesStreamProvider);
     final linkedEntries = db.getEntriesBySyncUUIDs(entry.manualLinkList);
 
     return Column(
@@ -607,7 +609,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
           color: SeedlingColors.textPrimary,
         ),
         decoration: BoxDecoration(
-          color: SeedlingColors.softCream,
+          color: Theme.of(context).dividerColor,
           borderRadius: BorderRadius.circular(12),
         ),
         padding: const EdgeInsets.all(16),
@@ -623,7 +625,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
       decoration: InputDecoration(
         hintText: 'Title',
         filled: true,
-        fillColor: SeedlingColors.softCream,
+        fillColor: Theme.of(context).dividerColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -653,7 +655,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
           fontStyle: isRelease ? FontStyle.italic : FontStyle.normal,
         ),
         decoration: BoxDecoration(
-          color: SeedlingColors.softCream,
+          color: Theme.of(context).dividerColor,
           borderRadius: BorderRadius.circular(12),
         ),
         padding: const EdgeInsets.all(16),
@@ -674,7 +676,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: SeedlingColors.softCream,
+        fillColor: Theme.of(context).dividerColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -747,7 +749,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
           return Container(
             height: 240,
             decoration: BoxDecoration(
-              color: SeedlingColors.softCream,
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
@@ -807,7 +809,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: SeedlingColors.softCream,
+        color: Theme.of(context).dividerColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
@@ -1287,7 +1289,7 @@ class _LinkedMemoryCardContent extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: SeedlingColors.softCream.withValues(alpha: 0.85),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(8),
               ),
             );
@@ -1492,7 +1494,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
         maxHeight: MediaQuery.of(context).size.height * 0.75,
       ),
       decoration: BoxDecoration(
-        color: SeedlingColors.creamPaper,
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -1525,7 +1527,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
                 hintText: 'Search memories...',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: SeedlingColors.softCream,
+                fillColor: Theme.of(context).dividerColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,

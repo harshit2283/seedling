@@ -211,5 +211,3 @@ class VoiceRecordingService {
     await _recorder.dispose();
   }
 }
-
-typedef VoidCallback = void Function();

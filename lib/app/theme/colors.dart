@@ -21,6 +21,10 @@ class SeedlingColors {
   static const Color warmWhite = Color(0xFFFFFDF9);
   static const Color softCream = Color(0xFFF5F0E8);
 
+  // Gradient endpoints for the tree screen background
+  static const Color backgroundGradientStart = Color(0xFFF9F8F5);
+  static const Color backgroundGradientEnd = Color(0xFFF2EEE6);
+
   // Text colors
   static const Color textPrimary = Color(0xFF2C2C2C);
   static const Color textSecondary = Color(0xFF6B6B6B);

@@ -90,7 +90,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return CupertinoPageScaffold(
-      backgroundColor: SeedlingColors.creamPaper,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       child: SafeArea(
         bottom: false,
         child: Stack(
@@ -129,7 +129,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return Scaffold(
-      backgroundColor: SeedlingColors.creamPaper,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Stack(
           children: [
@@ -166,12 +166,18 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required GentlePrompt? prompt,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFF9F8F5), Color(0xFFF2EEE6)],
+          colors: isDark
+              ? [SeedlingColors.backgroundDark, SeedlingColors.surfaceDark]
+              : [
+                  SeedlingColors.backgroundGradientStart,
+                  SeedlingColors.backgroundGradientEnd,
+                ],
         ),
       ),
       child: SingleChildScrollView(
@@ -215,9 +221,11 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: SeedlingColors.warmWhite,
+                  color:
+                      Theme.of(context).cardTheme.color ??
+                      Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: SeedlingColors.softCream),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.06),
@@ -337,9 +345,11 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: SeedlingColors.warmWhite,
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: SeedlingColors.softCream),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,9 +410,11 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: SeedlingColors.warmWhite,
+                  color:
+                      Theme.of(context).cardTheme.color ??
+                      Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: SeedlingColors.softCream),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,

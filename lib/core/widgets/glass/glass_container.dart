@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../app/theme/colors.dart';
 import '../../platform/platform_utils.dart';
 
 /// A container that applies a frosted glass effect on iOS
@@ -25,7 +24,10 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = backgroundColor ?? SeedlingColors.warmWhite;
+    final bgColor =
+        backgroundColor ??
+        (Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface);
     final radius = BorderRadius.circular(borderRadius);
 
     if (PlatformUtils.isIOS) {
@@ -77,7 +79,10 @@ class GlassSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = backgroundColor ?? SeedlingColors.warmWhite;
+    final bgColor =
+        backgroundColor ??
+        (Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface);
     final radius = BorderRadius.vertical(top: Radius.circular(borderRadius));
 
     if (PlatformUtils.isIOS) {

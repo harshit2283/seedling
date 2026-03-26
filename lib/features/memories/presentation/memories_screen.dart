@@ -120,9 +120,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     bool collageEnabled,
   ) {
     return CupertinoPageScaffold(
-      backgroundColor: SeedlingColors.creamPaper,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: SeedlingColors.creamPaper.withValues(alpha: 0.9),
+        backgroundColor: Colors.transparent,
         border: null,
         middle: const Text('Memories'),
         leading: CupertinoNavigationBarBackButton(
@@ -313,13 +313,15 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: PlatformUtils.isIOS
                 ? CupertinoButton(
-                    color: SeedlingColors.softCream,
+                    color: Theme.of(context).dividerColor,
                     borderRadius: BorderRadius.circular(12),
                     onPressed: () =>
                         ref.read(memoriesPageProvider.notifier).loadMore(),
-                    child: const Text(
+                    child: Text(
                       'Load more',
-                      style: TextStyle(color: SeedlingColors.textPrimary),
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
                     ),
                   )
                 : OutlinedButton(
@@ -379,7 +381,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: SeedlingColors.softCream,
+                fillColor: Theme.of(context).dividerColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -494,10 +496,11 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
           decoration: BoxDecoration(
             color: isSelected
                 ? color.withValues(alpha: 0.2)
-                : SeedlingColors.warmWhite,
+                : Theme.of(context).cardTheme.color ??
+                      Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? color : SeedlingColors.softCream,
+              color: isSelected ? color : Theme.of(context).dividerColor,
               width: 1,
             ),
           ),
@@ -518,7 +521,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                 decoration: BoxDecoration(
                   color: isSelected
                       ? color.withValues(alpha: 0.2)
-                      : SeedlingColors.softCream,
+                      : Theme.of(context).dividerColor,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -627,7 +630,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
           decoration: BoxDecoration(
             color: isSelected
                 ? color.withValues(alpha: 0.2)
-                : SeedlingColors.softCream,
+                : Theme.of(context).dividerColor,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isSelected ? color : Colors.transparent,
@@ -825,13 +828,15 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: PlatformUtils.isIOS
                 ? CupertinoButton(
-                    color: SeedlingColors.softCream,
+                    color: Theme.of(context).dividerColor,
                     borderRadius: BorderRadius.circular(12),
                     onPressed: () =>
                         ref.read(memoriesPageProvider.notifier).loadMore(),
-                    child: const Text(
+                    child: Text(
                       'Load more',
-                      style: TextStyle(color: SeedlingColors.textPrimary),
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
                     ),
                   )
                 : OutlinedButton(

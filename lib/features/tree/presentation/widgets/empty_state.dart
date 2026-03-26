@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../core/platform/platform_utils.dart';
 
 /// Empty state shown when no memories have been captured yet
 class EmptyState extends StatelessWidget {
@@ -13,9 +14,11 @@ class EmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 26, 24, 20),
       decoration: BoxDecoration(
-        color: SeedlingColors.warmWhite,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: SeedlingColors.softCream),
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(PlatformUtils.isIOS ? 20.0 : 12.0),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

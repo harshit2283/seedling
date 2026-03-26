@@ -9,6 +9,7 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../constants/prefs_keys.dart';
 import 'sync_backend.dart';
 import 'sync_models.dart';
 
@@ -90,7 +91,6 @@ class GoogleDriveSyncService implements SyncBackend {
   static const _syncFileName = 'seedling_sync_db_v1.json';
   static const _recoveryDirName = 'sync_recovery';
   static const _scopes = <String>[drive.DriveApi.driveAppdataScope];
-  static const _lockedAccountKey = 'sync_gdrive_locked_account';
 
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
@@ -137,7 +137,7 @@ class GoogleDriveSyncService implements SyncBackend {
 
   Future<String?> get lockedAccount async {
     await _ensurePrefs();
-    return _prefs!.getString(_lockedAccountKey);
+    return _prefs!.getString(PrefsKeys.syncGDriveLockedAccount);
   }
 
   Future<bool> canUseAccount(String email) async {
@@ -147,12 +147,12 @@ class GoogleDriveSyncService implements SyncBackend {
 
   Future<void> _pinAccount(String email) async {
     await _ensurePrefs();
-    await _prefs!.setString(_lockedAccountKey, email);
+    await _prefs!.setString(PrefsKeys.syncGDriveLockedAccount, email);
   }
 
   Future<void> resetAccountLock() async {
     await _ensurePrefs();
-    await _prefs!.remove(_lockedAccountKey);
+    await _prefs!.remove(PrefsKeys.syncGDriveLockedAccount);
     await disconnect();
   }
 

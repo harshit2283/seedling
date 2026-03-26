@@ -38,7 +38,7 @@ class EntryTypeButton extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? color
-                : SeedlingColors.softCream.withValues(alpha: 0.5),
+                : Theme.of(context).dividerColor.withValues(alpha: 0.5),
             width: isSelected ? 2 : 1,
           ),
         ),

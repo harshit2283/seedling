@@ -158,9 +158,11 @@ class ThemeInsightsScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: SeedlingColors.warmWhite,
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: SeedlingColors.softCream),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,9 +291,11 @@ class ThemeInsightsScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: SeedlingColors.warmWhite,
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: SeedlingColors.softCream),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -432,7 +436,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
           Container(
             height: 8,
             decoration: BoxDecoration(
-              color: SeedlingColors.softCream,
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(4),
             ),
             child: FractionallySizedBox(
