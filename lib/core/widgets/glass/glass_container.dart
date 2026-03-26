@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../app/theme/colors.dart';
 import '../../platform/platform_utils.dart';
 
 /// A container that applies a frosted glass effect on iOS

@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../data/models/entry.dart';
 import '../../../data/models/ritual.dart';
 import '../ai/theme_detector_service.dart';
 import '../ai/connection_finder_service.dart';

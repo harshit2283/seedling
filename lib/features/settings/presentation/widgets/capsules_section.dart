@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
@@ -7,7 +6,6 @@ import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
-import 'settings_helpers.dart';
 
 /// Settings section for memory capsules.
 class CapsulesSection extends ConsumerWidget {
