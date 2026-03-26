@@ -7,7 +7,8 @@ class OnboardingPreferences {
 
   OnboardingPreferences(this._prefs);
 
-  bool get isCompleted => _prefs.getBool(PrefsKeys.onboardingCompleted) ?? false;
+  bool get isCompleted =>
+      _prefs.getBool(PrefsKeys.onboardingCompleted) ?? false;
 
   Future<void> setCompleted() async {
     await _prefs.setBool(PrefsKeys.onboardingCompleted, true);

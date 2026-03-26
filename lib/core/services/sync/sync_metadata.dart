@@ -49,7 +49,10 @@ class SyncMetadata {
   }
 
   Future<void> setLastSyncTime(DateTime time) async {
-    await _prefs.setInt(_key(PrefsKeys.syncLastSync), time.millisecondsSinceEpoch);
+    await _prefs.setInt(
+      _key(PrefsKeys.syncLastSync),
+      time.millisecondsSinceEpoch,
+    );
   }
 
   /// Unique device identifier for this installation

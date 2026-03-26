@@ -19,7 +19,8 @@ class AboutSection extends ConsumerWidget {
         header: const Text('About'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               AdaptiveIcons.info,
               SeedlingColors.textSecondary,
               isLight: true,

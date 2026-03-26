@@ -560,9 +560,9 @@ class ObjectBoxDatabase {
       // Exclude entries with capsuleUnlockDate in the future (locked capsules).
       // capsuleUnlockDate is stored unencrypted, so this is query-level filtering.
       final now = DateTime.now().millisecondsSinceEpoch;
-      final notLocked = Entry_.capsuleUnlockDate
-          .isNull()
-          .or(Entry_.capsuleUnlockDate.lessThan(now));
+      final notLocked = Entry_.capsuleUnlockDate.isNull().or(
+        Entry_.capsuleUnlockDate.lessThan(now),
+      );
       condition = condition != null ? condition.and(notLocked) : notLocked;
     }
 

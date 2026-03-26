@@ -41,24 +41,26 @@ void main() {
       expect(entry.capsuleUnlockDate, unlockDate);
     });
 
-    test('isLocked depends only on capsuleUnlockDate, not on encrypted fields',
-        () {
-      // This test validates that the query optimization is safe:
-      // isLocked checks capsuleUnlockDate (not encrypted) so we can
-      // filter at the query level without decrypting entries.
-      final entry = Entry();
-      entry.text = null; // Simulate encrypted/missing text
-      entry.title = null;
-      entry.capsuleUnlockDate = DateTime.now().add(const Duration(days: 10));
+    test(
+      'isLocked depends only on capsuleUnlockDate, not on encrypted fields',
+      () {
+        // This test validates that the query optimization is safe:
+        // isLocked checks capsuleUnlockDate (not encrypted) so we can
+        // filter at the query level without decrypting entries.
+        final entry = Entry();
+        entry.text = null; // Simulate encrypted/missing text
+        entry.title = null;
+        entry.capsuleUnlockDate = DateTime.now().add(const Duration(days: 10));
 
-      // isLocked should still work even with no text/title
-      expect(entry.isLocked, isTrue);
+        // isLocked should still work even with no text/title
+        expect(entry.isLocked, isTrue);
 
-      entry.capsuleUnlockDate = DateTime.now().subtract(
-        const Duration(days: 1),
-      );
-      expect(entry.isLocked, isFalse);
-    });
+        entry.capsuleUnlockDate = DateTime.now().subtract(
+          const Duration(days: 1),
+        );
+        expect(entry.isLocked, isFalse);
+      },
+    );
 
     test('daysUntilUnlock returns positive for future capsules', () {
       final entry = Entry.capsule(

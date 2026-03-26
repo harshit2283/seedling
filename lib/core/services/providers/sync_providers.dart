@@ -19,7 +19,6 @@ import 'media_providers.dart';
 
 /// iOS sync provider preference (Android always uses Google Drive).
 class SyncProviderNotifier extends Notifier<SyncProviderType> {
-
   @override
   SyncProviderType build() {
     if (!Platform.isIOS) return SyncProviderType.googleDrive;

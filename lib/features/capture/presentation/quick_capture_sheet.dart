@@ -241,7 +241,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
     // Wrap with glass effect on iOS
     return GlassSheet(
-      backgroundColor: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+      backgroundColor:
+          Theme.of(context).cardTheme.color ??
+          Theme.of(context).colorScheme.surface,
       opacity: PlatformUtils.isIOS ? 0.85 : 1.0,
       child: content,
     );
@@ -626,7 +628,8 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           decoration: BoxDecoration(
             color: active
                 ? SeedlingColors.themeGratitude.withValues(alpha: 0.2)
-                : Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+                : Theme.of(context).cardTheme.color ??
+                      Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: active

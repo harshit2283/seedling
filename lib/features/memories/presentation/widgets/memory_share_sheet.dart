@@ -84,7 +84,9 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+              color:
+                  Theme.of(context).cardTheme.color ??
+                  Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(

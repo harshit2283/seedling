@@ -58,7 +58,9 @@ Widget buildMaterialSection(
       Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+          color:
+              Theme.of(context).cardTheme.color ??
+              Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Theme.of(context).dividerColor),
         ),
@@ -66,8 +68,7 @@ Widget buildMaterialSection(
           children: [
             for (int i = 0; i < children.length; i++) ...[
               children[i],
-              if (i < children.length - 1)
-                const Divider(height: 1, indent: 56),
+              if (i < children.length - 1) const Divider(height: 1, indent: 56),
             ],
           ],
         ),
@@ -327,8 +328,7 @@ String sanitizeUserMessage(
 
   final lower = withoutPrefix.toLowerCase();
   if (lower.contains('stack trace') ||
-      lower.contains('type \'') &&
-          lower.contains('is not a subtype of type')) {
+      lower.contains('type \'') && lower.contains('is not a subtype of type')) {
     return fallback;
   }
   if (withoutPrefix.contains('/') || withoutPrefix.contains(r'\')) {

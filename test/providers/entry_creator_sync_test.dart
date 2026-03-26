@@ -33,9 +33,7 @@ void main() {
 
       // Default stubs
       when(() => mockSyncEngine.ensureSyncUUID(any())).thenReturn(null);
-      when(
-        () => mockSyncEngine.queuePush(any(), any()),
-      ).thenReturn(null);
+      when(() => mockSyncEngine.queuePush(any(), any())).thenReturn(null);
       when(
         () => mockRitualService.updateAfterEntry(any()),
       ).thenAnswer((_) async {});
@@ -55,9 +53,7 @@ void main() {
 
     test('createLineEntry calls ensureSyncUUID before saveEntry', () async {
       final savedEntry = Entry.line(text: 'test')..id = 1;
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((_) async => savedEntry);
+      when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);
 
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createLineEntry('test');
@@ -76,9 +72,7 @@ void main() {
 
     test('createPhotoEntry calls ensureSyncUUID and queuePush', () async {
       final savedEntry = Entry.photo(mediaPath: '/photo.jpg')..id = 2;
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((_) async => savedEntry);
+      when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);
 
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createPhotoEntry('/photo.jpg', text: 'sunset');
@@ -91,9 +85,7 @@ void main() {
 
     test('createVoiceEntry calls ensureSyncUUID and queuePush', () async {
       final savedEntry = Entry.voice(mediaPath: '/voice.m4a')..id = 3;
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((_) async => savedEntry);
+      when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);
 
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createVoiceEntry('/voice.m4a');
@@ -106,9 +98,7 @@ void main() {
 
     test('createObjectEntry calls ensureSyncUUID and queuePush', () async {
       final savedEntry = Entry.object(title: 'Ring')..id = 4;
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((_) async => savedEntry);
+      when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);
 
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createObjectEntry('Ring');
@@ -121,9 +111,7 @@ void main() {
 
     test('createReleaseEntry calls ensureSyncUUID and queuePush', () async {
       final savedEntry = Entry.release(text: 'letting go')..id = 5;
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((_) async => savedEntry);
+      when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);
 
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createReleaseEntry('letting go');
@@ -136,9 +124,7 @@ void main() {
 
     test('createFragmentEntry calls ensureSyncUUID and queuePush', () async {
       final savedEntry = Entry.fragment(text: 'half thought')..id = 6;
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((_) async => savedEntry);
+      when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);
 
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createFragmentEntry('half thought');
@@ -153,9 +139,7 @@ void main() {
       final unlockDate = DateTime.now().add(const Duration(days: 365));
       final savedEntry = Entry.capsule(text: 'future', unlockDate: unlockDate)
         ..id = 7;
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((_) async => savedEntry);
+      when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);
 
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createCapsuleEntry('future', unlockDate);
@@ -166,29 +150,31 @@ void main() {
       ).called(1);
     });
 
-    test('deleteEntry grabs entry before soft delete, pushes as update',
-        () async {
-      final entry = Entry.line(text: 'to delete')
-        ..id = 10
-        ..syncUUID = '550e8400-e29b-41d4-a716-446655440010';
+    test(
+      'deleteEntry grabs entry before soft delete, pushes as update',
+      () async {
+        final entry = Entry.line(text: 'to delete')
+          ..id = 10
+          ..syncUUID = '550e8400-e29b-41d4-a716-446655440010';
 
-      when(() => mockDb.getEntry(10)).thenReturn(entry);
-      when(() => mockDb.softDeleteEntry(10)).thenAnswer((_) async => true);
+        when(() => mockDb.getEntry(10)).thenReturn(entry);
+        when(() => mockDb.softDeleteEntry(10)).thenAnswer((_) async => true);
 
-      final notifier = container.read(entryCreatorProvider.notifier);
-      final result = await notifier.deleteEntry(10);
+        final notifier = container.read(entryCreatorProvider.notifier);
+        final result = await notifier.deleteEntry(10);
 
-      expect(result, isTrue);
-      // Verify getEntry is called BEFORE softDeleteEntry
-      verifyInOrder([
-        () => mockDb.getEntry(10),
-        () => mockDb.softDeleteEntry(10),
-      ]);
-      // Soft delete should use SyncChangeType.update, not delete
-      verify(
-        () => mockSyncEngine.queuePush(entry, SyncChangeType.update),
-      ).called(1);
-    });
+        expect(result, isTrue);
+        // Verify getEntry is called BEFORE softDeleteEntry
+        verifyInOrder([
+          () => mockDb.getEntry(10),
+          () => mockDb.softDeleteEntry(10),
+        ]);
+        // Soft delete should use SyncChangeType.update, not delete
+        verify(
+          () => mockSyncEngine.queuePush(entry, SyncChangeType.update),
+        ).called(1);
+      },
+    );
 
     test('deleteEntry does not push sync if soft delete fails', () async {
       when(() => mockDb.getEntry(10)).thenReturn(Entry()..id = 10);
@@ -200,37 +186,41 @@ void main() {
       verifyNever(() => mockSyncEngine.queuePush(any(), any()));
     });
 
-    test('permanentlyDeleteEntry grabs entry before hard delete, pushes as delete',
-        () async {
-      final entry = Entry.line(text: 'gone forever')
-        ..id = 11
-        ..syncUUID = '550e8400-e29b-41d4-a716-446655440011';
+    test(
+      'permanentlyDeleteEntry grabs entry before hard delete, pushes as delete',
+      () async {
+        final entry = Entry.line(text: 'gone forever')
+          ..id = 11
+          ..syncUUID = '550e8400-e29b-41d4-a716-446655440011';
 
-      when(() => mockDb.getEntry(11)).thenReturn(entry);
-      when(() => mockDb.deleteEntry(11)).thenAnswer((_) async => true);
+        when(() => mockDb.getEntry(11)).thenReturn(entry);
+        when(() => mockDb.deleteEntry(11)).thenAnswer((_) async => true);
 
-      final notifier = container.read(entryCreatorProvider.notifier);
-      final result = await notifier.permanentlyDeleteEntry(11);
+        final notifier = container.read(entryCreatorProvider.notifier);
+        final result = await notifier.permanentlyDeleteEntry(11);
 
-      expect(result, isTrue);
-      verify(
-        () => mockSyncEngine.queuePush(entry, SyncChangeType.delete),
-      ).called(1);
-    });
+        expect(result, isTrue);
+        verify(
+          () => mockSyncEngine.queuePush(entry, SyncChangeType.delete),
+        ).called(1);
+      },
+    );
 
-    test('permanentlyDeleteEntry does not push if entry has no syncUUID',
-        () async {
-      final entry = Entry.line(text: 'no uuid')..id = 12;
-      // syncUUID is null
+    test(
+      'permanentlyDeleteEntry does not push if entry has no syncUUID',
+      () async {
+        final entry = Entry.line(text: 'no uuid')..id = 12;
+        // syncUUID is null
 
-      when(() => mockDb.getEntry(12)).thenReturn(entry);
-      when(() => mockDb.deleteEntry(12)).thenAnswer((_) async => true);
+        when(() => mockDb.getEntry(12)).thenReturn(entry);
+        when(() => mockDb.deleteEntry(12)).thenAnswer((_) async => true);
 
-      final notifier = container.read(entryCreatorProvider.notifier);
-      await notifier.permanentlyDeleteEntry(12);
+        final notifier = container.read(entryCreatorProvider.notifier);
+        await notifier.permanentlyDeleteEntry(12);
 
-      verifyNever(() => mockSyncEngine.queuePush(any(), any()));
-    });
+        verifyNever(() => mockSyncEngine.queuePush(any(), any()));
+      },
+    );
 
     test('restoreEntry pushes as update after restore', () async {
       final entry = Entry.line(text: 'restored')

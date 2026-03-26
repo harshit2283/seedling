@@ -43,35 +43,36 @@ void main() {
       entry.id = 1;
       return entry;
     });
-    when(() => mockDb.watchEntries()).thenAnswer(
-      (_) => Stream.value(<Entry>[]),
-    );
-    when(() => mockDb.watchCurrentTree()).thenAnswer(
-      (_) => Stream.value(null),
-    );
-    when(() => mockDb.watchRituals()).thenAnswer(
-      (_) => Stream.value([]),
-    );
+    when(
+      () => mockDb.watchEntries(),
+    ).thenAnswer((_) => Stream.value(<Entry>[]));
+    when(() => mockDb.watchCurrentTree()).thenAnswer((_) => Stream.value(null));
+    when(() => mockDb.watchRituals()).thenAnswer((_) => Stream.value([]));
     when(() => mockDb.getAllEntries()).thenReturn([]);
-    when(() => mockDb.getEntriesPage(
-          limit: any(named: 'limit'),
-          offset: any(named: 'offset'),
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          descending: any(named: 'descending'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn([]);
-    when(() => mockDb.getEntriesCount(
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn(0);
+    when(
+      () => mockDb.getEntriesPage(
+        limit: any(named: 'limit'),
+        offset: any(named: 'offset'),
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        descending: any(named: 'descending'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn([]);
+    when(
+      () => mockDb.getEntriesCount(
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn(0);
     when(() => mockDb.getAllCapsules()).thenReturn([]);
     when(() => mockDb.getDeletedEntries()).thenReturn([]);
     when(() => mockDb.getCapsulesToUnlockToday()).thenReturn([]);
     when(() => mockDb.getAllTrees()).thenReturn([]);
-    when(() => mockRitualService.updateAfterEntry(any()))
-        .thenAnswer((_) async {});
+    when(
+      () => mockRitualService.updateAfterEntry(any()),
+    ).thenAnswer((_) async {});
   });
 
   /// Build a testable widget with all required provider overrides.
@@ -84,9 +85,7 @@ void main() {
         syncEngineProvider.overrideWithValue(mockSyncEngine),
       ],
       child: MaterialApp(
-        home: Scaffold(
-          body: child ?? const QuickCaptureSheet(),
-        ),
+        home: Scaffold(body: child ?? const QuickCaptureSheet()),
       ),
     );
   }
@@ -123,8 +122,9 @@ void main() {
       expect(textFieldWidget.controller?.text, 'A quiet morning');
     });
 
-    testWidgets('save button becomes active when text is entered',
-        (tester) async {
+    testWidgets('save button becomes active when text is entered', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 

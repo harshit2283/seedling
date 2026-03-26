@@ -32,11 +32,7 @@ void main() {
 
     test('preserves explicitly provided UUID', () {
       const explicitUuid = '550e8400-e29b-41d4-a716-446655440000';
-      final ritual = Ritual(
-        uuid: explicitUuid,
-        name: 'Test',
-        cadenceDays: 7,
-      );
+      final ritual = Ritual(uuid: explicitUuid, name: 'Test', cadenceDays: 7);
 
       expect(ritual.uuid, explicitUuid);
     });

@@ -41,10 +41,7 @@ void main() {
       final entryB = Entry.line(text: 'the dog was tired');
 
       // After stop word removal, "cat"/"happy" vs "dog"/"tired" — no overlap
-      final connections = service.findConnections(
-        entryA,
-        [entryA, entryB],
-      );
+      final connections = service.findConnections(entryA, [entryA, entryB]);
       // Should not find a connection because shared words are only stop words
       final hasStrongTextConnection = connections.any(
         (c) => c.factors.textSimilarity > 0.3,
@@ -74,10 +71,11 @@ void main() {
       final candidate2 = Entry.line(text: 'Went to the grocery store');
       candidate2.id = 3;
 
-      final connections = service.findConnections(
+      final connections = service.findConnections(source, [
         source,
-        [source, candidate1, candidate2],
-      );
+        candidate1,
+        candidate2,
+      ]);
 
       // candidate1 shares "mom" with source, should rank higher
       if (connections.isNotEmpty) {
@@ -102,10 +100,11 @@ void main() {
 
       // "mom" and "dinner" are meaningful (not stop words)
       // "they", "went", "through", "the" are all stop words
-      final connections = service.findConnections(
+      final connections = service.findConnections(source, [
         source,
-        [source, meaningful, stopOnly],
-      );
+        meaningful,
+        stopOnly,
+      ]);
 
       // meaningful entry should rank higher than stop-word-only entry
       if (connections.length >= 2) {

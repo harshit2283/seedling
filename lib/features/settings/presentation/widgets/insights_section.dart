@@ -21,7 +21,8 @@ class InsightsSection extends ConsumerWidget {
         header: const Text('Insights'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               CupertinoIcons.chart_pie,
               SeedlingColors.forestGreen,
             ),
@@ -31,7 +32,8 @@ class InsightsSection extends ConsumerWidget {
             onTap: () => context.push(AppRoutes.themeInsights),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               CupertinoIcons.arrow_2_circlepath,
               SeedlingColors.forestGreen,
             ),
@@ -41,14 +43,13 @@ class InsightsSection extends ConsumerWidget {
             onTap: () => _showRitualPatterns(context, ref),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               CupertinoIcons.repeat,
               SeedlingColors.forestGreen,
             ),
             title: const Text('Manage Rituals'),
-            subtitle: const Text(
-              'View and manage your confirmed rituals',
-            ),
+            subtitle: const Text('View and manage your confirmed rituals'),
             trailing: const CupertinoListTileChevron(),
             onTap: () => context.push(AppRoutes.rituals),
           ),

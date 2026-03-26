@@ -16,8 +16,6 @@ import 'database_providers.dart';
 
 /// Notifier for app lock preference.
 class AppLockEnabledNotifier extends Notifier<bool> {
-  
-
   @override
   bool build() {
     final prefs = ref.watch(sharedPreferencesProvider);
@@ -106,8 +104,6 @@ final reminderAutoRescheduleProvider = Provider<void>((ref) {
 
 /// Notifier for whether widgets may include memory preview text.
 class WidgetMemoryPreviewsNotifier extends Notifier<bool> {
-  
-
   @override
   bool build() {
     final prefs = ref.watch(sharedPreferencesProvider);
@@ -204,8 +200,6 @@ final collageViewEnabledProvider =
     );
 
 class _MoodVisualizationFlagNotifier extends Notifier<bool> {
-  
-
   @override
   bool build() {
     final prefs = ref.watch(sharedPreferencesProvider);
@@ -226,8 +220,6 @@ class _MoodVisualizationFlagNotifier extends Notifier<bool> {
 }
 
 class _CollageViewFlagNotifier extends Notifier<bool> {
-  
-
   @override
   bool build() {
     final prefs = ref.watch(sharedPreferencesProvider);
@@ -246,4 +238,3 @@ class _CollageViewFlagNotifier extends Notifier<bool> {
     await prefs.setBool(PrefsKeys.flagMoodVisualization, value);
   }
 }
-

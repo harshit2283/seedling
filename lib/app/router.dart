@@ -41,7 +41,8 @@ GoRouter createAppRouter(SharedPreferences prefs) {
     initialLocation: AppRoutes.home,
     debugLogDiagnostics: false,
     redirect: (context, state) {
-      final onboardingDone = prefs.getBool(PrefsKeys.onboardingCompleted) ?? false;
+      final onboardingDone =
+          prefs.getBool(PrefsKeys.onboardingCompleted) ?? false;
       final isOnboarding = state.matchedLocation == AppRoutes.onboarding;
 
       if (!onboardingDone && !isOnboarding) {

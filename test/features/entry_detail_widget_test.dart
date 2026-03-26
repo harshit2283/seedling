@@ -38,36 +38,37 @@ void main() {
     prefs = await SharedPreferences.getInstance();
 
     // Default stubs
-    when(() => mockDb.watchEntries()).thenAnswer(
-      (_) => Stream.value(<Entry>[]),
-    );
-    when(() => mockDb.watchCurrentTree()).thenAnswer(
-      (_) => Stream.value(null),
-    );
-    when(() => mockDb.watchRituals()).thenAnswer(
-      (_) => Stream.value([]),
-    );
+    when(
+      () => mockDb.watchEntries(),
+    ).thenAnswer((_) => Stream.value(<Entry>[]));
+    when(() => mockDb.watchCurrentTree()).thenAnswer((_) => Stream.value(null));
+    when(() => mockDb.watchRituals()).thenAnswer((_) => Stream.value([]));
     when(() => mockDb.getAllEntries()).thenReturn([]);
-    when(() => mockDb.getEntriesPage(
-          limit: any(named: 'limit'),
-          offset: any(named: 'offset'),
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          descending: any(named: 'descending'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn([]);
-    when(() => mockDb.getEntriesCount(
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn(0);
+    when(
+      () => mockDb.getEntriesPage(
+        limit: any(named: 'limit'),
+        offset: any(named: 'offset'),
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        descending: any(named: 'descending'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn([]);
+    when(
+      () => mockDb.getEntriesCount(
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn(0);
     when(() => mockDb.getAllCapsules()).thenReturn([]);
     when(() => mockDb.getDeletedEntries()).thenReturn([]);
     when(() => mockDb.getCapsulesToUnlockToday()).thenReturn([]);
     when(() => mockDb.getAllTrees()).thenReturn([]);
     when(() => mockDb.getEntriesBySyncUUIDs(any())).thenReturn([]);
-    when(() => mockRitualService.updateAfterEntry(any()))
-        .thenAnswer((_) async {});
+    when(
+      () => mockRitualService.updateAfterEntry(any()),
+    ).thenAnswer((_) async {});
   });
 
   /// Helper to create an entry with a given ID.
@@ -77,11 +78,7 @@ void main() {
     String? text,
     String? title,
   }) {
-    final entry = Entry(
-      typeIndex: type.index,
-      text: text,
-      title: title,
-    );
+    final entry = Entry(typeIndex: type.index, text: text, title: title);
     entry.id = id;
     return entry;
   }
@@ -89,9 +86,7 @@ void main() {
   /// Build a testable widget that provides the entry via the entries stream.
   Widget buildTestWidget(Entry entry) {
     // Override the entries stream so the detail screen can find the entry
-    when(() => mockDb.watchEntries()).thenAnswer(
-      (_) => Stream.value([entry]),
-    );
+    when(() => mockDb.watchEntries()).thenAnswer((_) => Stream.value([entry]));
 
     return ProviderScope(
       overrides: [
@@ -100,17 +95,13 @@ void main() {
         ritualServiceProvider.overrideWithValue(mockRitualService),
         syncEngineProvider.overrideWithValue(mockSyncEngine),
       ],
-      child: MaterialApp(
-        home: EntryDetailScreen(entryId: entry.id),
-      ),
+      child: MaterialApp(home: EntryDetailScreen(entryId: entry.id)),
     );
   }
 
   group('EntryDetailScreen', () {
     testWidgets('renders entry text content', (tester) async {
-      final entry = createTestEntry(
-        text: 'The sunset was remarkable today',
-      );
+      final entry = createTestEntry(text: 'The sunset was remarkable today');
 
       await tester.pumpWidget(buildTestWidget(entry));
       await tester.pumpAndSettle();
@@ -133,9 +124,9 @@ void main() {
 
     testWidgets('shows not found state for missing entry', (tester) async {
       // Don't provide the entry in the stream
-      when(() => mockDb.watchEntries()).thenAnswer(
-        (_) => Stream.value(<Entry>[]),
-      );
+      when(
+        () => mockDb.watchEntries(),
+      ).thenAnswer((_) => Stream.value(<Entry>[]));
 
       await tester.pumpWidget(
         ProviderScope(
@@ -145,9 +136,7 @@ void main() {
             ritualServiceProvider.overrideWithValue(mockRitualService),
             syncEngineProvider.overrideWithValue(mockSyncEngine),
           ],
-          child: const MaterialApp(
-            home: EntryDetailScreen(entryId: 999),
-          ),
+          child: const MaterialApp(home: EntryDetailScreen(entryId: 999)),
         ),
       );
       await tester.pumpAndSettle();
@@ -156,9 +145,7 @@ void main() {
     });
 
     testWidgets('edit mode toggles on pencil tap', (tester) async {
-      final entry = createTestEntry(
-        text: 'Editable memory',
-      );
+      final entry = createTestEntry(text: 'Editable memory');
 
       await tester.pumpWidget(buildTestWidget(entry));
       await tester.pumpAndSettle();
@@ -179,9 +166,7 @@ void main() {
     });
 
     testWidgets('delete triggers confirmation dialog', (tester) async {
-      final entry = createTestEntry(
-        text: 'Memory to delete',
-      );
+      final entry = createTestEntry(text: 'Memory to delete');
 
       await tester.pumpWidget(buildTestWidget(entry));
       await tester.pumpAndSettle();

@@ -43,7 +43,8 @@ class PrefsKeys {
   static const String gentleRemindersCadence = 'gentle_reminders_cadence';
   static const String gentleRemindersHour = 'gentle_reminders_hour';
   static const String gentleRemindersMinute = 'gentle_reminders_minute';
-  static const String gentleRemindersQuietStart = 'gentle_reminders_quiet_start';
+  static const String gentleRemindersQuietStart =
+      'gentle_reminders_quiet_start';
   static const String gentleRemindersQuietEnd = 'gentle_reminders_quiet_end';
   static const String ritualLastNotificationMs = 'ritual_last_notification_ms';
 

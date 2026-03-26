@@ -4,7 +4,6 @@ import '../../../core/constants/prefs_keys.dart';
 
 /// Manages prompt preferences and state using SharedPreferences
 class PromptPreferences {
-
   /// Default cooldown between prompts (8 hours)
   static const promptCooldownHours = 8;
 

@@ -39,35 +39,36 @@ void main() {
     prefs = await SharedPreferences.getInstance();
 
     // Default stubs
-    when(() => mockDb.watchEntries()).thenAnswer(
-      (_) => Stream.value(<Entry>[]),
-    );
-    when(() => mockDb.watchCurrentTree()).thenAnswer(
-      (_) => Stream.value(null),
-    );
-    when(() => mockDb.watchRituals()).thenAnswer(
-      (_) => Stream.value([]),
-    );
+    when(
+      () => mockDb.watchEntries(),
+    ).thenAnswer((_) => Stream.value(<Entry>[]));
+    when(() => mockDb.watchCurrentTree()).thenAnswer((_) => Stream.value(null));
+    when(() => mockDb.watchRituals()).thenAnswer((_) => Stream.value([]));
     when(() => mockDb.getAllEntries()).thenReturn([]);
-    when(() => mockDb.getEntriesPage(
-          limit: any(named: 'limit'),
-          offset: any(named: 'offset'),
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          descending: any(named: 'descending'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn([]);
-    when(() => mockDb.getEntriesCount(
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn(0);
+    when(
+      () => mockDb.getEntriesPage(
+        limit: any(named: 'limit'),
+        offset: any(named: 'offset'),
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        descending: any(named: 'descending'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn([]);
+    when(
+      () => mockDb.getEntriesCount(
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn(0);
     when(() => mockDb.getAllCapsules()).thenReturn([]);
     when(() => mockDb.getDeletedEntries()).thenReturn([]);
     when(() => mockDb.getCapsulesToUnlockToday()).thenReturn([]);
     when(() => mockDb.getAllTrees()).thenReturn([]);
-    when(() => mockRitualService.updateAfterEntry(any()))
-        .thenAnswer((_) async {});
+    when(
+      () => mockRitualService.updateAfterEntry(any()),
+    ).thenAnswer((_) async {});
   });
 
   /// Helper to create test entries with proper IDs.
@@ -83,22 +84,24 @@ void main() {
 
   /// Build a testable widget with provider overrides and test entries.
   Widget buildTestWidget({List<Entry> entries = const []}) {
-    when(() => mockDb.watchEntries()).thenAnswer(
-      (_) => Stream.value(entries),
-    );
-    when(() => mockDb.getEntriesPage(
-          limit: any(named: 'limit'),
-          offset: any(named: 'offset'),
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          descending: any(named: 'descending'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn(entries);
-    when(() => mockDb.getEntriesCount(
-          year: any(named: 'year'),
-          includeDeleted: any(named: 'includeDeleted'),
-          includeLockedCapsules: any(named: 'includeLockedCapsules'),
-        )).thenReturn(entries.length);
+    when(() => mockDb.watchEntries()).thenAnswer((_) => Stream.value(entries));
+    when(
+      () => mockDb.getEntriesPage(
+        limit: any(named: 'limit'),
+        offset: any(named: 'offset'),
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        descending: any(named: 'descending'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn(entries);
+    when(
+      () => mockDb.getEntriesCount(
+        year: any(named: 'year'),
+        includeDeleted: any(named: 'includeDeleted'),
+        includeLockedCapsules: any(named: 'includeLockedCapsules'),
+      ),
+    ).thenReturn(entries.length);
 
     return ProviderScope(
       overrides: [

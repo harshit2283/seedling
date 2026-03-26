@@ -104,7 +104,8 @@ class GentleReminderService {
   ReminderSettings get settings => ReminderSettings(
     enabled: _prefs.getBool(PrefsKeys.gentleRemindersEnabled) ?? false,
     cadence: ReminderCadence.values.byName(
-      _prefs.getString(PrefsKeys.gentleRemindersCadence) ?? ReminderCadence.weekly.name,
+      _prefs.getString(PrefsKeys.gentleRemindersCadence) ??
+          ReminderCadence.weekly.name,
     ),
     hour: _prefs.getInt(PrefsKeys.gentleRemindersHour) ?? 19,
     minute: _prefs.getInt(PrefsKeys.gentleRemindersMinute) ?? 30,
@@ -146,7 +147,10 @@ class GentleReminderService {
     await _prefs.setString(PrefsKeys.gentleRemindersCadence, next.cadence.name);
     await _prefs.setInt(PrefsKeys.gentleRemindersHour, next.hour);
     await _prefs.setInt(PrefsKeys.gentleRemindersMinute, next.minute);
-    await _prefs.setInt(PrefsKeys.gentleRemindersQuietStart, next.quietStartHour);
+    await _prefs.setInt(
+      PrefsKeys.gentleRemindersQuietStart,
+      next.quietStartHour,
+    );
     await _prefs.setInt(PrefsKeys.gentleRemindersQuietEnd, next.quietEndHour);
   }
 

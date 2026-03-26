@@ -116,7 +116,6 @@ enum HomeFeedScope { currentYear, allYears }
 
 /// Notifier for the home screen feed scope setting.
 class HomeFeedScopeNotifier extends Notifier<HomeFeedScope> {
-
   @override
   HomeFeedScope build() {
     final prefs = ref.watch(sharedPreferencesProvider);
@@ -304,7 +303,10 @@ final databaseMaintenanceProvider =
 
 /// Provider that reactively resolves linked entries for a given entry.
 /// Watches the entries stream so it updates when linked entries change.
-final linkedEntriesProvider = Provider.family<List<Entry>, List<String>>((ref, syncUUIDs) {
+final linkedEntriesProvider = Provider.family<List<Entry>, List<String>>((
+  ref,
+  syncUUIDs,
+) {
   final db = ref.watch(databaseProvider);
   // Re-evaluate when entries change
   ref.watch(entriesStreamProvider);

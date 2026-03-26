@@ -25,14 +25,13 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
         header: const Text('Prompts'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               CupertinoIcons.sparkles,
               SeedlingColors.forestGreen,
             ),
             title: const Text('Gentle Prompts'),
-            subtitle: const Text(
-              'Thoughtful suggestions on the home screen',
-            ),
+            subtitle: const Text('Thoughtful suggestions on the home screen'),
             trailing: CupertinoSwitch(
               value: ref.watch(promptsEnabledProvider),
               activeTrackColor: SeedlingColors.forestGreen,
@@ -44,27 +43,25 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             ),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               CupertinoIcons.bell,
               SeedlingColors.forestGreen,
             ),
             title: const Text('Gentle Reminder'),
-            subtitle: const Text(
-              'Quiet reminder when no memories are added',
-            ),
+            subtitle: const Text('Quiet reminder when no memories are added'),
             trailing: CupertinoSwitch(
               value: reminderSettings.enabled,
               activeTrackColor: SeedlingColors.forestGreen,
               onChanged: (value) {
-                ref
-                    .read(reminderSettingsProvider.notifier)
-                    .setEnabled(value);
+                ref.read(reminderSettingsProvider.notifier).setEnabled(value);
               },
             ),
           ),
           if (reminderSettings.enabled)
             CupertinoListTile(
-              leading: buildSettingsIconBox(context,
+              leading: buildSettingsIconBox(
+                context,
                 CupertinoIcons.calendar,
                 SeedlingColors.forestGreen,
               ),
@@ -75,16 +72,14 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             ),
           if (reminderSettings.enabled)
             CupertinoListTile(
-              leading: buildSettingsIconBox(context,
+              leading: buildSettingsIconBox(
+                context,
                 CupertinoIcons.time,
                 SeedlingColors.forestGreen,
               ),
               title: const Text('Reminder time'),
               subtitle: Text(
-                _formatTime(
-                  reminderSettings.hour,
-                  reminderSettings.minute,
-                ),
+                _formatTime(reminderSettings.hour, reminderSettings.minute),
               ),
               trailing: const CupertinoListTileChevron(),
               onTap: _pickReminderTime,

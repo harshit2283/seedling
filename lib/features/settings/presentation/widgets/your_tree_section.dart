@@ -22,17 +22,17 @@ class YourTreeSection extends ConsumerWidget {
         header: const Text('Your tree'),
         children: [
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               AdaptiveIcons.tree,
               SeedlingColors.forestGreen,
             ),
             title: Text(tree?.stateName ?? 'Seed'),
-            subtitle: Text(
-              tree?.stateDescription ?? 'Plant your first memory',
-            ),
+            subtitle: Text(tree?.stateDescription ?? 'Plant your first memory'),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               AdaptiveIcons.list,
               SeedlingColors.forestGreen,
             ),
@@ -40,7 +40,8 @@ class YourTreeSection extends ConsumerWidget {
             subtitle: const Text('This year'),
           ),
           CupertinoListTile(
-            leading: buildSettingsIconBox(context,
+            leading: buildSettingsIconBox(
+              context,
               AdaptiveIcons.clock,
               SeedlingColors.forestGreen,
             ),
@@ -96,9 +97,7 @@ class YourTreeSection extends ConsumerWidget {
             ref
                 .read(homeFeedScopeProvider.notifier)
                 .setScope(
-                  value
-                      ? HomeFeedScope.allYears
-                      : HomeFeedScope.currentYear,
+                  value ? HomeFeedScope.allYears : HomeFeedScope.currentYear,
                 );
           },
         ),

@@ -169,7 +169,9 @@ class DeletedEntriesScreen extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
@@ -228,7 +230,9 @@ class DeletedEntriesScreen extends ConsumerWidget {
           // Actions
           Container(
             decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+              border: Border(
+                top: BorderSide(color: Theme.of(context).dividerColor),
+              ),
             ),
             child: Row(
               children: [
