@@ -37,6 +37,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
               activeTrackColor: SeedlingColors.forestGreen,
               onChanged: (value) {
                 ref.read(promptSelectorProvider).setEnabled(value);
+                ref.invalidate(promptsEnabledProvider);
               },
             ),
           ),
@@ -98,6 +99,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
           value: ref.watch(promptsEnabledProvider),
           onChanged: (value) {
             ref.read(promptSelectorProvider).setEnabled(value);
+            ref.invalidate(promptsEnabledProvider);
           },
         ),
         buildMaterialSwitchTile(

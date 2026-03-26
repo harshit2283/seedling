@@ -287,116 +287,121 @@ class PrivacySection extends ConsumerWidget {
     final passController = TextEditingController();
     final confirmController = TextEditingController();
 
-    if (PlatformUtils.isIOS) {
-      return showCupertinoDialog<String>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
-            title: Text(title),
-            content: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Column(
-                children: [
-                  Text(message),
-                  const SizedBox(height: 12),
-                  CupertinoTextField(
-                    controller: passController,
-                    placeholder: 'Passphrase',
-                    obscureText: true,
-                    onChanged: (_) => setDialogState(() {}),
-                  ),
-                  if (confirm) ...[
-                    const SizedBox(height: 8),
+    try {
+      if (PlatformUtils.isIOS) {
+        return await showCupertinoDialog<String>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
+              title: Text(title),
+              content: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(
+                  children: [
+                    Text(message),
+                    const SizedBox(height: 12),
                     CupertinoTextField(
-                      controller: confirmController,
-                      placeholder: 'Confirm passphrase',
+                      controller: passController,
+                      placeholder: 'Passphrase',
                       obscureText: true,
                       onChanged: (_) => setDialogState(() {}),
                     ),
+                    if (confirm) ...[
+                      const SizedBox(height: 8),
+                      CupertinoTextField(
+                        controller: confirmController,
+                        placeholder: 'Confirm passphrase',
+                        obscureText: true,
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ),
-            actions: [
-              CupertinoDialogAction(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancel'),
-              ),
-              CupertinoDialogAction(
-                onPressed: () {
-                  final pass = passController.text.trim();
-                  if (pass.length < 8) {
-                    showSettingsError(
-                      context,
-                      'Passphrase must be at least 8 characters',
-                    );
-                    return;
-                  }
-                  if (confirm && pass != confirmController.text.trim()) {
-                    showSettingsError(context, 'Passphrases do not match');
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(pass);
-                },
-                child: const Text('Continue'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message),
-            const SizedBox(height: 12),
-            TextField(
-              controller: passController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Passphrase'),
-            ),
-            if (confirm) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: confirmController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm passphrase',
                 ),
               ),
+              actions: [
+                CupertinoDialogAction(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                CupertinoDialogAction(
+                  onPressed: () {
+                    final pass = passController.text.trim();
+                    if (pass.length < 8) {
+                      showSettingsError(
+                        context,
+                        'Passphrase must be at least 8 characters',
+                      );
+                      return;
+                    }
+                    if (confirm && pass != confirmController.text.trim()) {
+                      showSettingsError(context, 'Passphrases do not match');
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(pass);
+                  },
+                  child: const Text('Continue'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Passphrase'),
+              ),
+              if (confirm) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: confirmController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm passphrase',
+                  ),
+                ),
+              ],
             ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final pass = passController.text.trim();
+                if (pass.length < 8) {
+                  showSettingsError(
+                    context,
+                    'Passphrase must be at least 8 characters',
+                  );
+                  return;
+                }
+                if (confirm && pass != confirmController.text.trim()) {
+                  showSettingsError(context, 'Passphrases do not match');
+                  return;
+                }
+                Navigator.of(dialogContext).pop(pass);
+              },
+              child: const Text('Continue'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final pass = passController.text.trim();
-              if (pass.length < 8) {
-                showSettingsError(
-                  context,
-                  'Passphrase must be at least 8 characters',
-                );
-                return;
-              }
-              if (confirm && pass != confirmController.text.trim()) {
-                showSettingsError(context, 'Passphrases do not match');
-                return;
-              }
-              Navigator.of(dialogContext).pop(pass);
-            },
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      passController.dispose();
+      confirmController.dispose();
+    }
   }
 }

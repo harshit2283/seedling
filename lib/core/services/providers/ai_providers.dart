@@ -219,7 +219,8 @@ final dueRitualsProvider = Provider<List<Ritual>>((ref) {
 /// Provider for year review data, keyed by year
 final reviewDataProvider = Provider.family<YearReviewData?, int>((ref, year) {
   final db = ref.watch(databaseProvider);
-  ref.watch(entriesStreamProvider);
+  // Watch all-years stream since review can be for any year
+  ref.watch(allEntriesStreamProvider);
 
   // Page through all entries for the year
   final allEntries = <Entry>[];

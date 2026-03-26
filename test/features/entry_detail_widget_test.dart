@@ -71,15 +71,34 @@ void main() {
     ).thenAnswer((_) async {});
   });
 
-  /// Helper to create an entry with a given ID.
+  /// Helper to create an entry with a given ID using factory constructors.
   Entry createTestEntry({
     int id = 1,
     EntryType type = EntryType.line,
     String? text,
     String? title,
   }) {
-    final entry = Entry(typeIndex: type.index, text: text, title: title);
+    final Entry entry;
+    switch (type) {
+      case EntryType.line:
+        entry = Entry.line(text: text);
+      case EntryType.photo:
+        entry = Entry.photo(mediaPath: '', text: text);
+      case EntryType.voice:
+        entry = Entry.voice(mediaPath: '', text: text);
+      case EntryType.object:
+        entry = Entry.object(title: title ?? '', text: text);
+      case EntryType.fragment:
+        entry = Entry.fragment(text: text);
+      case EntryType.ritual:
+        entry = Entry.ritual(title: title ?? '', text: text);
+      case EntryType.release:
+        entry = Entry.release(text: text);
+    }
     entry.id = id;
+    if (title != null && type != EntryType.object && type != EntryType.ritual) {
+      entry.title = title;
+    }
     return entry;
   }
 
