@@ -174,7 +174,10 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           end: Alignment.bottomCenter,
           colors: isDark
               ? [SeedlingColors.backgroundDark, SeedlingColors.surfaceDark]
-              : [const Color(0xFFF9F8F5), const Color(0xFFF2EEE6)],
+              : [
+                  SeedlingColors.backgroundGradientStart,
+                  SeedlingColors.backgroundGradientEnd,
+                ],
         ),
       ),
       child: SingleChildScrollView(

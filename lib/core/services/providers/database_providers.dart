@@ -142,8 +142,12 @@ final homeFeedScopeProvider =
 final homeEntriesProvider = Provider<List<Entry>>((ref) {
   final scope = ref.watch(homeFeedScopeProvider);
   final db = ref.watch(databaseProvider);
-  // Recompute on entry mutations.
-  ref.watch(entriesStreamProvider);
+  // Watch the appropriate stream based on scope.
+  if (scope == HomeFeedScope.allYears) {
+    ref.watch(allEntriesStreamProvider);
+  } else {
+    ref.watch(entriesStreamProvider);
+  }
   return db.getEntriesPage(
     limit: 200,
     offset: 0,
@@ -155,8 +159,12 @@ final homeEntriesProvider = Provider<List<Entry>>((ref) {
 final homeRecentEntriesProvider = Provider<List<Entry>>((ref) {
   final scope = ref.watch(homeFeedScopeProvider);
   final db = ref.watch(databaseProvider);
-  // Recompute on entry mutations.
-  ref.watch(entriesStreamProvider);
+  // Watch the appropriate stream based on scope.
+  if (scope == HomeFeedScope.allYears) {
+    ref.watch(allEntriesStreamProvider);
+  } else {
+    ref.watch(entriesStreamProvider);
+  }
   return db.getEntriesPage(
     limit: 5,
     offset: 0,

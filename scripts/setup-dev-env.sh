@@ -60,7 +60,7 @@ if [ -d "$ANDROID_SDK_DIR/cmdline-tools/latest" ]; then
   echo "[3/5] Android cmdline-tools already installed"
 else
   echo "[3/5] Installing Android command-line tools..."
-  mkdir -p "$ANDROID_SDK_DIR/cmdline-tools"
+  sudo mkdir -p "$ANDROID_SDK_DIR/cmdline-tools"
   curl -sL "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip" -o /tmp/cmdline-tools.zip
   unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extract
   mv /tmp/cmdline-tools-extract/cmdline-tools "$ANDROID_SDK_DIR/cmdline-tools/latest"

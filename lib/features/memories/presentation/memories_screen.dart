@@ -122,9 +122,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     return CupertinoPageScaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: Theme.of(
-          context,
-        ).scaffoldBackgroundColor.withValues(alpha: 0.9),
+        backgroundColor: Colors.transparent,
         border: null,
         middle: const Text('Memories'),
         leading: CupertinoNavigationBarBackButton(

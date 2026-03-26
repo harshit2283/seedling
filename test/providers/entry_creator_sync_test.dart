@@ -71,16 +71,12 @@ void main() {
       final notifier = container.read(entryCreatorProvider.notifier);
       await notifier.createLineEntry('test');
 
-      // Verify ensureSyncUUID is called (on the entry before save)
-      verify(() => mockSyncEngine.ensureSyncUUID(any())).called(1);
-
-      // Verify saveEntry is called
-      verify(() => mockDb.saveEntry(any())).called(1);
-
-      // Verify queuePush is called with the saved entry and create type
-      verify(
+      // Verify call order: ensureSyncUUID → saveEntry → queuePush
+      verifyInOrder([
+        () => mockSyncEngine.ensureSyncUUID(any()),
+        () => mockDb.saveEntry(any()),
         () => mockSyncEngine.queuePush(savedEntry, SyncChangeType.create),
-      ).called(1);
+      ]);
     });
 
     test('createPhotoEntry calls ensureSyncUUID and queuePush', () async {
@@ -215,9 +211,12 @@ void main() {
         final result = await notifier.permanentlyDeleteEntry(11);
 
         expect(result, isTrue);
-        verify(
+        // Verify call order: getEntry → deleteEntry → queuePush
+        verifyInOrder([
+          () => mockDb.getEntry(11),
+          () => mockDb.deleteEntry(11),
           () => mockSyncEngine.queuePush(entry, SyncChangeType.delete),
-        ).called(1);
+        ]);
       },
     );
 

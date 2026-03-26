@@ -50,7 +50,7 @@ Widget buildMaterialSection(
         child: Text(
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: SeedlingColors.textSecondary,
+            color: Theme.of(context).textTheme.bodySmall?.color,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -357,7 +357,7 @@ Future<bool> authorizeSensitiveAction(
     return true;
   }
 
-  showSettingsError(context, 'Device authentication was cancelled');
+  showSettingsError(context, 'Device authentication was not successful');
   return false;
 }
 

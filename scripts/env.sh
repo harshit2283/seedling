@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Seedling development environment variables
 # Source this file in your shell: source scripts/env.sh
 
