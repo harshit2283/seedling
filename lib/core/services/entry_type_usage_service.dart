@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/entry.dart';
+import '../constants/prefs_keys.dart';
 
 /// Tracks entry type usage for smart ordering of capture buttons
 class EntryTypeUsageService {
-  static const _keyUsageData = 'entry_type_usage_data';
   static const _maxUsagesPerType = 3;
   static const _rollingWindowDays = 7;
 
@@ -88,7 +88,7 @@ class EntryTypeUsageService {
   }
 
   Map<String, List<int>> _getUsageData() {
-    final jsonStr = _prefs.getString(_keyUsageData);
+    final jsonStr = _prefs.getString(PrefsKeys.entryTypeUsageData);
     if (jsonStr == null) return {};
 
     try {
@@ -103,6 +103,6 @@ class EntryTypeUsageService {
   }
 
   Future<void> _saveUsageData(Map<String, List<int>> data) async {
-    await _prefs.setString(_keyUsageData, jsonEncode(data));
+    await _prefs.setString(PrefsKeys.entryTypeUsageData, jsonEncode(data));
   }
 }

@@ -58,9 +58,9 @@ class MemoryCard extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: SeedlingColors.warmWhite,
+            color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: SeedlingColors.softCream),
+            border: Border.all(color: Theme.of(context).dividerColor),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +103,7 @@ class MemoryCard extends StatelessWidget {
         hint: 'Double tap to open memory',
         child: Container(
           decoration: BoxDecoration(
-            color: SeedlingColors.warmWhite,
+            color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -293,7 +293,7 @@ class MemoryCard extends StatelessWidget {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: SeedlingColors.softCream,
+                    color: Theme.of(context).dividerColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                 );

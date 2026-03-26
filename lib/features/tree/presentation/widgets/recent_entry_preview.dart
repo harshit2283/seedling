@@ -18,10 +18,10 @@ class RecentEntryPreview extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: SeedlingColors.warmWhite,
+          color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: SeedlingColors.softCream.withValues(alpha: 0.9),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.9),
           ),
           boxShadow: [
             BoxShadow(

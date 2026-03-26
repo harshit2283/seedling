@@ -229,7 +229,7 @@ class PhotoThumbnail extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(
-              color: SeedlingColors.softCream,
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(borderRadius),
             ),
             child: Icon(
@@ -247,7 +247,7 @@ class PhotoThumbnail extends StatelessWidget {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: SeedlingColors.softCream,
+                color: Theme.of(context).dividerColor,
                 borderRadius: BorderRadius.circular(borderRadius),
               ),
               child: const Center(

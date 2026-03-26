@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/constants/prefs_keys.dart';
 import '../core/platform/platform_utils.dart';
 import '../features/tree/presentation/tree_screen.dart';
 import '../features/tree/presentation/forest_screen.dart';
@@ -40,7 +41,7 @@ GoRouter createAppRouter(SharedPreferences prefs) {
     initialLocation: AppRoutes.home,
     debugLogDiagnostics: false,
     redirect: (context, state) {
-      final onboardingDone = prefs.getBool('onboarding_completed') ?? false;
+      final onboardingDone = prefs.getBool(PrefsKeys.onboardingCompleted) ?? false;
       final isOnboarding = state.matchedLocation == AppRoutes.onboarding;
 
       if (!onboardingDone && !isOnboarding) {

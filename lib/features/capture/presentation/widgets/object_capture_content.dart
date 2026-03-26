@@ -189,7 +189,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
               color: SeedlingColors.textPrimary,
             ),
             decoration: BoxDecoration(
-              color: SeedlingColors.softCream,
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(8),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -223,7 +223,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
               context,
             ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
             filled: true,
-            fillColor: SeedlingColors.softCream,
+            fillColor: Theme.of(context).dividerColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,

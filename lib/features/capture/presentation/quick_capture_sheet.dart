@@ -209,7 +209,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                       ),
                       color: _canSave()
                           ? SeedlingColors.forestGreen
-                          : SeedlingColors.softCream,
+                          : Theme.of(context).dividerColor,
                       borderRadius: BorderRadius.circular(12),
                       onPressed: _canSave()
                           ? () {
@@ -241,7 +241,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
     // Wrap with glass effect on iOS
     return GlassSheet(
-      backgroundColor: SeedlingColors.warmWhite,
+      backgroundColor: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
       opacity: PlatformUtils.isIOS ? 0.85 : 1.0,
       child: content,
     );
@@ -423,7 +423,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               border: Border.all(
                 color: isRelease
                     ? SeedlingColors.accentRelease
-                    : SeedlingColors.softCream.withValues(alpha: 0.5),
+                    : Theme.of(context).dividerColor.withValues(alpha: 0.5),
                 width: isRelease ? 2 : 1,
               ),
             ),
@@ -492,7 +492,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               border: Border.all(
                 color: isCapsule
                     ? capsuleColor
-                    : SeedlingColors.softCream.withValues(alpha: 0.5),
+                    : Theme.of(context).dividerColor.withValues(alpha: 0.5),
                 width: isCapsule ? 2 : 1,
               ),
             ),
@@ -535,9 +535,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: SeedlingColors.softCream.withValues(alpha: 0.6),
+        color: Theme.of(context).dividerColor.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: SeedlingColors.softCream),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -626,12 +626,12 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           decoration: BoxDecoration(
             color: active
                 ? SeedlingColors.themeGratitude.withValues(alpha: 0.2)
-                : SeedlingColors.warmWhite,
+                : Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: active
                   ? SeedlingColors.themeGratitude
-                  : SeedlingColors.softCream,
+                  : Theme.of(context).dividerColor,
             ),
           ),
           child: Text(

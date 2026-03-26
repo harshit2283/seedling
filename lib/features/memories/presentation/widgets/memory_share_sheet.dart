@@ -84,7 +84,7 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: SeedlingColors.warmWhite,
+              color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
@@ -198,7 +198,7 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
         padding: const EdgeInsets.all(14),
         placeholder: 'Add a note for the share post',
         decoration: BoxDecoration(
-          color: SeedlingColors.creamPaper,
+          color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(16),
         ),
         onChanged: (_) => setState(() {}),
@@ -214,7 +214,7 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
         labelText: 'Caption',
         hintText: 'Add a note for the share post',
         filled: true,
-        fillColor: SeedlingColors.creamPaper,
+        fillColor: Theme.of(context).scaffoldBackgroundColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,

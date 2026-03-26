@@ -1,5 +1,6 @@
 import '../../../data/models/entry.dart';
 import 'models/ritual_candidate.dart';
+import 'stop_words.dart';
 
 /// Detects recurring memory patterns that may represent rituals.
 class RitualDetectionService {
@@ -87,20 +88,10 @@ class RitualDetectionService {
     return 'night';
   }
 
-  static const Set<String> _stopWords = {
-    'the',
-    'and',
-    'with',
-    'from',
-    'that',
-    'this',
-    'have',
-    'just',
-    'about',
-    'after',
-    'before',
-    'into',
-    'while',
+  /// Domain-specific stop words: commonStopWords plus time-of-day words
+  /// that would create false ritual signatures.
+  static final Set<String> _stopWords = {
+    ...commonStopWords,
     'today',
     'night',
     'morning',

@@ -251,7 +251,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
         borderRadius: BorderRadius.circular(4),
         child: LinearProgressIndicator(
           value: widget.progress,
-          backgroundColor: SeedlingColors.softCream,
+          backgroundColor: Theme.of(context).dividerColor,
           valueColor: AlwaysStoppedAnimation<Color>(
             _getStateColor().withValues(alpha: 0.6),
           ),

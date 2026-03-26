@@ -25,7 +25,7 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = backgroundColor ?? SeedlingColors.warmWhite;
+    final bgColor = backgroundColor ?? (Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface);
     final radius = BorderRadius.circular(borderRadius);
 
     if (PlatformUtils.isIOS) {
@@ -77,7 +77,7 @@ class GlassSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = backgroundColor ?? SeedlingColors.warmWhite;
+    final bgColor = backgroundColor ?? (Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface);
     final radius = BorderRadius.vertical(top: Radius.circular(borderRadius));
 
     if (PlatformUtils.isIOS) {

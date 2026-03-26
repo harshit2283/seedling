@@ -548,7 +548,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             child: AspectRatio(
               aspectRatio: 1.25,
               child: Container(
-                color: SeedlingColors.softCream,
+                color: Theme.of(context).dividerColor,
                 alignment: Alignment.center,
                 child: const CupertinoActivityIndicator(),
               ),
@@ -562,7 +562,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             aspectRatio: 1.25,
             child: resolvedPath == null
                 ? Container(
-                    color: SeedlingColors.softCream,
+                    color: Theme.of(context).dividerColor,
                     alignment: Alignment.center,
                     child: const Icon(CupertinoIcons.photo),
                   )
@@ -570,7 +570,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                     File(resolvedPath),
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
-                      color: SeedlingColors.softCream,
+                      color: Theme.of(context).dividerColor,
                       alignment: Alignment.center,
                       child: const Icon(CupertinoIcons.photo),
                     ),
@@ -592,7 +592,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
           return Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: SeedlingColors.softCream,
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Center(child: CupertinoActivityIndicator()),
@@ -603,7 +603,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
           return Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: SeedlingColors.softCream,
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(

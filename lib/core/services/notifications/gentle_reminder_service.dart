@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../constants/prefs_keys.dart';
+
 import '../../../data/models/entry.dart';
 import '../../../data/models/ritual.dart';
 
@@ -87,14 +89,7 @@ class ReminderSettings {
 }
 
 class GentleReminderService {
-  static const _enabledKey = 'gentle_reminders_enabled';
-  static const _cadenceKey = 'gentle_reminders_cadence';
-  static const _hourKey = 'gentle_reminders_hour';
-  static const _minuteKey = 'gentle_reminders_minute';
-  static const _quietStartKey = 'gentle_reminders_quiet_start';
-  static const _quietEndKey = 'gentle_reminders_quiet_end';
   static const _notificationId = 7001;
-  static const _ritualAntiNagKey = 'ritual_last_notification_ms';
 
   final SharedPreferences _prefs;
   final FlutterLocalNotificationsPlugin _plugin;
@@ -107,14 +102,14 @@ class GentleReminderService {
        _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   ReminderSettings get settings => ReminderSettings(
-    enabled: _prefs.getBool(_enabledKey) ?? false,
+    enabled: _prefs.getBool(PrefsKeys.gentleRemindersEnabled) ?? false,
     cadence: ReminderCadence.values.byName(
-      _prefs.getString(_cadenceKey) ?? ReminderCadence.weekly.name,
+      _prefs.getString(PrefsKeys.gentleRemindersCadence) ?? ReminderCadence.weekly.name,
     ),
-    hour: _prefs.getInt(_hourKey) ?? 19,
-    minute: _prefs.getInt(_minuteKey) ?? 30,
-    quietStartHour: _prefs.getInt(_quietStartKey) ?? 21,
-    quietEndHour: _prefs.getInt(_quietEndKey) ?? 8,
+    hour: _prefs.getInt(PrefsKeys.gentleRemindersHour) ?? 19,
+    minute: _prefs.getInt(PrefsKeys.gentleRemindersMinute) ?? 30,
+    quietStartHour: _prefs.getInt(PrefsKeys.gentleRemindersQuietStart) ?? 21,
+    quietEndHour: _prefs.getInt(PrefsKeys.gentleRemindersQuietEnd) ?? 8,
   );
 
   Future<void> init() async {
@@ -147,12 +142,12 @@ class GentleReminderService {
   }
 
   Future<void> saveSettings(ReminderSettings next) async {
-    await _prefs.setBool(_enabledKey, next.enabled);
-    await _prefs.setString(_cadenceKey, next.cadence.name);
-    await _prefs.setInt(_hourKey, next.hour);
-    await _prefs.setInt(_minuteKey, next.minute);
-    await _prefs.setInt(_quietStartKey, next.quietStartHour);
-    await _prefs.setInt(_quietEndKey, next.quietEndHour);
+    await _prefs.setBool(PrefsKeys.gentleRemindersEnabled, next.enabled);
+    await _prefs.setString(PrefsKeys.gentleRemindersCadence, next.cadence.name);
+    await _prefs.setInt(PrefsKeys.gentleRemindersHour, next.hour);
+    await _prefs.setInt(PrefsKeys.gentleRemindersMinute, next.minute);
+    await _prefs.setInt(PrefsKeys.gentleRemindersQuietStart, next.quietStartHour);
+    await _prefs.setInt(PrefsKeys.gentleRemindersQuietEnd, next.quietEndHour);
   }
 
   Future<void> reschedule(List<Entry> entries) async {
@@ -208,7 +203,7 @@ class GentleReminderService {
     await init();
 
     // Global anti-nag: skip if any notification fired in the last 24 hours.
-    final lastMs = _prefs.getInt(_ritualAntiNagKey);
+    final lastMs = _prefs.getInt(PrefsKeys.ritualLastNotificationMs);
     if (lastMs != null) {
       final lastSent = DateTime.fromMillisecondsSinceEpoch(lastMs);
       if (DateTime.now().difference(lastSent).inHours < 24) return;
@@ -250,7 +245,7 @@ class GentleReminderService {
 
     if (scheduled > 0) {
       await _prefs.setInt(
-        _ritualAntiNagKey,
+        PrefsKeys.ritualLastNotificationMs,
         DateTime.now().millisecondsSinceEpoch,
       );
     }
