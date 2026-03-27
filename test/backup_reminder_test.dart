@@ -104,5 +104,63 @@ void main() {
         true,
       );
     });
+
+    test('reminder shows at exactly 30 days (boundary)', () async {
+      final date = DateTime.now().subtract(const Duration(days: 30));
+      await prefs.setString('last_backup_date', date.toIso8601String());
+
+      // >= 30 days triggers the reminder
+      expect(service.shouldShowReminder(entryCount: 10), true);
+    });
+
+    test('no reminder at 29 days (just under threshold)', () async {
+      final date = DateTime.now().subtract(const Duration(days: 29));
+      await prefs.setString('last_backup_date', date.toIso8601String());
+
+      expect(service.shouldShowReminder(entryCount: 10), false);
+    });
+
+    test('multiple recordBackup calls keep latest date', () async {
+      await service.recordBackup();
+      final first = service.getLastBackupDate();
+
+      // Small delay to ensure different timestamps
+      await Future.delayed(const Duration(milliseconds: 10));
+      await service.recordBackup();
+      final second = service.getLastBackupDate();
+
+      expect(second, isNotNull);
+      expect(first, isNotNull);
+      expect(
+        second!.isAfter(first!) || second.isAtSameMomentAs(first),
+        true,
+      );
+    });
+
+    test('dismiss after backup still silences reminder', () async {
+      await service.recordBackup();
+      // Simulate backup being old
+      final oldDate = DateTime.now().subtract(const Duration(days: 31));
+      await prefs.setString('last_backup_date', oldDate.toIso8601String());
+
+      // Would normally show
+      expect(service.shouldShowReminder(entryCount: 5), true);
+
+      // Dismiss
+      await service.dismissReminder();
+      expect(service.shouldShowReminder(entryCount: 5), false);
+    });
+
+    test('entry count of 1 is sufficient to trigger reminder', () {
+      expect(service.shouldShowReminder(entryCount: 1), true);
+    });
+
+    test('handles corrupted date string in prefs gracefully', () async {
+      await prefs.setString('last_backup_date', 'not-a-date');
+
+      // Should not crash — treats as never backed up
+      final lastBackup = service.getLastBackupDate();
+      expect(lastBackup, isNull);
+    });
   });
 }

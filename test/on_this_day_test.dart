@@ -130,5 +130,80 @@ void main() {
       expect(result, hasLength(1));
       expect(result[0].text, 'Unlocked capsule');
     });
+
+    test('includes all entry types (photo, voice, object, etc.)', () {
+      final entries = [
+        Entry.photo(mediaPath: '/path/photo.jpg', text: 'Photo memory')
+          ..createdAt = DateTime(2025, 3, 27),
+        Entry.voice(mediaPath: '/path/voice.m4a', text: 'Voice note')
+          ..createdAt = DateTime(2024, 3, 27),
+        Entry.object(title: 'Old watch', mediaPath: '/path/watch.jpg')
+          ..createdAt = DateTime(2023, 3, 27),
+        Entry.fragment(text: 'half thought')
+          ..createdAt = DateTime(2022, 3, 27),
+        Entry.release(text: 'letting go')
+          ..createdAt = DateTime(2021, 3, 27),
+      ];
+
+      final result = filterOnThisDay(entries, today);
+
+      expect(result, hasLength(5));
+      expect(result[0].type, EntryType.photo);
+      expect(result[1].type, EntryType.voice);
+      expect(result[2].type, EntryType.object);
+      expect(result[3].type, EntryType.fragment);
+      expect(result[4].type, EntryType.release);
+    });
+
+    test('handles entries spanning many years', () {
+      final entries = List.generate(
+        10,
+        (i) => Entry.line(text: 'Year ${2016 + i}')
+          ..createdAt = DateTime(2016 + i, 3, 27),
+      );
+
+      final result = filterOnThisDay(entries, today);
+
+      // Excludes 2026 (current year)
+      expect(result, hasLength(9));
+      expect(result[0].createdAt.year, 2025);
+      expect(result[8].createdAt.year, 2016);
+    });
+
+    test('returns empty for completely empty input', () {
+      final result = filterOnThisDay([], today);
+      expect(result, isEmpty);
+    });
+
+    test('handles leap day (Feb 29) correctly', () {
+      final feb29 = DateTime(2028, 2, 29); // 2028 is a leap year
+      final entries = [
+        Entry.line(text: 'Leap day 2024')
+          ..createdAt = DateTime(2024, 2, 29), // also leap year
+        Entry.line(text: 'Not Feb 29')
+          ..createdAt = DateTime(2025, 2, 28),
+      ];
+
+      final result = filterOnThisDay(entries, feb29);
+
+      expect(result, hasLength(1));
+      expect(result[0].text, 'Leap day 2024');
+    });
+
+    test('adjacent days are not included', () {
+      final entries = [
+        Entry.line(text: 'Day before')
+          ..createdAt = DateTime(2025, 3, 26),
+        Entry.line(text: 'Exact match')
+          ..createdAt = DateTime(2025, 3, 27),
+        Entry.line(text: 'Day after')
+          ..createdAt = DateTime(2025, 3, 28),
+      ];
+
+      final result = filterOnThisDay(entries, today);
+
+      expect(result, hasLength(1));
+      expect(result[0].text, 'Exact match');
+    });
   });
 }
