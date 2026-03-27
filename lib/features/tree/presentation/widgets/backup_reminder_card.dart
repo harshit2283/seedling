@@ -79,7 +79,7 @@ class BackupReminderCard extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         color: SeedlingColors.forestGreen,
         borderRadius: BorderRadius.circular(12),
-        minSize: 0,
+        minimumSize: Size.zero,
         onPressed: () {
           HapticFeedback.selectionClick();
           context.push(AppRoutes.settings);

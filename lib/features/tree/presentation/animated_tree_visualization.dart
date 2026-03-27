@@ -385,10 +385,6 @@ class _TreePainter extends CustomPainter {
     ..color = Colors.white.withValues(alpha: 0.15)
     ..style = PaintingStyle.fill;
 
-  static final _blossomPaint = Paint()
-    ..color = Colors.pink.shade200.withValues(alpha: 0.8)
-    ..style = PaintingStyle.fill;
-
   static final _particlePaint = Paint()..style = PaintingStyle.fill;
 
   _TreePainter({

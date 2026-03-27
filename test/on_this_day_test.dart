@@ -156,18 +156,19 @@ void main() {
     });
 
     test('handles entries spanning many years', () {
+      // Generate entries for 2017-2026 (10 entries)
       final entries = List.generate(
         10,
-        (i) => Entry.line(text: 'Year ${2016 + i}')
-          ..createdAt = DateTime(2016 + i, 3, 27),
+        (i) => Entry.line(text: 'Year ${2017 + i}')
+          ..createdAt = DateTime(2017 + i, 3, 27),
       );
 
       final result = filterOnThisDay(entries, today);
 
-      // Excludes 2026 (current year)
+      // Excludes 2026 (current year), keeps 2017-2025
       expect(result, hasLength(9));
       expect(result[0].createdAt.year, 2025);
-      expect(result[8].createdAt.year, 2016);
+      expect(result[8].createdAt.year, 2017);
     });
 
     test('returns empty for completely empty input', () {

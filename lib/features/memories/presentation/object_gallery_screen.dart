@@ -118,7 +118,7 @@ class _ObjectCell extends StatelessWidget {
               Image.file(
                 File(entry.mediaPath!),
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(context),
+                errorBuilder: (_, _, _) => _placeholder(context),
               )
             else
               _placeholder(context),
@@ -135,7 +135,7 @@ class _ObjectCell extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.7),
+                      Colors.black.withValues(alpha: 0.7),
                     ],
                   ),
                 ),
@@ -160,12 +160,12 @@ class _ObjectCell extends StatelessWidget {
 
   Widget _placeholder(BuildContext context) {
     return Container(
-      color: SeedlingColors.accentObject.withOpacity(0.15),
+      color: SeedlingColors.accentObject.withValues(alpha: 0.15),
       child: Center(
         child: Icon(
           Icons.category_outlined,
           size: 36,
-          color: SeedlingColors.accentObject.withOpacity(0.5),
+          color: SeedlingColors.accentObject.withValues(alpha: 0.5),
         ),
       ),
     );
