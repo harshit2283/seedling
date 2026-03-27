@@ -989,6 +989,55 @@ class _TreePainter extends CustomPainter {
     }
   }
 
+  void _drawFruit(Canvas canvas, Offset center, double radius) {
+    final random = math.Random(77); // Fixed seed for consistent positions
+    final fruitPaint = Paint()
+      ..color = const Color(0xFFD4A76A) // warm gold
+      ..style = PaintingStyle.fill;
+    final highlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.4)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 5; i++) {
+      final angle = random.nextDouble() * math.pi * 2;
+      final r = radius * 0.4 + random.nextDouble() * radius * 0.4;
+      final x = center.dx + math.cos(angle) * r + swayValue * 1.5;
+      final y = center.dy + math.sin(angle) * r * 0.6 + radius * 0.1;
+      final size = 3.5 + random.nextDouble() * 2;
+
+      canvas.drawCircle(Offset(x, y), size, fruitPaint);
+      // Small highlight on each fruit
+      canvas.drawCircle(
+        Offset(x - size * 0.25, y - size * 0.25),
+        size * 0.35,
+        highlightPaint,
+      );
+    }
+  }
+
+  void _drawBirds(Canvas canvas, Offset center, double radius) {
+    final birdPaint = Paint()
+      ..color = SeedlingColors.barkBrown.withValues(alpha: 0.5)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    // Two small bird silhouettes (simple V shapes) near canopy top
+    for (int i = 0; i < 2; i++) {
+      final bx = center.dx + (i == 0 ? -radius * 0.5 : radius * 0.4) +
+          swayValue * 2;
+      final by = center.dy - radius * (0.6 + i * 0.2) + swayValue * 1;
+      final wingSpan = 5.0 + i * 2;
+
+      final path = Path();
+      path.moveTo(bx - wingSpan, by + 2);
+      path.quadraticBezierTo(bx - wingSpan * 0.3, by - 1, bx, by);
+      path.quadraticBezierTo(bx + wingSpan * 0.3, by - 1, bx + wingSpan, by + 2);
+
+      canvas.drawPath(path, birdPaint);
+    }
+  }
+
   void _drawParticles(Canvas canvas, Size size) {
     for (final particle in particles) {
       // Update position based on progress
