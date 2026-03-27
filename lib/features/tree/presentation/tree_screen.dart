@@ -53,8 +53,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     final entryCount = ref.watch(entryCountProvider);
     final shouldCelebrate = ref.watch(treeGrowthEventProvider);
     final prompt = ref.watch(currentPromptProvider);
-    final themeDistribution = ref.watch(themeDistributionProvider);
-    final personality = TreePersonality.fromDistribution(themeDistribution);
+    final personality = ref.watch(treePersonalityProvider);
 
     // Activate growth detector (must be watched to work)
     ref.watch(treeGrowthDetectorProvider);

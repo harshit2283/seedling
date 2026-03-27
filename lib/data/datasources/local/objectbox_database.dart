@@ -426,30 +426,33 @@ class ObjectBoxDatabase {
     return results;
   }
 
-  /// Get entries from previous years that match today's month and day
+  /// Get entries from previous years that match today's month and day.
+  ///
+  /// Excludes the current year at the query level to avoid decrypting
+  /// entries that will never match.
   List<Entry> getEntriesOnThisDay() {
     final today = DateTime.now();
-    final currentYear = today.year;
+    final startOfYear =
+        DateTime(today.year).millisecondsSinceEpoch;
 
-    // Query all non-deleted entries
+    // Only fetch entries before the current year to minimise decryption work.
     final query = _entryBox
-        .query(Entry_.isDeleted.equals(false))
+        .query(
+          Entry_.isDeleted.equals(false).and(
+            Entry_.createdAt.lessThan(startOfYear),
+          ),
+        )
         .order(Entry_.createdAt, flags: Order.descending)
         .build();
-    final allEntries = query.find();
+    final pastEntries = query.find();
     query.close();
-    _decryptEntries(allEntries);
+    _decryptEntries(pastEntries);
 
-    // Filter in-memory for matching month/day, excluding current year and locked capsules
-    final matching = allEntries.where((entry) {
-      if (entry.createdAt.year == currentYear) return false;
+    return pastEntries.where((entry) {
       if (entry.isLocked) return false;
       return entry.createdAt.month == today.month &&
           entry.createdAt.day == today.day;
     }).toList();
-
-    // Already sorted by createdAt descending (newest year first)
-    return matching;
   }
 
   /// Save a capsule entry (same as saveEntry but with semantic naming)

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/entry.dart';
 import '../../../data/models/ritual.dart';
+import '../../../features/tree/domain/tree_personality.dart';
 import '../ai/theme_detector_service.dart';
 import '../ai/connection_finder_service.dart';
 import '../ai/ritual_detection_service.dart';
@@ -71,6 +72,12 @@ final themeDistributionProvider = Provider<Map<MemoryTheme, int>>((ref) {
   final entries = ref.watch(entriesProvider);
   final themeDetector = ref.watch(themeDetectorProvider);
   return themeDetector.analyzeDistribution(entries);
+});
+
+/// Memoised tree personality derived from the theme distribution.
+final treePersonalityProvider = Provider<TreePersonality>((ref) {
+  final distribution = ref.watch(themeDistributionProvider);
+  return TreePersonality.fromDistribution(distribution);
 });
 
 /// Provider for underrepresented themes

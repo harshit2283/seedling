@@ -70,14 +70,12 @@ class EntryCreatorNotifier extends Notifier<void> {
     return saved;
   }
 
-  /// Create a RITUAL entry from shared text
-  ///
-  /// Uses the text as the title since shared content has no separate title.
+  /// Create a RITUAL entry from shared text.
   Future<Entry> createRitualEntry(
     String text, {
     DateTime? capsuleUnlockDate,
   }) async {
-    final entry = Entry.ritual(title: text);
+    final entry = Entry.ritual(title: text, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
     final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
