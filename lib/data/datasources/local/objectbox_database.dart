@@ -426,6 +426,32 @@ class ObjectBoxDatabase {
     return results;
   }
 
+  /// Get entries from previous years that match today's month and day
+  List<Entry> getEntriesOnThisDay() {
+    final today = DateTime.now();
+    final currentYear = today.year;
+
+    // Query all non-deleted entries
+    final query = _entryBox
+        .query(Entry_.isDeleted.equals(false))
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final allEntries = query.find();
+    query.close();
+    _decryptEntries(allEntries);
+
+    // Filter in-memory for matching month/day, excluding current year and locked capsules
+    final matching = allEntries.where((entry) {
+      if (entry.createdAt.year == currentYear) return false;
+      if (entry.isLocked) return false;
+      return entry.createdAt.month == today.month &&
+          entry.createdAt.day == today.day;
+    }).toList();
+
+    // Already sorted by createdAt descending (newest year first)
+    return matching;
+  }
+
   /// Save a capsule entry (same as saveEntry but with semantic naming)
   Future<Entry> saveCapsule(Entry entry) async {
     return saveEntry(entry);
@@ -637,6 +663,24 @@ class ObjectBoxDatabase {
         .query()
         .watch(triggerImmediately: true)
         .map((q) => q.find());
+  }
+
+  // ============ Object Collection Operations ============
+
+  /// Get all object-type entries (non-deleted), sorted by createdAt descending
+  List<Entry> getObjectEntries() {
+    final query = _entryBox
+        .query(
+          Entry_.typeIndex
+              .equals(EntryType.object.index)
+              .and(Entry_.isDeleted.equals(false)),
+        )
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final results = query.find();
+    query.close();
+    _decryptEntries(results);
+    return results;
   }
 
   // ============ Manual Link Operations ============

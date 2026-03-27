@@ -252,6 +252,14 @@ final treeDescriptionProvider = Provider<String>((ref) {
   return tree?.stateDescription ?? 'Plant your first memory';
 });
 
+/// Provider for object-type entries (for Object Collection Gallery)
+final objectEntriesProvider = Provider<List<Entry>>((ref) {
+  final db = ref.watch(databaseProvider);
+  // Re-evaluate when entries change (objects may span years)
+  ref.watch(allEntriesStreamProvider);
+  return db.getObjectEntries();
+});
+
 /// Provider for soft-deleted entries (for recovery screen)
 final deletedEntriesProvider = Provider<List<Entry>>((ref) {
   final db = ref.watch(databaseProvider);
@@ -282,6 +290,14 @@ final lockedCapsulesProvider = Provider<List<Entry>>((ref) {
 final unlockedCapsulesProvider = Provider<List<Entry>>((ref) {
   final capsules = ref.watch(capsulesProvider);
   return capsules.where((c) => c.isUnlocked).toList();
+});
+
+/// Provider for "On This Day" entries from previous years matching today's month/day
+final onThisDayProvider = Provider<List<Entry>>((ref) {
+  final db = ref.watch(databaseProvider);
+  // Watch all entries so we re-evaluate when data changes
+  ref.watch(allEntriesStreamProvider);
+  return db.getEntriesOnThisDay();
 });
 
 /// Provider for capsules that unlock today

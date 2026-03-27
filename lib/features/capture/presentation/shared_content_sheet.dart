@@ -8,6 +8,7 @@ import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/share/share_receiver_service.dart';
 import '../../../core/widgets/glass/glass_container.dart';
+import '../../../data/models/entry.dart';
 
 /// Shows a sheet for handling content shared from other apps
 void showSharedContentSheet(BuildContext context, SharedContent content) {
@@ -197,6 +198,10 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
   String _getTypeDescription() {
     switch (widget.content.type) {
       case SharedContentType.text:
+        final suggested = widget.content.suggestedType;
+        if (suggested == EntryType.fragment) return 'Saving as a Fragment';
+        if (suggested == EntryType.release) return 'Saving as a Release';
+        if (suggested == EntryType.ritual) return 'Saving as a Ritual';
         return 'Saving as a Line entry';
       case SharedContentType.url:
         return 'Saving link as a Line entry';
@@ -317,7 +322,16 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
         case SharedContentType.text:
         case SharedContentType.url:
           if (text.isNotEmpty) {
-            await creator.createLineEntry(text);
+            final suggested = widget.content.suggestedType;
+            if (suggested == EntryType.fragment) {
+              await creator.createFragmentEntry(text);
+            } else if (suggested == EntryType.release) {
+              await creator.createReleaseEntry(text);
+            } else if (suggested == EntryType.ritual) {
+              await creator.createRitualEntry(text);
+            } else {
+              await creator.createLineEntry(text);
+            }
           }
           break;
 

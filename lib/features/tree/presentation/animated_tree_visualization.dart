@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../app/theme/colors.dart';
 import '../../../core/models/season.dart';
 import '../../../data/models/tree.dart';
+import '../domain/tree_personality.dart';
 
 /// Get current season based on month
 Season getCurrentSeason() {
@@ -23,6 +24,7 @@ class AnimatedTreeVisualization extends StatefulWidget {
   final double progress;
   final VoidCallback? onTap;
   final bool celebrateGrowth;
+  final TreePersonality? personality;
 
   const AnimatedTreeVisualization({
     super.key,
@@ -30,6 +32,7 @@ class AnimatedTreeVisualization extends StatefulWidget {
     required this.progress,
     this.onTap,
     this.celebrateGrowth = false,
+    this.personality,
   });
 
   @override
@@ -154,12 +157,15 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   }
 
   Color _getParticleColor() {
+    final personality = widget.personality;
     final colors = [
       SeedlingColors.freshSprout,
       SeedlingColors.leafGreen,
       SeedlingColors.paleGreen,
       Colors.amber.shade300,
       Colors.white,
+      if (personality != null) personality.blossomColor,
+      if (personality != null) personality.accentColor,
     ];
     return colors[_random.nextInt(colors.length)];
   }
@@ -209,6 +215,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
                         growthScale: _growthController.isAnimating
                             ? 0.9 + 0.1 * _growthAnimation.value
                             : 1.0,
+                        personality: widget.personality,
                       ),
                       size: Size.infinite,
                     );
@@ -321,6 +328,7 @@ class _TreePainter extends CustomPainter {
   final List<_Particle> particles;
   final double particleProgress;
   final double growthScale;
+  final TreePersonality? personality;
 
   // Static paints to avoid allocation in render loop
   static final _groundPaint = Paint()
@@ -390,6 +398,7 @@ class _TreePainter extends CustomPainter {
     required this.particles,
     required this.particleProgress,
     required this.growthScale,
+    this.personality,
   });
 
   @override
@@ -636,6 +645,14 @@ class _TreePainter extends CustomPainter {
     } else if (season == Season.autumn) {
       _drawFallingLeaves(canvas, size, canopyCenter);
     }
+
+    // Personality-driven decorations
+    if (personality?.showFruit == true) {
+      _drawFruit(canvas, canopyCenter, 50);
+    }
+    if (personality?.showBirds == true) {
+      _drawBirds(canvas, canopyCenter, 50);
+    }
   }
 
   void _drawAncientTree(Canvas canvas, Size size, double progress) {
@@ -665,6 +682,14 @@ class _TreePainter extends CustomPainter {
       _drawBlossoms(canvas, canopyCenter, 65);
     } else if (season == Season.autumn) {
       _drawFallingLeaves(canvas, size, canopyCenter);
+    }
+
+    // Personality-driven decorations
+    if (personality?.showFruit == true) {
+      _drawFruit(canvas, canopyCenter, 65);
+    }
+    if (personality?.showBirds == true) {
+      _drawBirds(canvas, canopyCenter, 65);
     }
 
     // Wisdom glow
@@ -839,9 +864,11 @@ class _TreePainter extends CustomPainter {
     double sway,
   ) {
     final leafColor = _getLeafColor();
+    final adjustedCount =
+        (count * (personality?.foliageDensity ?? 1.0)).round();
 
-    for (int i = 0; i < count; i++) {
-      final angle = (i / count) * math.pi * 2 - math.pi / 2;
+    for (int i = 0; i < adjustedCount; i++) {
+      final angle = (i / adjustedCount) * math.pi * 2 - math.pi / 2;
       final offset = Offset(
         math.cos(angle) * size * 0.5,
         math.sin(angle) * size * 0.3,
@@ -916,6 +943,13 @@ class _TreePainter extends CustomPainter {
   void _drawBlossoms(Canvas canvas, Offset center, double radius) {
     final random = math.Random(42); // Fixed seed for consistent positions
 
+    // Use personality blossom color if available
+    final blossomColor = personality?.blossomColor ??
+        Colors.pink.shade200.withValues(alpha: 0.8);
+    final personalizedBlossomPaint = Paint()
+      ..color = blossomColor.withValues(alpha: 0.8)
+      ..style = PaintingStyle.fill;
+
     for (int i = 0; i < 15; i++) {
       final angle = random.nextDouble() * math.pi * 2;
       final r = random.nextDouble() * radius * 0.9;
@@ -923,7 +957,7 @@ class _TreePainter extends CustomPainter {
       final y = center.dy + math.sin(angle) * r * 0.7;
       final size = 3.0 + random.nextDouble() * 3;
 
-      canvas.drawCircle(Offset(x, y), size, _blossomPaint);
+      canvas.drawCircle(Offset(x, y), size, personalizedBlossomPaint);
     }
   }
 
@@ -1003,12 +1037,18 @@ class _TreePainter extends CustomPainter {
   }
 
   Color _getLeafColor() {
-    return switch (season) {
+    final seasonalColor = switch (season) {
       Season.spring => SeedlingColors.freshSprout,
       Season.summer => SeedlingColors.leafGreen,
       Season.autumn => Colors.orange.shade400,
       Season.winter => SeedlingColors.paleGreen.withValues(alpha: 0.6),
     };
+
+    // Blend with personality accent (30%) if available
+    if (personality != null) {
+      return Color.lerp(seasonalColor, personality!.accentColor, 0.3)!;
+    }
+    return seasonalColor;
   }
 
   @override

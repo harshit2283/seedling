@@ -16,6 +16,7 @@ import '../../prompts/data/prompt_repository.dart';
 import '../../prompts/presentation/prompt_card.dart';
 import 'animated_tree_visualization.dart';
 import 'widgets/empty_state.dart';
+import 'widgets/on_this_day_card.dart';
 import 'widgets/recent_entry_preview.dart';
 
 /// Main home screen showing the tree and recent memories
@@ -268,6 +269,8 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   ),
                 ),
               ],
+              const SizedBox(height: 14),
+              const OnThisDayCard(),
               const SizedBox(height: 18),
               if (recentEntries.isEmpty)
                 EmptyState(onAddTap: () => showQuickCaptureSheet(context))

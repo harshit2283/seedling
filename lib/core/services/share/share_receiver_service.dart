@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import '../../../data/models/entry.dart';
 
 /// Represents content shared from another app to Seedling
 class SharedContent {
@@ -20,8 +21,15 @@ class SharedContent {
   final String? text;
   final String? imagePath;
   final String? url;
+  final EntryType? suggestedType;
 
-  SharedContent({required this.type, this.text, this.imagePath, this.url});
+  SharedContent({
+    required this.type,
+    this.text,
+    this.imagePath,
+    this.url,
+    this.suggestedType,
+  });
 
   /// Create from a shared media file
   factory SharedContent.fromMediaFile(SharedMediaFile file) {
@@ -74,10 +82,82 @@ class SharedContent {
         type: SharedContentType.url,
         url: sanitized.trim(),
         text: sanitized.trim(),
+        suggestedType: EntryType.line,
       );
     }
 
-    return SharedContent(type: SharedContentType.text, text: sanitized);
+    return SharedContent(
+      type: SharedContentType.text,
+      text: sanitized,
+      suggestedType: inferEntryType(sanitized),
+    );
+  }
+
+  /// Infer the best entry type for shared text content.
+  ///
+  /// Checks for release keywords, ritual patterns, and short/vague text.
+  /// Defaults to [EntryType.line] when no special pattern is detected.
+  static EntryType inferEntryType(String text) {
+    final trimmed = text.trim();
+    final lower = trimmed.toLowerCase();
+
+    // Very short and vague text -> fragment
+    if (trimmed.length < 15) {
+      // Only classify as fragment if the text is truly vague
+      // (no strong keywords that would match release/ritual)
+      if (!_hasReleaseKeywords(lower) && !_hasRitualPatterns(lower)) {
+        return EntryType.fragment;
+      }
+    }
+
+    // Check for release/letting-go keywords
+    if (_hasReleaseKeywords(lower)) {
+      return EntryType.release;
+    }
+
+    // Check for ritual/routine patterns
+    if (_hasRitualPatterns(lower)) {
+      return EntryType.ritual;
+    }
+
+    // Default to line
+    return EntryType.line;
+  }
+
+  static const List<String> _releaseKeywords = [
+    'goodbye',
+    'letting go',
+    'moving on',
+    'release',
+    'forgive',
+    'farewell',
+    'closure',
+    'accept',
+    'surrender',
+    'let go',
+  ];
+
+  static const List<String> _ritualPatterns = [
+    'every morning',
+    'each day',
+    'weekly',
+    'routine',
+    'ritual',
+    'tradition',
+    'always do',
+    'habit',
+    'every night',
+    'each week',
+    'every day',
+    'daily',
+  ];
+
+  static bool _hasReleaseKeywords(String lower) {
+    return _releaseKeywords.any((kw) => lower.contains(kw));
+  }
+
+  static bool _hasRitualPatterns(String lower) {
+    return _ritualPatterns.any((p) => lower.contains(p));
   }
 
   /// Whether this shared content has usable data

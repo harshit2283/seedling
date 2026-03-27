@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../constants/prefs_keys.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backup/backup_reminder_service.dart';
 import '../export/export_service.dart';
 import '../storage/storage_usage_service.dart';
 import '../security/app_lock_service.dart';
@@ -239,3 +240,20 @@ class _CollageViewFlagNotifier extends Notifier<bool> {
     await prefs.setBool(PrefsKeys.flagCollageView, value);
   }
 }
+
+// ============================================================================
+// Backup Reminder Providers
+// ============================================================================
+
+/// Provider for the backup reminder service.
+final backupReminderServiceProvider = Provider<BackupReminderService>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return BackupReminderService(prefs);
+});
+
+/// Provider that checks whether the backup reminder should be shown.
+final shouldShowBackupReminderProvider = Provider<bool>((ref) {
+  final service = ref.watch(backupReminderServiceProvider);
+  final entryCount = ref.watch(entryCountProvider);
+  return service.shouldShowReminder(entryCount: entryCount);
+});
