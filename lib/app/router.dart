@@ -13,6 +13,7 @@ import '../features/settings/presentation/deleted_entries_screen.dart';
 import '../features/settings/presentation/theme_insights_screen.dart';
 import '../features/capsules/presentation/capsules_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
+import '../features/memories/presentation/object_gallery_screen.dart';
 import '../features/review/presentation/year_in_review_screen.dart';
 import '../features/settings/presentation/rituals_screen.dart';
 
@@ -29,6 +30,7 @@ class AppRoutes {
   static const String themeInsights = '/settings/themes';
   static const String rituals = '/settings/rituals';
   static const String capsules = '/capsules';
+  static const String collection = '/collection';
   static const String yearReview = '/review/:year';
 
   static String entryRoute(int id) => '/entry/$id';
@@ -135,6 +137,12 @@ GoRouter createAppRouter(SharedPreferences prefs) {
         name: 'rituals',
         pageBuilder: (context, state) =>
             _buildPage(key: state.pageKey, child: const RitualsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.collection,
+        name: 'collection',
+        pageBuilder: (context, state) =>
+            _buildPage(key: state.pageKey, child: const ObjectGalleryScreen()),
       ),
       GoRoute(
         path: AppRoutes.capsules,

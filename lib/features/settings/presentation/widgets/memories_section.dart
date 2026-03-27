@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/platform_utils.dart';
 import 'settings_helpers.dart';
@@ -28,6 +29,17 @@ class MemoriesSection extends ConsumerWidget {
             trailing: const CupertinoListTileChevron(),
             onTap: () => context.push('/review/$reviewYear'),
           ),
+          CupertinoListTile(
+            leading: buildSettingsIconBox(
+              context,
+              CupertinoIcons.cube,
+              SeedlingColors.accentObject,
+            ),
+            title: const Text('Object Collection'),
+            subtitle: const Text('Your personal museum'),
+            trailing: const CupertinoListTileChevron(),
+            onTap: () => context.push(AppRoutes.collection),
+          ),
         ],
       );
     }
@@ -42,6 +54,13 @@ class MemoriesSection extends ConsumerWidget {
           title: 'Year in Review',
           subtitle: '$reviewYear',
           onTap: () => context.push('/review/$reviewYear'),
+        ),
+        buildMaterialActionTile(
+          context,
+          icon: Icons.category_outlined,
+          title: 'Object Collection',
+          subtitle: 'Your personal museum',
+          onTap: () => context.push(AppRoutes.collection),
         ),
       ],
     );
