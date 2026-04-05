@@ -69,22 +69,25 @@ class OnThisDayCard extends ConsumerWidget {
   }
 
   Widget _buildCardContent(BuildContext context, List<Entry> entries) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final brown = isDark
+        ? SeedlingColors.warmBrownDark
+        : SeedlingColors.warmBrown;
+    final secondary = isDark
+        ? SeedlingColors.textSecondaryDark
+        : SeedlingColors.textSecondary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(
-              Icons.history_rounded,
-              color: SeedlingColors.warmBrown,
-              size: 18,
-            ),
+            Icon(Icons.history_rounded, color: brown, size: 18),
             const SizedBox(width: 8),
             Text(
               'On This Day',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: SeedlingColors.textSecondary,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(color: secondary),
             ),
           ],
         ),
@@ -95,6 +98,16 @@ class OnThisDayCard extends ConsumerWidget {
   }
 
   Widget _buildEntryRow(BuildContext context, Entry entry) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final brown = isDark
+        ? SeedlingColors.warmBrownDark
+        : SeedlingColors.warmBrown;
+    final primary = isDark
+        ? SeedlingColors.textPrimaryDark
+        : SeedlingColors.textPrimary;
+    final muted = isDark
+        ? SeedlingColors.textMutedDark
+        : SeedlingColors.textMuted;
     return GestureDetector(
       onTap: () => context.push(AppRoutes.entryRoute(entry.id)),
       child: Padding(
@@ -105,32 +118,28 @@ class OnThisDayCard extends ConsumerWidget {
               width: 40,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: SeedlingColors.warmBrown.withValues(alpha: 0.12),
+                color: brown.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 '${entry.createdAt.year}',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.warmBrown,
+                  color: brown,
                   fontWeight: FontWeight.w600,
                   fontSize: 11,
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            Icon(
-              _getTypeIcon(entry.type),
-              color: SeedlingColors.textMuted,
-              size: 16,
-            ),
+            Icon(_getTypeIcon(entry.type), color: muted, size: 16),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 entry.displayContent,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: SeedlingColors.textPrimary,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: primary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -139,7 +148,7 @@ class OnThisDayCard extends ConsumerWidget {
               PlatformUtils.isIOS
                   ? Icons.arrow_forward_ios
                   : Icons.chevron_right,
-              color: SeedlingColors.textMuted,
+              color: muted,
               size: 14,
             ),
           ],

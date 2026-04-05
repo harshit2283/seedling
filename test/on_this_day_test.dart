@@ -60,12 +60,10 @@ void main() {
 
     test('excludes locked capsules', () {
       final entries = [
-        Entry(
-          typeIndex: EntryType.line.index,
+        Entry.capsule(
           text: 'Locked capsule',
-          createdAt: DateTime(2025, 3, 27),
-          capsuleUnlockDate: DateTime(2027, 1, 1), // future = locked
-        ),
+          unlockDate: DateTime(2027, 1, 1), // future = locked
+        )..createdAt = DateTime(2025, 3, 27),
         Entry.line(text: 'Regular entry')..createdAt = DateTime(2025, 3, 27),
       ];
 
@@ -104,12 +102,10 @@ void main() {
 
     test('includes unlocked capsules from previous years', () {
       final entries = [
-        Entry(
-          typeIndex: EntryType.line.index,
+        Entry.capsule(
           text: 'Unlocked capsule',
-          createdAt: DateTime(2025, 3, 27),
-          capsuleUnlockDate: DateTime(2026, 1, 1), // past = unlocked
-        ),
+          unlockDate: DateTime(2026, 1, 1), // past = unlocked
+        )..createdAt = DateTime(2025, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);

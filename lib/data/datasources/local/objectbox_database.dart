@@ -669,13 +669,18 @@ class ObjectBoxDatabase {
 
   // ============ Object Collection Operations ============
 
-  /// Get all object-type entries (non-deleted), sorted by createdAt descending
+  /// Get all object-type entries (non-deleted, unlocked), sorted by createdAt descending
   List<Entry> getObjectEntries() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final notLocked = Entry_.capsuleUnlockDate.isNull().or(
+      Entry_.capsuleUnlockDate.lessOrEqual(now),
+    );
     final query = _entryBox
         .query(
           Entry_.typeIndex
               .equals(EntryType.object.index)
-              .and(Entry_.isDeleted.equals(false)),
+              .and(Entry_.isDeleted.equals(false))
+              .and(notLocked),
         )
         .order(Entry_.createdAt, flags: Order.descending)
         .build();

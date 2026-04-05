@@ -23,24 +23,29 @@ class BackupReminderCard extends ConsumerWidget {
     final shouldShow = ref.watch(shouldShowBackupReminderProvider);
     if (!shouldShow) return const SizedBox.shrink();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final brown = isDark
+        ? SeedlingColors.warmBrownDark
+        : SeedlingColors.warmBrown;
+    final primary = isDark
+        ? SeedlingColors.textPrimaryDark
+        : SeedlingColors.textPrimary;
+    final secondary = isDark
+        ? SeedlingColors.textSecondaryDark
+        : SeedlingColors.textSecondary;
+
     return GlassContainer(
       borderRadius: 18,
       opacity: PlatformUtils.isIOS ? 0.80 : 1.0,
-      border: Border.all(
-        color: SeedlingColors.warmBrown.withValues(alpha: 0.25),
-      ),
+      border: Border.all(color: brown.withValues(alpha: 0.25)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: Icon(
-                Icons.cloud_outlined,
-                color: SeedlingColors.warmBrown,
-                size: 22,
-              ),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(Icons.cloud_outlined, color: brown, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -50,16 +55,16 @@ class BackupReminderCard extends ConsumerWidget {
                   Text(
                     "It's been a while since your last backup",
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: SeedlingColors.textPrimary,
+                      color: primary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Your memories are precious. Consider creating an encrypted backup to keep them safe.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: SeedlingColors.textSecondary,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: secondary),
                   ),
                   const SizedBox(height: 10),
                   _buildBackupButton(context),
@@ -116,10 +121,14 @@ class BackupReminderCard extends ConsumerWidget {
   }
 
   Widget _buildDismissButton(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark
+        ? SeedlingColors.textMutedDark
+        : SeedlingColors.textMuted;
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         HapticFeedback.selectionClick();
-        ref.read(backupReminderServiceProvider).dismissReminder();
+        await ref.read(backupReminderServiceProvider).dismissReminder();
         // Force provider to re-evaluate after dismissal.
         ref.invalidate(shouldShowBackupReminderProvider);
       },
@@ -127,7 +136,7 @@ class BackupReminderCard extends ConsumerWidget {
         padding: const EdgeInsets.all(6),
         child: Icon(
           PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
-          color: SeedlingColors.textMuted,
+          color: muted,
           size: 18,
         ),
       ),

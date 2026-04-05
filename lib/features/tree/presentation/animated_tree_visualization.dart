@@ -1109,6 +1109,7 @@ class _TreePainter extends CustomPainter {
         oldDelegate.swayValue != swayValue ||
         oldDelegate.particleProgress != particleProgress ||
         oldDelegate.growthScale != growthScale ||
-        oldDelegate.season != season;
+        oldDelegate.season != season ||
+        oldDelegate.personality != personality;
   }
 }

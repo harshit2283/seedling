@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:seedling/core/constants/prefs_keys.dart';
 import 'package:seedling/core/services/backup/backup_reminder_service.dart';
 
 void main() {
@@ -31,14 +32,17 @@ void main() {
     test('reminder shows after 30 days since last backup', () async {
       // Simulate a backup that happened 31 days ago
       final oldDate = DateTime.now().subtract(const Duration(days: 31));
-      await prefs.setString('last_backup_date', oldDate.toIso8601String());
+      await prefs.setString(
+        PrefsKeys.lastBackupDate,
+        oldDate.toIso8601String(),
+      );
 
       expect(service.shouldShowReminder(entryCount: 10), true);
     });
 
     test('no reminder at exactly 29 days since backup', () async {
       final date = DateTime.now().subtract(const Duration(days: 29));
-      await prefs.setString('last_backup_date', date.toIso8601String());
+      await prefs.setString(PrefsKeys.lastBackupDate, date.toIso8601String());
 
       expect(service.shouldShowReminder(entryCount: 10), false);
     });
@@ -58,7 +62,7 @@ void main() {
       // Simulate a dismissal that happened 31 days ago.
       final oldDismiss = DateTime.now().subtract(const Duration(days: 31));
       await prefs.setString(
-        'backup_reminder_dismissed_at',
+        PrefsKeys.backupReminderDismissedAt,
         oldDismiss.toIso8601String(),
       );
 
@@ -81,7 +85,7 @@ void main() {
       expect(service.getLastBackupDate(), isNotNull);
 
       // Verify dismissal was cleared.
-      expect(prefs.getString('backup_reminder_dismissed_at'), isNull);
+      expect(prefs.getString(PrefsKeys.backupReminderDismissedAt), isNull);
     });
 
     test('getLastBackupDate returns null when never backed up', () {
@@ -104,7 +108,7 @@ void main() {
 
     test('reminder shows at exactly 30 days (boundary)', () async {
       final date = DateTime.now().subtract(const Duration(days: 30));
-      await prefs.setString('last_backup_date', date.toIso8601String());
+      await prefs.setString(PrefsKeys.lastBackupDate, date.toIso8601String());
 
       // >= 30 days triggers the reminder
       expect(service.shouldShowReminder(entryCount: 10), true);
@@ -112,7 +116,7 @@ void main() {
 
     test('no reminder at 29 days (just under threshold)', () async {
       final date = DateTime.now().subtract(const Duration(days: 29));
-      await prefs.setString('last_backup_date', date.toIso8601String());
+      await prefs.setString(PrefsKeys.lastBackupDate, date.toIso8601String());
 
       expect(service.shouldShowReminder(entryCount: 10), false);
     });
@@ -135,7 +139,10 @@ void main() {
       await service.recordBackup();
       // Simulate backup being old
       final oldDate = DateTime.now().subtract(const Duration(days: 31));
-      await prefs.setString('last_backup_date', oldDate.toIso8601String());
+      await prefs.setString(
+        PrefsKeys.lastBackupDate,
+        oldDate.toIso8601String(),
+      );
 
       // Would normally show
       expect(service.shouldShowReminder(entryCount: 5), true);
@@ -150,7 +157,7 @@ void main() {
     });
 
     test('handles corrupted date string in prefs gracefully', () async {
-      await prefs.setString('last_backup_date', 'not-a-date');
+      await prefs.setString(PrefsKeys.lastBackupDate, 'not-a-date');
 
       // Should not crash — treats as never backed up
       final lastBackup = service.getLastBackupDate();

@@ -64,12 +64,15 @@ class TreePersonality {
     final maxCount = nonMoments.values.fold<int>(0, (a, b) => a > b ? a : b);
     if (maxCount == 0) return defaults;
 
-    // Check for a tie — if more than one theme shares the max, treat as even
+    // Check for a tie — if more than two themes share the max, treat as even
     final topThemes = nonMoments.entries
         .where((e) => e.value == maxCount)
         .toList();
     if (topThemes.length > 2) return defaults; // Too even, no personality
 
+    // Deterministic tie-break: pick the theme with the lowest enum index
+    // so Map iteration order cannot affect the result.
+    topThemes.sort((a, b) => a.key.index.compareTo(b.key.index));
     final dominant = topThemes.first.key;
 
     return switch (dominant) {
@@ -156,4 +159,26 @@ class TreePersonality {
       MemoryTheme.moments => defaults,
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is TreePersonality &&
+        other.blossomColor == blossomColor &&
+        other.accentColor == accentColor &&
+        other.foliageDensity == foliageDensity &&
+        other.showFruit == showFruit &&
+        other.showBirds == showBirds &&
+        other.dominantTheme == dominantTheme;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    blossomColor,
+    accentColor,
+    foliageDensity,
+    showFruit,
+    showBirds,
+    dominantTheme,
+  );
 }

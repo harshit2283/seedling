@@ -132,7 +132,6 @@ class SharedContent {
     'forgive',
     'farewell',
     'closure',
-    'accept',
     'surrender',
     'let go',
   ];
