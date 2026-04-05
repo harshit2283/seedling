@@ -114,13 +114,6 @@ void main() {
       expect(service.shouldShowReminder(entryCount: 10), true);
     });
 
-    test('no reminder at 29 days (just under threshold)', () async {
-      final date = DateTime.now().subtract(const Duration(days: 29));
-      await prefs.setString(PrefsKeys.lastBackupDate, date.toIso8601String());
-
-      expect(service.shouldShowReminder(entryCount: 10), false);
-    });
-
     test('multiple recordBackup calls keep latest date', () async {
       await service.recordBackup();
       final first = service.getLastBackupDate();

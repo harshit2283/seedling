@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
@@ -61,7 +62,7 @@ class OnThisDayCard extends ConsumerWidget {
         color:
             Theme.of(context).cardTheme.color ??
             Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: _buildCardContent(context, entries),
@@ -109,7 +110,10 @@ class OnThisDayCard extends ConsumerWidget {
         ? SeedlingColors.textMutedDark
         : SeedlingColors.textMuted;
     return GestureDetector(
-      onTap: () => context.push(AppRoutes.entryRoute(entry.id)),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        context.push(AppRoutes.entryRoute(entry.id));
+      },
       child: Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(
