@@ -8,6 +8,7 @@ import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/share/share_receiver_service.dart';
 import '../../../core/widgets/glass/glass_container.dart';
+import '../../../data/models/entry.dart';
 
 /// Shows a sheet for handling content shared from other apps
 void showSharedContentSheet(BuildContext context, SharedContent content) {
@@ -197,7 +198,12 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
   String _getTypeDescription() {
     switch (widget.content.type) {
       case SharedContentType.text:
-        return 'Saving as a Line entry';
+        return switch (widget.content.suggestedType) {
+          EntryType.fragment => 'Saving as a Fragment',
+          EntryType.release => 'Saving as a Release',
+          EntryType.ritual => 'Saving as a Ritual',
+          _ => 'Saving as a Line entry',
+        };
       case SharedContentType.url:
         return 'Saving link as a Line entry';
       case SharedContentType.image:
@@ -317,7 +323,12 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
         case SharedContentType.text:
         case SharedContentType.url:
           if (text.isNotEmpty) {
-            await creator.createLineEntry(text);
+            await switch (widget.content.suggestedType) {
+              EntryType.fragment => creator.createFragmentEntry(text),
+              EntryType.release => creator.createReleaseEntry(text),
+              EntryType.ritual => creator.createRitualEntry(text),
+              _ => creator.createLineEntry(text),
+            };
           }
           break;
 

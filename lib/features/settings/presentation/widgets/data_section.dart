@@ -400,6 +400,12 @@ class _DataSectionState extends ConsumerState<DataSection> {
       );
 
       if (result.success && result.filePath != null) {
+        // Record the backup date for reminder tracking (best-effort).
+        try {
+          await ref.read(backupReminderServiceProvider).recordBackup();
+        } catch (e) {
+          debugPrint('Failed to record backup date: $e');
+        }
         await exportService.shareFile(
           result.filePath!,
           subject: 'Seedling Encrypted Backup',

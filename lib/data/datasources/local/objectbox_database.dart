@@ -426,6 +426,34 @@ class ObjectBoxDatabase {
     return results;
   }
 
+  /// Get entries from previous years that match today's month and day.
+  ///
+  /// Excludes the current year at the query level to avoid decrypting
+  /// entries that will never match.
+  List<Entry> getEntriesOnThisDay() {
+    final today = DateTime.now();
+    final startOfYear = DateTime(today.year).millisecondsSinceEpoch;
+
+    // Only fetch entries before the current year to minimise decryption work.
+    final query = _entryBox
+        .query(
+          Entry_.isDeleted
+              .equals(false)
+              .and(Entry_.createdAt.lessThan(startOfYear)),
+        )
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final pastEntries = query.find();
+    query.close();
+    _decryptEntries(pastEntries);
+
+    return pastEntries.where((entry) {
+      if (entry.isLocked) return false;
+      return entry.createdAt.month == today.month &&
+          entry.createdAt.day == today.day;
+    }).toList();
+  }
+
   /// Save a capsule entry (same as saveEntry but with semantic naming)
   Future<Entry> saveCapsule(Entry entry) async {
     return saveEntry(entry);
@@ -637,6 +665,29 @@ class ObjectBoxDatabase {
         .query()
         .watch(triggerImmediately: true)
         .map((q) => q.find());
+  }
+
+  // ============ Object Collection Operations ============
+
+  /// Get all object-type entries (non-deleted, unlocked), sorted by createdAt descending
+  List<Entry> getObjectEntries() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final notLocked = Entry_.capsuleUnlockDate.isNull().or(
+      Entry_.capsuleUnlockDate.lessOrEqual(now),
+    );
+    final query = _entryBox
+        .query(
+          Entry_.typeIndex
+              .equals(EntryType.object.index)
+              .and(Entry_.isDeleted.equals(false))
+              .and(notLocked),
+        )
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final results = query.find();
+    query.close();
+    _decryptEntries(results);
+    return results;
   }
 
   // ============ Manual Link Operations ============

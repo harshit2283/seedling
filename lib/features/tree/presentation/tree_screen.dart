@@ -14,8 +14,11 @@ import '../../../data/models/tree.dart';
 import '../../capture/presentation/quick_capture_sheet.dart';
 import '../../prompts/data/prompt_repository.dart';
 import '../../prompts/presentation/prompt_card.dart';
+import '../domain/tree_personality.dart';
 import 'animated_tree_visualization.dart';
 import 'widgets/empty_state.dart';
+import 'widgets/backup_reminder_card.dart';
+import 'widgets/on_this_day_card.dart';
 import 'widgets/recent_entry_preview.dart';
 
 /// Main home screen showing the tree and recent memories
@@ -50,6 +53,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     final entryCount = ref.watch(entryCountProvider);
     final shouldCelebrate = ref.watch(treeGrowthEventProvider);
     final prompt = ref.watch(currentPromptProvider);
+    final personality = ref.watch(treePersonalityProvider);
 
     // Activate growth detector (must be watched to work)
     ref.watch(treeGrowthDetectorProvider);
@@ -64,6 +68,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
         entryCount: entryCount,
         shouldCelebrate: shouldCelebrate,
         prompt: prompt,
+        personality: personality,
       );
     }
     return _buildAndroidLayout(
@@ -75,6 +80,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       entryCount: entryCount,
       shouldCelebrate: shouldCelebrate,
       prompt: prompt,
+      personality: personality,
     );
   }
 
@@ -87,6 +93,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required int entryCount,
     required bool shouldCelebrate,
     required GentlePrompt? prompt,
+    required TreePersonality personality,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return CupertinoPageScaffold(
@@ -104,6 +111,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               entryCount: entryCount,
               shouldCelebrate: shouldCelebrate,
               prompt: prompt,
+              personality: personality,
             ),
             Positioned(
               left: 0,
@@ -126,6 +134,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required int entryCount,
     required bool shouldCelebrate,
     required GentlePrompt? prompt,
+    required TreePersonality personality,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return Scaffold(
@@ -142,6 +151,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               entryCount: entryCount,
               shouldCelebrate: shouldCelebrate,
               prompt: prompt,
+              personality: personality,
             ),
             Positioned(
               left: 0,
@@ -164,6 +174,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required int entryCount,
     required bool shouldCelebrate,
     required GentlePrompt? prompt,
+    required TreePersonality personality,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -242,6 +253,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                       progress: treeProgress,
                       celebrateGrowth: shouldCelebrate,
                       onTap: () => context.push(AppRoutes.memories),
+                      personality: personality,
                     ),
                   ),
                 ),
@@ -268,6 +280,10 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   ),
                 ),
               ],
+              const SizedBox(height: 14),
+              const OnThisDayCard(),
+              const SizedBox(height: 10),
+              const BackupReminderCard(),
               const SizedBox(height: 18),
               if (recentEntries.isEmpty)
                 EmptyState(onAddTap: () => showQuickCaptureSheet(context))

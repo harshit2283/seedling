@@ -55,6 +55,11 @@ class PrefsKeys {
   static const String flagMoodVisualization = 'flag_mood_visualization';
   static const String flagCollageView = 'flag_collage_view';
 
+  // Backup reminders
+  static const String lastBackupDate = 'last_backup_date';
+  static const String backupReminderDismissedAt =
+      'backup_reminder_dismissed_at';
+
   // Memories screen
   static const String memoriesGridView = 'memories_grid_view';
 }
