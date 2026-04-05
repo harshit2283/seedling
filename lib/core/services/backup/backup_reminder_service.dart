@@ -47,8 +47,7 @@ class BackupReminderService {
     if (dismissedRaw != null) {
       final dismissedAt = DateTime.tryParse(dismissedRaw);
       if (dismissedAt != null) {
-        final daysSinceDismiss =
-            DateTime.now().difference(dismissedAt).inDays;
+        final daysSinceDismiss = DateTime.now().difference(dismissedAt).inDays;
         if (daysSinceDismiss < reminderThresholdDays) {
           return false;
         }

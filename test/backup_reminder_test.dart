@@ -99,10 +99,7 @@ void main() {
         lastBackup!.isAfter(before.subtract(const Duration(seconds: 1))),
         true,
       );
-      expect(
-        lastBackup.isBefore(after.add(const Duration(seconds: 1))),
-        true,
-      );
+      expect(lastBackup.isBefore(after.add(const Duration(seconds: 1))), true);
     });
 
     test('reminder shows at exactly 30 days (boundary)', () async {
@@ -131,10 +128,7 @@ void main() {
 
       expect(second, isNotNull);
       expect(first, isNotNull);
-      expect(
-        second!.isAfter(first!) || second.isAtSameMomentAs(first),
-        true,
-      );
+      expect(second!.isAfter(first!) || second.isAtSameMomentAs(first), true);
     });
 
     test('dismiss after backup still silences reminder', () async {

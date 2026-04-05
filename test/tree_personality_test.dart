@@ -21,25 +21,22 @@ void main() {
         expect(personality.showBirds, false);
       });
 
-      test('nature-dominant produces high foliage density and showBirds true', () {
-        final distribution = {
-          MemoryTheme.nature: 15,
-          MemoryTheme.family: 3,
-        };
+      test(
+        'nature-dominant produces high foliage density and showBirds true',
+        () {
+          final distribution = {MemoryTheme.nature: 15, MemoryTheme.family: 3};
 
-        final personality = TreePersonality.fromDistribution(distribution);
+          final personality = TreePersonality.fromDistribution(distribution);
 
-        expect(personality.dominantTheme, MemoryTheme.nature);
-        expect(personality.foliageDensity, 1.3);
-        expect(personality.showBirds, true);
-        expect(personality.showFruit, false);
-      });
+          expect(personality.dominantTheme, MemoryTheme.nature);
+          expect(personality.foliageDensity, 1.3);
+          expect(personality.showBirds, true);
+          expect(personality.showFruit, false);
+        },
+      );
 
       test('gratitude-dominant produces showFruit true with golden accent', () {
-        final distribution = {
-          MemoryTheme.gratitude: 8,
-          MemoryTheme.work: 2,
-        };
+        final distribution = {MemoryTheme.gratitude: 8, MemoryTheme.work: 2};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -60,26 +57,27 @@ void main() {
         expect(personality.accentColor, TreePersonality.defaults.accentColor);
       });
 
-      test('even distribution (3+ tied themes) returns default personality', () {
-        final distribution = {
-          MemoryTheme.family: 5,
-          MemoryTheme.nature: 5,
-          MemoryTheme.work: 5,
-          MemoryTheme.travel: 5,
-        };
+      test(
+        'even distribution (3+ tied themes) returns default personality',
+        () {
+          final distribution = {
+            MemoryTheme.family: 5,
+            MemoryTheme.nature: 5,
+            MemoryTheme.work: 5,
+            MemoryTheme.travel: 5,
+          };
 
-        final personality = TreePersonality.fromDistribution(distribution);
+          final personality = TreePersonality.fromDistribution(distribution);
 
-        expect(personality.dominantTheme, isNull);
-        expect(personality.foliageDensity, 1.0);
-        expect(personality.showFruit, false);
-        expect(personality.showBirds, false);
-      });
+          expect(personality.dominantTheme, isNull);
+          expect(personality.foliageDensity, 1.0);
+          expect(personality.showFruit, false);
+          expect(personality.showBirds, false);
+        },
+      );
 
       test('only moments theme returns default personality', () {
-        final distribution = {
-          MemoryTheme.moments: 20,
-        };
+        final distribution = {MemoryTheme.moments: 20};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -88,10 +86,7 @@ void main() {
       });
 
       test('travel-dominant produces teal accent', () {
-        final distribution = {
-          MemoryTheme.travel: 12,
-          MemoryTheme.family: 3,
-        };
+        final distribution = {MemoryTheme.travel: 12, MemoryTheme.family: 3};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -99,24 +94,24 @@ void main() {
         expect(personality.accentColor, const Color(0xFF6B9F9F));
       });
 
-      test('creativity-dominant produces terracotta accent with higher density', () {
-        final distribution = {
-          MemoryTheme.creativity: 9,
-          MemoryTheme.moments: 5,
-        };
+      test(
+        'creativity-dominant produces terracotta accent with higher density',
+        () {
+          final distribution = {
+            MemoryTheme.creativity: 9,
+            MemoryTheme.moments: 5,
+          };
 
-        final personality = TreePersonality.fromDistribution(distribution);
+          final personality = TreePersonality.fromDistribution(distribution);
 
-        expect(personality.dominantTheme, MemoryTheme.creativity);
-        expect(personality.accentColor, const Color(0xFFB07D6B));
-        expect(personality.foliageDensity, 1.2);
-      });
+          expect(personality.dominantTheme, MemoryTheme.creativity);
+          expect(personality.accentColor, const Color(0xFFB07D6B));
+          expect(personality.foliageDensity, 1.2);
+        },
+      );
 
       test('reflection-dominant produces purple tints', () {
-        final distribution = {
-          MemoryTheme.reflection: 7,
-          MemoryTheme.nature: 2,
-        };
+        final distribution = {MemoryTheme.reflection: 7, MemoryTheme.nature: 2};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -126,10 +121,7 @@ void main() {
       });
 
       test('work-dominant produces blue-tinted leaves', () {
-        final distribution = {
-          MemoryTheme.work: 11,
-          MemoryTheme.gratitude: 4,
-        };
+        final distribution = {MemoryTheme.work: 11, MemoryTheme.gratitude: 4};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -138,10 +130,7 @@ void main() {
       });
 
       test('food-dominant shows fruit and warm orange accent', () {
-        final distribution = {
-          MemoryTheme.food: 10,
-          MemoryTheme.health: 3,
-        };
+        final distribution = {MemoryTheme.food: 10, MemoryTheme.health: 3};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -151,10 +140,7 @@ void main() {
       });
 
       test('health-dominant produces mint green accents', () {
-        final distribution = {
-          MemoryTheme.health: 8,
-          MemoryTheme.food: 2,
-        };
+        final distribution = {MemoryTheme.health: 8, MemoryTheme.food: 2};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -164,10 +150,7 @@ void main() {
       });
 
       test('friends-dominant produces soft green blossoms', () {
-        final distribution = {
-          MemoryTheme.friends: 14,
-          MemoryTheme.family: 5,
-        };
+        final distribution = {MemoryTheme.friends: 14, MemoryTheme.family: 5};
 
         final personality = TreePersonality.fromDistribution(distribution);
 
@@ -176,10 +159,7 @@ void main() {
       });
 
       test('two-way tie picks first theme (not default)', () {
-        final distribution = {
-          MemoryTheme.family: 5,
-          MemoryTheme.nature: 5,
-        };
+        final distribution = {MemoryTheme.family: 5, MemoryTheme.nature: 5};
 
         final personality = TreePersonality.fromDistribution(distribution);
 

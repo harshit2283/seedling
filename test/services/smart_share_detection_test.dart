@@ -10,16 +10,22 @@ void main() {
       });
 
       test('very short text under 15 chars is fragment', () {
-        expect(SharedContent.inferEntryType('just a thought'), EntryType.fragment);
+        expect(
+          SharedContent.inferEntryType('just a thought'),
+          EntryType.fragment,
+        );
       });
 
       test('empty-ish text is fragment', () {
         expect(SharedContent.inferEntryType('   ok   '), EntryType.fragment);
       });
 
-      test('short text with release keyword is still release, not fragment', () {
-        expect(SharedContent.inferEntryType('let go now'), EntryType.release);
-      });
+      test(
+        'short text with release keyword is still release, not fragment',
+        () {
+          expect(SharedContent.inferEntryType('let go now'), EntryType.release);
+        },
+      );
 
       test('short text with ritual keyword is still ritual, not fragment', () {
         expect(SharedContent.inferEntryType('daily walk'), EntryType.ritual);
@@ -50,7 +56,9 @@ void main() {
 
       test('text with "forgive" classifies as release', () {
         expect(
-          SharedContent.inferEntryType('Learning to forgive myself for past mistakes'),
+          SharedContent.inferEntryType(
+            'Learning to forgive myself for past mistakes',
+          ),
           EntryType.release,
         );
       });
@@ -64,7 +72,9 @@ void main() {
 
       test('text with "closure" classifies as release', () {
         expect(
-          SharedContent.inferEntryType('Finding closure after the conversation'),
+          SharedContent.inferEntryType(
+            'Finding closure after the conversation',
+          ),
           EntryType.release,
         );
       });
@@ -94,14 +104,18 @@ void main() {
     group('ritual detection', () {
       test('text with "every morning" classifies as ritual', () {
         expect(
-          SharedContent.inferEntryType('Every morning I walk to the park with the dog'),
+          SharedContent.inferEntryType(
+            'Every morning I walk to the park with the dog',
+          ),
           EntryType.ritual,
         );
       });
 
       test('text with "each day" classifies as ritual', () {
         expect(
-          SharedContent.inferEntryType('Each day I write in my journal before bed'),
+          SharedContent.inferEntryType(
+            'Each day I write in my journal before bed',
+          ),
           EntryType.ritual,
         );
       });
@@ -122,7 +136,9 @@ void main() {
 
       test('text with "tradition" classifies as ritual', () {
         expect(
-          SharedContent.inferEntryType('A tradition of baking cookies in December'),
+          SharedContent.inferEntryType(
+            'A tradition of baking cookies in December',
+          ),
           EntryType.ritual,
         );
       });
@@ -143,7 +159,9 @@ void main() {
 
       test('text with "habit" classifies as ritual', () {
         expect(
-          SharedContent.inferEntryType('The habit of journaling has changed my life'),
+          SharedContent.inferEntryType(
+            'The habit of journaling has changed my life',
+          ),
           EntryType.ritual,
         );
       });
@@ -159,14 +177,18 @@ void main() {
     group('default line detection', () {
       test('normal text defaults to line', () {
         expect(
-          SharedContent.inferEntryType('Saw a beautiful sunset today at the beach'),
+          SharedContent.inferEntryType(
+            'Saw a beautiful sunset today at the beach',
+          ),
           EntryType.line,
         );
       });
 
       test('quote-like text defaults to line', () {
         expect(
-          SharedContent.inferEntryType('The only way out is through - Robert Frost'),
+          SharedContent.inferEntryType(
+            'The only way out is through - Robert Frost',
+          ),
           EntryType.line,
         );
       });
@@ -191,15 +213,18 @@ void main() {
     });
 
     group('priority: release wins over ritual', () {
-      test('text with both release and ritual keywords classifies as release', () {
-        // Release keywords are checked first
-        expect(
-          SharedContent.inferEntryType(
-            'Letting go of my daily routine that no longer serves me',
-          ),
-          EntryType.release,
-        );
-      });
+      test(
+        'text with both release and ritual keywords classifies as release',
+        () {
+          // Release keywords are checked first
+          expect(
+            SharedContent.inferEntryType(
+              'Letting go of my daily routine that no longer serves me',
+            ),
+            EntryType.release,
+          );
+        },
+      );
     });
 
     group('edge cases', () {
@@ -213,7 +238,10 @@ void main() {
       });
 
       test('14 chars without keywords is fragment', () {
-        expect(SharedContent.inferEntryType('abcdefghijklmn'), EntryType.fragment);
+        expect(
+          SharedContent.inferEntryType('abcdefghijklmn'),
+          EntryType.fragment,
+        );
       });
 
       test('keyword embedded in longer word still matches', () {

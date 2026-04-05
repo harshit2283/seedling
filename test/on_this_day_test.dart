@@ -11,8 +11,7 @@ List<Entry> filterOnThisDay(List<Entry> allEntries, DateTime today) {
     if (entry.isLocked) return false;
     return entry.createdAt.month == today.month &&
         entry.createdAt.day == today.day;
-  }).toList()
-    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 }
 
 void main() {
@@ -21,10 +20,8 @@ void main() {
 
     test('includes entries matching today month/day from previous years', () {
       final entries = [
-        Entry.line(text: 'Last year')
-          ..createdAt = DateTime(2025, 3, 27),
-        Entry.line(text: 'Two years ago')
-          ..createdAt = DateTime(2024, 3, 27),
+        Entry.line(text: 'Last year')..createdAt = DateTime(2025, 3, 27),
+        Entry.line(text: 'Two years ago')..createdAt = DateTime(2024, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);
@@ -36,10 +33,8 @@ void main() {
 
     test('excludes current year entries', () {
       final entries = [
-        Entry.line(text: 'Today this year')
-          ..createdAt = DateTime(2026, 3, 27),
-        Entry.line(text: 'Last year')
-          ..createdAt = DateTime(2025, 3, 27),
+        Entry.line(text: 'Today this year')..createdAt = DateTime(2026, 3, 27),
+        Entry.line(text: 'Last year')..createdAt = DateTime(2025, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);
@@ -54,8 +49,7 @@ void main() {
           ..createdAt = DateTime(2025, 3, 27)
           ..isDeleted = true
           ..deletedAt = DateTime(2026, 3, 20),
-        Entry.line(text: 'Visible memory')
-          ..createdAt = DateTime(2024, 3, 27),
+        Entry.line(text: 'Visible memory')..createdAt = DateTime(2024, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);
@@ -72,8 +66,7 @@ void main() {
           createdAt: DateTime(2025, 3, 27),
           capsuleUnlockDate: DateTime(2027, 1, 1), // future = locked
         ),
-        Entry.line(text: 'Regular entry')
-          ..createdAt = DateTime(2025, 3, 27),
+        Entry.line(text: 'Regular entry')..createdAt = DateTime(2025, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);
@@ -84,12 +77,9 @@ void main() {
 
     test('returns empty when no entries match', () {
       final entries = [
-        Entry.line(text: 'Wrong day')
-          ..createdAt = DateTime(2025, 3, 28),
-        Entry.line(text: 'Wrong month')
-          ..createdAt = DateTime(2025, 4, 27),
-        Entry.line(text: 'Current year')
-          ..createdAt = DateTime(2026, 3, 27),
+        Entry.line(text: 'Wrong day')..createdAt = DateTime(2025, 3, 28),
+        Entry.line(text: 'Wrong month')..createdAt = DateTime(2025, 4, 27),
+        Entry.line(text: 'Current year')..createdAt = DateTime(2026, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);
@@ -99,12 +89,9 @@ void main() {
 
     test('returns entries sorted by year descending', () {
       final entries = [
-        Entry.line(text: 'Oldest')
-          ..createdAt = DateTime(2022, 3, 27),
-        Entry.line(text: 'Newest')
-          ..createdAt = DateTime(2025, 3, 27),
-        Entry.line(text: 'Middle')
-          ..createdAt = DateTime(2024, 3, 27),
+        Entry.line(text: 'Oldest')..createdAt = DateTime(2022, 3, 27),
+        Entry.line(text: 'Newest')..createdAt = DateTime(2025, 3, 27),
+        Entry.line(text: 'Middle')..createdAt = DateTime(2024, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);
@@ -139,10 +126,8 @@ void main() {
           ..createdAt = DateTime(2024, 3, 27),
         Entry.object(title: 'Old watch', mediaPath: '/path/watch.jpg')
           ..createdAt = DateTime(2023, 3, 27),
-        Entry.fragment(text: 'half thought')
-          ..createdAt = DateTime(2022, 3, 27),
-        Entry.release(text: 'letting go')
-          ..createdAt = DateTime(2021, 3, 27),
+        Entry.fragment(text: 'half thought')..createdAt = DateTime(2022, 3, 27),
+        Entry.release(text: 'letting go')..createdAt = DateTime(2021, 3, 27),
       ];
 
       final result = filterOnThisDay(entries, today);
@@ -159,8 +144,9 @@ void main() {
       // Generate entries for 2017-2026 (10 entries)
       final entries = List.generate(
         10,
-        (i) => Entry.line(text: 'Year ${2017 + i}')
-          ..createdAt = DateTime(2017 + i, 3, 27),
+        (i) =>
+            Entry.line(text: 'Year ${2017 + i}')
+              ..createdAt = DateTime(2017 + i, 3, 27),
       );
 
       final result = filterOnThisDay(entries, today);
@@ -181,8 +167,7 @@ void main() {
       final entries = [
         Entry.line(text: 'Leap day 2024')
           ..createdAt = DateTime(2024, 2, 29), // also leap year
-        Entry.line(text: 'Not Feb 29')
-          ..createdAt = DateTime(2025, 2, 28),
+        Entry.line(text: 'Not Feb 29')..createdAt = DateTime(2025, 2, 28),
       ];
 
       final result = filterOnThisDay(entries, feb29);
@@ -193,12 +178,9 @@ void main() {
 
     test('adjacent days are not included', () {
       final entries = [
-        Entry.line(text: 'Day before')
-          ..createdAt = DateTime(2025, 3, 26),
-        Entry.line(text: 'Exact match')
-          ..createdAt = DateTime(2025, 3, 27),
-        Entry.line(text: 'Day after')
-          ..createdAt = DateTime(2025, 3, 28),
+        Entry.line(text: 'Day before')..createdAt = DateTime(2025, 3, 26),
+        Entry.line(text: 'Exact match')..createdAt = DateTime(2025, 3, 27),
+        Entry.line(text: 'Day after')..createdAt = DateTime(2025, 3, 28),
       ];
 
       final result = filterOnThisDay(entries, today);

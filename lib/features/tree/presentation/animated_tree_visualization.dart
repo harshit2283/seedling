@@ -860,8 +860,8 @@ class _TreePainter extends CustomPainter {
     double sway,
   ) {
     final leafColor = _getLeafColor();
-    final adjustedCount =
-        (count * (personality?.foliageDensity ?? 1.0)).round();
+    final adjustedCount = (count * (personality?.foliageDensity ?? 1.0))
+        .round();
 
     for (int i = 0; i < adjustedCount; i++) {
       final angle = (i / adjustedCount) * math.pi * 2 - math.pi / 2;
@@ -940,7 +940,8 @@ class _TreePainter extends CustomPainter {
     final random = math.Random(42); // Fixed seed for consistent positions
 
     // Use personality blossom color if available
-    final blossomColor = personality?.blossomColor ??
+    final blossomColor =
+        personality?.blossomColor ??
         Colors.pink.shade200.withValues(alpha: 0.8);
     final personalizedBlossomPaint = Paint()
       ..color = blossomColor.withValues(alpha: 0.8)
@@ -988,7 +989,8 @@ class _TreePainter extends CustomPainter {
   void _drawFruit(Canvas canvas, Offset center, double radius) {
     final random = math.Random(77); // Fixed seed for consistent positions
     final fruitPaint = Paint()
-      ..color = const Color(0xFFD4A76A) // warm gold
+      ..color =
+          const Color(0xFFD4A76A) // warm gold
       ..style = PaintingStyle.fill;
     final highlightPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.4)
@@ -1020,15 +1022,20 @@ class _TreePainter extends CustomPainter {
 
     // Two small bird silhouettes (simple V shapes) near canopy top
     for (int i = 0; i < 2; i++) {
-      final bx = center.dx + (i == 0 ? -radius * 0.5 : radius * 0.4) +
-          swayValue * 2;
+      final bx =
+          center.dx + (i == 0 ? -radius * 0.5 : radius * 0.4) + swayValue * 2;
       final by = center.dy - radius * (0.6 + i * 0.2) + swayValue * 1;
       final wingSpan = 5.0 + i * 2;
 
       final path = Path();
       path.moveTo(bx - wingSpan, by + 2);
       path.quadraticBezierTo(bx - wingSpan * 0.3, by - 1, bx, by);
-      path.quadraticBezierTo(bx + wingSpan * 0.3, by - 1, bx + wingSpan, by + 2);
+      path.quadraticBezierTo(
+        bx + wingSpan * 0.3,
+        by - 1,
+        bx + wingSpan,
+        by + 2,
+      );
 
       canvas.drawPath(path, birdPaint);
     }

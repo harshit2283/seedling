@@ -58,7 +58,8 @@ class OnThisDayCard extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color ??
+        color:
+            Theme.of(context).cardTheme.color ??
             Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Theme.of(context).dividerColor),
@@ -82,15 +83,13 @@ class OnThisDayCard extends ConsumerWidget {
             Text(
               'On This Day',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: SeedlingColors.textSecondary,
-                  ),
+                color: SeedlingColors.textSecondary,
+              ),
             ),
           ],
         ),
         const SizedBox(height: 10),
-        ...entries.map(
-          (entry) => _buildEntryRow(context, entry),
-        ),
+        ...entries.map((entry) => _buildEntryRow(context, entry)),
       ],
     );
   }
@@ -113,10 +112,10 @@ class OnThisDayCard extends ConsumerWidget {
                 '${entry.createdAt.year}',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: SeedlingColors.warmBrown,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                    ),
+                  color: SeedlingColors.warmBrown,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -130,8 +129,8 @@ class OnThisDayCard extends ConsumerWidget {
               child: Text(
                 entry.displayContent,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: SeedlingColors.textPrimary,
-                    ),
+                  color: SeedlingColors.textPrimary,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),

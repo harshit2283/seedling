@@ -83,20 +83,14 @@ class ObjectGalleryScreen extends ConsumerWidget {
       itemCount: objects.length,
       itemBuilder: (context, index) {
         final entry = objects[index];
-        return _ObjectCell(
-          entry: entry,
-          borderRadius: borderRadius,
-        );
+        return _ObjectCell(entry: entry, borderRadius: borderRadius);
       },
     );
   }
 }
 
 class _ObjectCell extends StatelessWidget {
-  const _ObjectCell({
-    required this.entry,
-    required this.borderRadius,
-  });
+  const _ObjectCell({required this.entry, required this.borderRadius});
 
   final Entry entry;
   final BorderRadius borderRadius;

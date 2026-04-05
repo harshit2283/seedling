@@ -5,9 +5,7 @@ import 'package:seedling/data/models/entry.dart';
 /// so we can unit-test without a live ObjectBox store.
 List<Entry> filterObjectEntries(List<Entry> allEntries) {
   return allEntries
-      .where(
-        (e) => e.type == EntryType.object && !e.isDeleted,
-      )
+      .where((e) => e.type == EntryType.object && !e.isDeleted)
       .toList()
     ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 }
@@ -89,9 +87,7 @@ void main() {
     });
 
     test('object entries without media are still included', () {
-      final entries = [
-        Entry.object(title: 'No photo object'),
-      ];
+      final entries = [Entry.object(title: 'No photo object')];
 
       final result = filterObjectEntries(entries);
 

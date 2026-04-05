@@ -432,15 +432,14 @@ class ObjectBoxDatabase {
   /// entries that will never match.
   List<Entry> getEntriesOnThisDay() {
     final today = DateTime.now();
-    final startOfYear =
-        DateTime(today.year).millisecondsSinceEpoch;
+    final startOfYear = DateTime(today.year).millisecondsSinceEpoch;
 
     // Only fetch entries before the current year to minimise decryption work.
     final query = _entryBox
         .query(
-          Entry_.isDeleted.equals(false).and(
-            Entry_.createdAt.lessThan(startOfYear),
-          ),
+          Entry_.isDeleted
+              .equals(false)
+              .and(Entry_.createdAt.lessThan(startOfYear)),
         )
         .order(Entry_.createdAt, flags: Order.descending)
         .build();

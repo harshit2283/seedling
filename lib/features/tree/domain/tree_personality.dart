@@ -52,9 +52,7 @@ class TreePersonality {
   /// it is the only theme) and maps it to visual parameters.
   /// Returns the default personality when the distribution is empty or
   /// evenly spread with no clear winner.
-  factory TreePersonality.fromDistribution(
-    Map<MemoryTheme, int> distribution,
-  ) {
+  factory TreePersonality.fromDistribution(Map<MemoryTheme, int> distribution) {
     if (distribution.isEmpty) return defaults;
 
     // Find dominant theme (exclude moments as it is the fallback)
@@ -67,93 +65,94 @@ class TreePersonality {
     if (maxCount == 0) return defaults;
 
     // Check for a tie — if more than one theme shares the max, treat as even
-    final topThemes =
-        nonMoments.entries.where((e) => e.value == maxCount).toList();
+    final topThemes = nonMoments.entries
+        .where((e) => e.value == maxCount)
+        .toList();
     if (topThemes.length > 2) return defaults; // Too even, no personality
 
     final dominant = topThemes.first.key;
 
     return switch (dominant) {
       MemoryTheme.family => TreePersonality(
-          blossomColor: const Color(0xFFE8A0B0), // warm pink / rose
-          accentColor: const Color(0xFF9F6B7D), // dusty rose
-          foliageDensity: 1.1,
-          showFruit: false,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFE8A0B0), // warm pink / rose
+        accentColor: const Color(0xFF9F6B7D), // dusty rose
+        foliageDensity: 1.1,
+        showFruit: false,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.nature => TreePersonality(
-          blossomColor: const Color(0xFFA8D5A0), // soft green blossoms
-          accentColor: const Color(0xFF3D6B4D), // deeper green
-          foliageDensity: 1.3,
-          showFruit: false,
-          showBirds: true,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFA8D5A0), // soft green blossoms
+        accentColor: const Color(0xFF3D6B4D), // deeper green
+        foliageDensity: 1.3,
+        showFruit: false,
+        showBirds: true,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.gratitude => TreePersonality(
-          blossomColor: const Color(0xFFE8D4A0), // warm golden
-          accentColor: const Color(0xFFD4A76A), // warm gold
-          foliageDensity: 1.1,
-          showFruit: true,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFE8D4A0), // warm golden
+        accentColor: const Color(0xFFD4A76A), // warm gold
+        foliageDensity: 1.1,
+        showFruit: true,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.travel => TreePersonality(
-          blossomColor: const Color(0xFFA0D4D4), // light teal
-          accentColor: const Color(0xFF6B9F9F), // teal
-          foliageDensity: 1.0,
-          showFruit: false,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFA0D4D4), // light teal
+        accentColor: const Color(0xFF6B9F9F), // teal
+        foliageDensity: 1.0,
+        showFruit: false,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.creativity => TreePersonality(
-          blossomColor: const Color(0xFFD4A890), // warm terracotta blossom
-          accentColor: const Color(0xFFB07D6B), // terracotta
-          foliageDensity: 1.2,
-          showFruit: false,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFD4A890), // warm terracotta blossom
+        accentColor: const Color(0xFFB07D6B), // terracotta
+        foliageDensity: 1.2,
+        showFruit: false,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.friends => TreePersonality(
-          blossomColor: const Color(0xFFC0DCA0), // soft green blossoms
-          accentColor: const Color(0xFF7D9F6B), // soft green
-          foliageDensity: 1.1,
-          showFruit: false,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFC0DCA0), // soft green blossoms
+        accentColor: const Color(0xFF7D9F6B), // soft green
+        foliageDensity: 1.1,
+        showFruit: false,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.reflection => TreePersonality(
-          blossomColor: const Color(0xFFC4A8D4), // soft purple
-          accentColor: const Color(0xFF8B6B9F), // soft purple
-          foliageDensity: 1.0,
-          showFruit: false,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFC4A8D4), // soft purple
+        accentColor: const Color(0xFF8B6B9F), // soft purple
+        foliageDensity: 1.0,
+        showFruit: false,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.work => TreePersonality(
-          blossomColor: const Color(0xFFA8C4D4), // soft blue
-          accentColor: const Color(0xFF6B7D9F), // muted blue
-          foliageDensity: 1.0,
-          showFruit: false,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFA8C4D4), // soft blue
+        accentColor: const Color(0xFF6B7D9F), // muted blue
+        foliageDensity: 1.0,
+        showFruit: false,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.health => TreePersonality(
-          blossomColor: const Color(0xFFA8D4C0), // mint green
-          accentColor: const Color(0xFF6B9F7D), // fresh mint
-          foliageDensity: 1.15,
-          showFruit: false,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFA8D4C0), // mint green
+        accentColor: const Color(0xFF6B9F7D), // fresh mint
+        foliageDensity: 1.15,
+        showFruit: false,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.food => TreePersonality(
-          blossomColor: const Color(0xFFE8C4A0), // warm orange
-          accentColor: const Color(0xFFD49F6A), // warm orange
-          foliageDensity: 1.1,
-          showFruit: true,
-          showBirds: false,
-          dominantTheme: dominant,
-        ),
+        blossomColor: const Color(0xFFE8C4A0), // warm orange
+        accentColor: const Color(0xFFD49F6A), // warm orange
+        foliageDensity: 1.1,
+        showFruit: true,
+        showBirds: false,
+        dominantTheme: dominant,
+      ),
       MemoryTheme.moments => defaults,
     };
   }
