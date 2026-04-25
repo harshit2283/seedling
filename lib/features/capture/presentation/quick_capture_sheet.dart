@@ -158,7 +158,21 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
+            // Compression / save progress hairline
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: _isSaving
+                  ? const _SaveHairline(key: ValueKey('saving'))
+                  : const SizedBox(
+                      key: ValueKey('idle'),
+                      height: 2,
+                      width: double.infinity,
+                    ),
+            ),
+            const SizedBox(height: 12),
             // Main content area
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -290,35 +304,71 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   }
 
   Widget _buildContentArea() {
+    final Widget child;
     switch (_captureMode) {
       case CaptureMode.text:
-        return _buildTextField();
+        child = KeyedSubtree(
+          key: const ValueKey('mode-text'),
+          child: _buildTextField(),
+        );
+        break;
       case CaptureMode.photo:
-        return PhotoCaptureContent(
-          initialPhotoPath: _photoPath,
-          text: _photoText,
-          onPhotoPathChanged: (path) => setState(() => _photoPath = path),
-          onTextChanged: (text) => _photoText = text,
+        child = KeyedSubtree(
+          key: const ValueKey('mode-photo'),
+          child: PhotoCaptureContent(
+            initialPhotoPath: _photoPath,
+            text: _photoText,
+            onPhotoPathChanged: (path) => setState(() => _photoPath = path),
+            onTextChanged: (text) => _photoText = text,
+          ),
         );
+        break;
       case CaptureMode.voice:
-        return VoiceCaptureContent(
-          initialVoicePath: _voicePath,
-          initialDuration: _voiceDuration,
-          text: _voiceText,
-          onVoicePathChanged: (path) => setState(() => _voicePath = path),
-          onDurationChanged: (duration) => _voiceDuration = duration,
-          onTextChanged: (text) => _voiceText = text,
+        child = KeyedSubtree(
+          key: const ValueKey('mode-voice'),
+          child: VoiceCaptureContent(
+            initialVoicePath: _voicePath,
+            initialDuration: _voiceDuration,
+            text: _voiceText,
+            onVoicePathChanged: (path) => setState(() => _voicePath = path),
+            onDurationChanged: (duration) => _voiceDuration = duration,
+            onTextChanged: (text) => _voiceText = text,
+          ),
         );
+        break;
       case CaptureMode.object:
-        return ObjectCaptureContent(
-          initialPhotoPath: _objectPhotoPath,
-          initialTitle: _objectTitle,
-          initialStory: _objectStory,
-          onPhotoPathChanged: (path) => setState(() => _objectPhotoPath = path),
-          onTitleChanged: (title) => _objectTitle = title,
-          onStoryChanged: (story) => _objectStory = story,
+        child = KeyedSubtree(
+          key: const ValueKey('mode-object'),
+          child: ObjectCaptureContent(
+            initialPhotoPath: _objectPhotoPath,
+            initialTitle: _objectTitle,
+            initialStory: _objectStory,
+            onPhotoPathChanged: (path) =>
+                setState(() => _objectPhotoPath = path),
+            onTitleChanged: (title) => _objectTitle = title,
+            onStoryChanged: (story) => _objectStory = story,
+          ),
         );
+        break;
     }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SizeTransition(
+            sizeFactor: animation,
+            axis: Axis.vertical,
+            axisAlignment: -1,
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
   }
 
   Widget _buildTextField() {
@@ -865,7 +915,11 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     if (_isSaving) {
       return false;
     }
-    _isSaving = true;
+    if (mounted) {
+      setState(() => _isSaving = true);
+    } else {
+      _isSaving = true;
+    }
     _didPopDuringSave = false;
 
     try {
@@ -959,7 +1013,11 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       }
       return false;
     } finally {
-      _isSaving = false;
+      if (mounted) {
+        setState(() => _isSaving = false);
+      } else {
+        _isSaving = false;
+      }
     }
   }
 
@@ -1036,5 +1094,25 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       ),
     );
     return shouldDiscard ?? false;
+  }
+}
+
+/// Indeterminate hairline shown above the sheet content while saving.
+class _SaveHairline extends StatelessWidget {
+  const _SaveHairline({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 2,
+      width: double.infinity,
+      child: LinearProgressIndicator(
+        minHeight: 2,
+        backgroundColor: Colors.transparent,
+        valueColor: const AlwaysStoppedAnimation<Color>(
+          SeedlingColors.forestGreen,
+        ),
+      ),
+    );
   }
 }

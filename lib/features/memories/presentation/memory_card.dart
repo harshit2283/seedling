@@ -166,17 +166,23 @@ class MemoryCard extends ConsumerWidget {
           if (resolvedFile == null) {
             return _buildGridColorBlock(typeColor);
           }
-          return ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Image.file(
-              resolvedFile,
-              height: 160,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              cacheWidth: cacheWidth,
-              cacheHeight: cacheHeight,
-              errorBuilder: (context, error, stackTrace) =>
-                  _buildGridColorBlock(typeColor),
+          return Hero(
+            tag: 'entry-${entry.id}',
+            transitionOnUserGestures: true,
+            flightShuttleBuilder: _heroShuttle,
+            child: ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Image.file(
+                resolvedFile,
+                height: 160,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                cacheWidth: cacheWidth,
+                cacheHeight: cacheHeight,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildGridColorBlock(typeColor),
+              ),
             ),
           );
         },
@@ -185,20 +191,44 @@ class MemoryCard extends ConsumerWidget {
 
     // Voice entries: waveform icon on colored block
     if (entry.type == EntryType.voice) {
-      return _buildGridColorBlock(
-        SeedlingColors.accentVoice,
-        child: Icon(
-          PlatformUtils.isIOS ? CupertinoIcons.waveform : Icons.graphic_eq,
-          color: SeedlingColors.accentVoice,
-          size: 32,
+      return Hero(
+        tag: 'entry-${entry.id}',
+        transitionOnUserGestures: true,
+        flightShuttleBuilder: _heroShuttle,
+        child: _buildGridColorBlock(
+          SeedlingColors.accentVoice,
+          child: Icon(
+            PlatformUtils.isIOS ? CupertinoIcons.waveform : Icons.graphic_eq,
+            color: SeedlingColors.accentVoice,
+            size: 32,
+          ),
         ),
       );
     }
 
     // Text-only entries: colored solid block with type emoji/icon centered
-    return _buildGridColorBlock(
-      typeColor,
-      child: Icon(_getTypeIcon(), color: typeColor, size: 28),
+    return Hero(
+      tag: 'entry-${entry.id}',
+      transitionOnUserGestures: true,
+      flightShuttleBuilder: _heroShuttle,
+      child: _buildGridColorBlock(
+        typeColor,
+        child: Icon(_getTypeIcon(), color: typeColor, size: 28),
+      ),
+    );
+  }
+
+  static Widget _heroShuttle(
+    BuildContext flightContext,
+    Animation<double> animation,
+    HeroFlightDirection flightDirection,
+    BuildContext fromHeroContext,
+    BuildContext toHeroContext,
+  ) {
+    final toHero = toHeroContext.widget as Hero;
+    return Material(
+      color: Colors.transparent,
+      child: toHero.child,
     );
   }
 
@@ -273,11 +303,15 @@ class MemoryCard extends ConsumerWidget {
   // ─────────────────────────────────────────────────────────────────
 
   Widget _buildLeading(BuildContext context, WidgetRef ref) {
-    // Show thumbnail for media entries
-    if (entry.hasMedia) {
-      return _buildMediaThumbnail(context, ref);
-    }
-    return _buildTypeIndicator();
+    final inner = entry.hasMedia
+        ? _buildMediaThumbnail(context, ref)
+        : _buildTypeIndicator();
+    return Hero(
+      tag: 'entry-${entry.id}',
+      transitionOnUserGestures: true,
+      flightShuttleBuilder: _heroShuttle,
+      child: inner,
+    );
   }
 
   Widget _buildMediaThumbnail(BuildContext context, WidgetRef ref) {

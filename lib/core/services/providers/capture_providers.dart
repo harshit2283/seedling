@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/entry.dart';
 import '../../../features/prompts/data/prompt_repository.dart';
@@ -31,6 +33,8 @@ class EntryCreatorNotifier extends Notifier<void> {
         .read(entryTypeUsageServiceProvider)
         .recordUsage(saved.type, isCapsule: saved.isCapsule);
     syncEngine.queuePush(saved, SyncChangeType.create);
+    // Flag the freshly-inserted entry so the memories list can animate it in.
+    ref.read(recentlyInsertedEntryIdProvider.notifier).state = saved.id;
     return saved;
   }
 
@@ -253,4 +257,23 @@ final entryTypeUsageServiceProvider = Provider<EntryTypeUsageService>((ref) {
 final orderedEntryTypesProvider = Provider<List<String>>((ref) {
   final usageService = ref.watch(entryTypeUsageServiceProvider);
   return usageService.getOrderedTypes();
+});
+
+/// Holds the id of the most recently inserted entry so the memories list can
+/// animate it into view. Cleared automatically after a short window so the
+/// animation only plays once per save.
+final recentlyInsertedEntryIdProvider = StateProvider<int?>((ref) {
+  Timer? timer;
+  ref.listenSelf((_, next) {
+    timer?.cancel();
+    if (next != null) {
+      timer = Timer(const Duration(milliseconds: 1500), () {
+        if (ref.read(recentlyInsertedEntryIdProvider) == next) {
+          ref.read(recentlyInsertedEntryIdProvider.notifier).state = null;
+        }
+      });
+    }
+  });
+  ref.onDispose(() => timer?.cancel());
+  return null;
 });

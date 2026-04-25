@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -947,6 +948,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
   Widget _buildMemoriesList(BuildContext context, List<Entry> entries) {
     // Group entries by date
     final groupedEntries = _groupEntriesByDate(entries);
+    final recentlyInsertedId = ref.watch(recentlyInsertedEntryIdProvider);
 
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
@@ -972,20 +974,97 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               ),
             ),
             // Entries for this date
-            ...group.entries.map(
-              (entry) => MemoryCard(
+            ...group.entries.map((entry) {
+              final card = MemoryCard(
                 entry: entry,
                 style: MemoryCardStyle.list,
                 onLongPress: () => _showDeleteDialog(context, entry),
                 onTap: () {
                   context.push(AppRoutes.entryRoute(entry.id));
                 },
-              ),
-            ),
+              );
+              final dismissible = Dismissible(
+                key: ValueKey('entry-${entry.id}'),
+                direction: DismissDirection.endToStart,
+                dismissThresholds: PlatformUtils.isIOS
+                    ? const {DismissDirection.endToStart: 0.5}
+                    : const {DismissDirection.endToStart: 0.4},
+                background: _buildDismissBackground(context),
+                onDismissed: (_) async {
+                  HapticFeedback.mediumImpact();
+                  await ref
+                      .read(entryCreatorProvider.notifier)
+                      .deleteEntry(entry.id);
+                  if (!mounted) return;
+                  _showUndoPill(context, entry.id);
+                },
+                child: card,
+              );
+              if (recentlyInsertedId == entry.id) {
+                return _NewlyInsertedCard(
+                  key: ValueKey('inserted-${entry.id}'),
+                  child: dismissible,
+                );
+              }
+              return dismissible;
+            }),
           ],
         );
       },
     );
+  }
+
+  Widget _buildDismissBackground(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      alignment: Alignment.centerRight,
+      decoration: BoxDecoration(
+        color: SeedlingColors.error.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        PlatformUtils.isIOS ? CupertinoIcons.trash : Icons.delete_outline,
+        color: SeedlingColors.error,
+        size: 22,
+      ),
+    );
+  }
+
+  void _showUndoPill(BuildContext context, int entryId) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    late OverlayEntry entryRef;
+    Timer? autoDismiss;
+    void close() {
+      autoDismiss?.cancel();
+      try {
+        entryRef.remove();
+      } catch (_) {}
+    }
+
+    entryRef = OverlayEntry(
+      builder: (ctx) {
+        final media = MediaQuery.of(ctx);
+        return Positioned(
+          left: 16,
+          right: 16,
+          bottom: media.padding.bottom + 24,
+          child: _UndoPill(
+            label: 'Memory removed',
+            onUndo: () async {
+              close();
+              await ref
+                  .read(entryCreatorProvider.notifier)
+                  .restoreEntry(entryId);
+              HapticFeedback.lightImpact();
+            },
+          ),
+        );
+      },
+    );
+
+    overlay.insert(entryRef);
+    autoDismiss = Timer(const Duration(seconds: 4), close);
   }
 
   Widget _buildMemoriesGrid(BuildContext context, List<Entry> entries) {
@@ -1252,4 +1331,158 @@ class _DateGroup {
   final List<Entry> entries;
 
   _DateGroup(this.dateLabel, this.entries);
+}
+
+/// Soft glassy pill shown after a swipe-delete to offer Undo.
+class _UndoPill extends StatefulWidget {
+  final String label;
+  final VoidCallback onUndo;
+  const _UndoPill({required this.label, required this.onUndo});
+
+  @override
+  State<_UndoPill> createState() => _UndoPillState();
+}
+
+class _UndoPillState extends State<_UndoPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(curved);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              decoration: BoxDecoration(
+                color: SeedlingColors.warmBrown.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  PlatformUtils.isIOS
+                      ? CupertinoButton(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          onPressed: widget.onUndo,
+                          child: const Text(
+                            'Undo',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )
+                      : TextButton(
+                          onPressed: widget.onUndo,
+                          child: const Text(
+                            'Undo',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Plays a soft fade+slide once when a freshly-saved memory enters the list.
+class _NewlyInsertedCard extends StatefulWidget {
+  final Widget child;
+  const _NewlyInsertedCard({super.key, required this.child});
+
+  @override
+  State<_NewlyInsertedCard> createState() => _NewlyInsertedCardState();
+}
+
+class _NewlyInsertedCardState extends State<_NewlyInsertedCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -0.06),
+      end: Offset.zero,
+    ).animate(curved);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(position: _slide, child: widget.child),
+    );
+  }
 }

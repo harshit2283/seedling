@@ -34,7 +34,7 @@ class VoiceCaptureContent extends ConsumerStatefulWidget {
 }
 
 class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   String? _voicePath;
   Duration? _recordedDuration;
   bool _isRecording = false;
@@ -52,6 +52,12 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
   Duration _playbackPosition = Duration.zero;
   Duration _playbackDuration = Duration.zero;
 
+  static const int _waveformBarCount = 24;
+  final List<double> _waveformSamples =
+      List<double>.filled(_waveformBarCount, 0.0);
+  int _waveformCursor = 0;
+  late AnimationController _waveformFadeController;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +69,11 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
+    _waveformFadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: 0,
+    );
     _playbackDuration = widget.initialDuration ?? Duration.zero;
     _setupPlaybackListeners();
 
@@ -87,6 +98,7 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     }
     _textController.dispose();
     _pulseController.dispose();
+    _waveformFadeController.dispose();
     super.dispose();
   }
 
@@ -200,32 +212,23 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
   }
 
   Widget _buildAmplitudeIndicator() {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 40),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(15, (index) {
-          // Create a wave pattern based on amplitude
-          final baseHeight = 8.0;
-          final maxHeight = 32.0;
-          final normalizedIndex = (index - 7).abs() / 7.0;
-          final amplitudeFactor = (1 - normalizedIndex) * _currentAmplitude;
-          final height =
-              baseHeight + (maxHeight - baseHeight) * amplitudeFactor;
-
-          return Container(
-            width: 3,
-            height: height,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            decoration: BoxDecoration(
-              color: SeedlingColors.accentVoice.withValues(
-                alpha: 0.5 + (amplitudeFactor * 0.5),
+    return FadeTransition(
+      opacity: _waveformFadeController,
+      child: SizedBox(
+        height: 44,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: RepaintBoundary(
+            child: CustomPaint(
+              painter: _WaveformPainter(
+                samples: List<double>.unmodifiable(_waveformSamples),
+                cursor: _waveformCursor,
+                color: SeedlingColors.accentVoice,
               ),
-              borderRadius: BorderRadius.circular(2),
+              size: const Size(double.infinity, 44),
             ),
-          );
-        }),
+          ),
+        ),
       ),
     );
   }
@@ -442,7 +445,14 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     }
 
     HapticFeedback.mediumImpact();
-    setState(() => _isRecording = true);
+    setState(() {
+      _isRecording = true;
+      for (int i = 0; i < _waveformSamples.length; i++) {
+        _waveformSamples[i] = 0.0;
+      }
+      _waveformCursor = 0;
+    });
+    _waveformFadeController.forward();
 
     // Start duration timer
     _durationTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
@@ -458,7 +468,14 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
       if (mounted && _isRecording) {
         // Normalize amplitude (-160 to 0 dB) to 0.0 to 1.0
         final normalized = ((amplitude + 60) / 60).clamp(0.0, 1.0);
-        setState(() => _currentAmplitude = normalized);
+        // Smooth toward the new sample to avoid jagged spikes.
+        final previous = _waveformSamples[_waveformCursor];
+        final smoothed = previous * 0.35 + normalized * 0.65;
+        setState(() {
+          _currentAmplitude = normalized;
+          _waveformSamples[_waveformCursor] = smoothed;
+          _waveformCursor = (_waveformCursor + 1) % _waveformSamples.length;
+        });
       }
     });
   }
@@ -468,6 +485,7 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
 
     _durationTimer?.cancel();
     _amplitudeSubscription?.cancel();
+    _waveformFadeController.reverse();
 
     final service = ref.read(voiceRecordingServiceProvider);
     final result = await service.stopRecording();
@@ -499,6 +517,7 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
 
     _durationTimer?.cancel();
     _amplitudeSubscription?.cancel();
+    _waveformFadeController.reverse();
 
     final service = ref.read(voiceRecordingServiceProvider);
     await service.cancelRecording();
@@ -519,6 +538,7 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     // Recording is auto-stopped by the service
     _durationTimer?.cancel();
     _amplitudeSubscription?.cancel();
+    _waveformFadeController.reverse();
     setState(() {
       _isRecording = false;
       _currentAmplitude = 0.0;
@@ -602,5 +622,50 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+}
+
+class _WaveformPainter extends CustomPainter {
+  final List<double> samples;
+  final int cursor;
+  final Color color;
+
+  _WaveformPainter({
+    required this.samples,
+    required this.cursor,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (samples.isEmpty) return;
+    final barCount = samples.length;
+    final spacing = 2.0;
+    final totalSpacing = spacing * (barCount - 1);
+    final barWidth = ((size.width - totalSpacing) / barCount).clamp(1.5, 6.0);
+    final centerY = size.height / 2;
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (int i = 0; i < barCount; i++) {
+      final readIndex = (cursor + i) % barCount;
+      final value = samples[readIndex].clamp(0.0, 1.0);
+      final alpha = 0.35 + value * 0.65;
+      paint.color = color.withValues(alpha: alpha);
+
+      final barHeight = (size.height * 0.18) + value * (size.height * 0.78);
+      final x = i * (barWidth + spacing);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, centerY - barHeight / 2, barWidth, barHeight),
+        const Radius.circular(2),
+      );
+      canvas.drawRRect(rect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter oldDelegate) {
+    return oldDelegate.cursor != cursor ||
+        oldDelegate.color != color ||
+        !identical(oldDelegate.samples, samples);
   }
 }
