@@ -65,4 +65,7 @@ class PrefsKeys {
 
   // Memories screen
   static const String memoriesGridView = 'memories_grid_view';
+
+  // On This Day card (day-keyed dismissal)
+  static const String onThisDayDismissedDate = 'on_this_day_dismissed_date';
 }

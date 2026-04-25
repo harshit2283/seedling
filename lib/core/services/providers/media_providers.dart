@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../util/dominant_color.dart';
 import '../media/audio_playback_service.dart';
 import '../media/file_storage_service.dart';
 import '../media/media_compression_service.dart';
@@ -68,4 +70,15 @@ final resolvedMediaFileProvider = FutureProvider.autoDispose
   final path = await ref.watch(resolvedMediaPathProvider(storedPath).future);
   if (path == null) return null;
   return File(path);
+});
+
+/// Extracts a subtle dominant color from a stored media path. Used to tint
+/// the entry detail header for photo/object entries. Returns null on failure.
+final dominantColorProvider = FutureProvider.autoDispose
+    .family<Color?, String>((ref, storedPath) async {
+  final path = await ref.watch(resolvedMediaPathProvider(storedPath).future);
+  if (path == null) return null;
+  final file = File(path);
+  if (!await file.exists()) return null;
+  return extractDominantColor(file);
 });

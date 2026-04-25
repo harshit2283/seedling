@@ -6,31 +6,35 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/platform_utils.dart';
+import '../../../../core/services/ai/models/memory_theme.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/ai/models/ritual_candidate.dart';
 import 'settings_helpers.dart';
 
 /// Settings section for theme insights and ritual patterns.
-class InsightsSection extends ConsumerWidget {
+class InsightsSection extends ConsumerStatefulWidget {
   const InsightsSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InsightsSection> createState() => _InsightsSectionState();
+}
+
+class _InsightsSectionState extends ConsumerState<InsightsSection> {
+  bool _themePreviewExpanded = false;
+
+  void _toggleThemePreview() {
+    HapticFeedback.selectionClick();
+    setState(() => _themePreviewExpanded = !_themePreviewExpanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     if (PlatformUtils.isIOS) {
       return CupertinoListSection.insetGrouped(
         header: const Text('Insights'),
         children: [
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.chart_pie,
-              SeedlingColors.forestGreen,
-            ),
-            title: const Text('Theme Insights'),
-            subtitle: const Text('See patterns in your memories'),
-            trailing: const CupertinoListTileChevron(),
-            onTap: () => context.push(AppRoutes.themeInsights),
-          ),
+          _buildThemeInsightsRowIOS(context),
+          if (_themePreviewExpanded) _buildThemePreviewTile(context),
           CupertinoListTile(
             leading: buildSettingsIconBox(
               context,
@@ -40,7 +44,7 @@ class InsightsSection extends ConsumerWidget {
             title: const Text('Ritual Patterns'),
             subtitle: const Text('View recurring memory patterns'),
             trailing: const CupertinoListTileChevron(),
-            onTap: () => _showRitualPatterns(context, ref),
+            onTap: () => _showRitualPatterns(context),
           ),
           CupertinoListTile(
             leading: buildSettingsIconBox(
@@ -61,25 +65,124 @@ class InsightsSection extends ConsumerWidget {
       context,
       title: 'Insights',
       children: [
-        buildMaterialActionTile(
-          context,
-          icon: Icons.pie_chart_outline,
-          title: 'Theme Insights',
-          subtitle: 'See patterns in your memories',
-          onTap: () => context.push(AppRoutes.themeInsights),
-        ),
+        _buildThemeInsightsRowMaterial(context),
+        if (_themePreviewExpanded) _buildThemePreviewTile(context),
         buildMaterialActionTile(
           context,
           icon: Icons.autorenew,
           title: 'Ritual Patterns',
           subtitle: 'View recurring memory patterns',
-          onTap: () => _showRitualPatterns(context, ref),
+          onTap: () => _showRitualPatterns(context),
         ),
       ],
     );
   }
 
-  Future<void> _showRitualPatterns(BuildContext context, WidgetRef ref) async {
+  Widget _buildThemeInsightsRowIOS(BuildContext context) {
+    return CupertinoListTile(
+      leading: buildSettingsIconBox(
+        context,
+        CupertinoIcons.chart_pie,
+        SeedlingColors.forestGreen,
+      ),
+      title: const Text('Theme Insights'),
+      subtitle: const Text('See patterns in your memories'),
+      trailing: AnimatedRotation(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        turns: _themePreviewExpanded ? 0.25 : 0,
+        child: const Icon(
+          CupertinoIcons.chevron_right,
+          size: 18,
+          color: CupertinoColors.systemGrey,
+        ),
+      ),
+      onTap: _toggleThemePreview,
+    );
+  }
+
+  Widget _buildThemeInsightsRowMaterial(BuildContext context) {
+    return ListTile(
+      leading: buildSettingsIconBox(
+        context,
+        Icons.pie_chart_outline,
+        SeedlingColors.forestGreen,
+      ),
+      title: const Text('Theme Insights'),
+      subtitle: const Text('See patterns in your memories'),
+      trailing: AnimatedRotation(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        turns: _themePreviewExpanded ? 0.25 : 0,
+        child: const Icon(Icons.chevron_right, color: SeedlingColors.textMuted),
+      ),
+      onTap: _toggleThemePreview,
+    );
+  }
+
+  Widget _buildThemePreviewTile(BuildContext context) {
+    final counts = ref.watch(memoryThemeCountsProvider);
+    final total = counts.values.fold<int>(0, (a, b) => a + b);
+
+    if (total == 0) {
+      final emptyText = Text(
+        'Capture a few memories to see theme patterns.',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: SeedlingColors.textMuted,
+        ),
+      );
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: Align(alignment: Alignment.centerLeft, child: emptyText),
+      );
+    }
+
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = sorted.take(3).toList();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final entry in top)
+            _ThemeBarRow(
+              theme: entry.key,
+              count: entry.value,
+              total: total,
+            ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: PlatformUtils.isIOS
+                ? CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    minSize: 0,
+                    onPressed: () => context.push(AppRoutes.themeInsights),
+                    child: Text(
+                      'Open full insights',
+                      style: TextStyle(
+                        color: SeedlingColors.forestGreen,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                : TextButton(
+                    onPressed: () => context.push(AppRoutes.themeInsights),
+                    child: Text(
+                      'Open full insights',
+                      style: TextStyle(color: SeedlingColors.forestGreen),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showRitualPatterns(BuildContext context) async {
     final candidates = ref.read(ritualCandidatesProvider);
     if (candidates.isEmpty) {
       showSettingsSuccess(context, 'No recurring patterns yet');
@@ -109,7 +212,7 @@ class InsightsSection extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         onPressed: () {
                           Navigator.of(sheetContext).pop();
-                          _confirmRitual(context, ref, candidate);
+                          _confirmRitual(context, candidate);
                         },
                         child: Text(
                           'Confirm',
@@ -123,7 +226,7 @@ class InsightsSection extends ConsumerWidget {
                     : TextButton(
                         onPressed: () {
                           Navigator.of(sheetContext).pop();
-                          _confirmRitual(context, ref, candidate);
+                          _confirmRitual(context, candidate);
                         },
                         child: Text(
                           'Confirm',
@@ -140,7 +243,6 @@ class InsightsSection extends ConsumerWidget {
 
   Future<void> _confirmRitual(
     BuildContext context,
-    WidgetRef ref,
     RitualCandidate candidate,
   ) async {
     final nameController = TextEditingController(
@@ -387,5 +489,114 @@ class InsightsSection extends ConsumerWidget {
     if (context.mounted) {
       showSettingsSuccess(context, 'Ritual created');
     }
+  }
+}
+
+/// A single horizontal bar showing a theme name, a colored fill, and percent.
+class _ThemeBarRow extends StatelessWidget {
+  final MemoryTheme theme;
+  final int count;
+  final int total;
+
+  const _ThemeBarRow({
+    required this.theme,
+    required this.count,
+    required this.total,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction = total == 0 ? 0.0 : count / total;
+    final percent = (fraction * 100).round();
+    final color = _colorFor(context, theme);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  theme.displayName,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: SeedlingColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Text(
+                '$percent%',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: SeedlingColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  children: [
+                    Container(
+                      height: 6,
+                      width: constraints.maxWidth,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: fraction),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, t, _) => Container(
+                        height: 6,
+                        width: constraints.maxWidth * t,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _colorFor(BuildContext context, MemoryTheme theme) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      return switch (theme) {
+        MemoryTheme.family => SeedlingColors.themeFamilyDark,
+        MemoryTheme.friends => SeedlingColors.themeFriendsDark,
+        MemoryTheme.work => SeedlingColors.themeWorkDark,
+        MemoryTheme.nature => SeedlingColors.themeNatureDark,
+        MemoryTheme.gratitude => SeedlingColors.themeGratitudeDark,
+        MemoryTheme.reflection => SeedlingColors.themeReflectionDark,
+        MemoryTheme.travel => SeedlingColors.themeTravelDark,
+        MemoryTheme.creativity => SeedlingColors.themeCreativityDark,
+        MemoryTheme.health => SeedlingColors.themeHealthDark,
+        MemoryTheme.food => SeedlingColors.themeFoodDark,
+        MemoryTheme.moments => SeedlingColors.themeMomentsDark,
+      };
+    }
+    return switch (theme) {
+      MemoryTheme.family => SeedlingColors.themeFamily,
+      MemoryTheme.friends => SeedlingColors.themeFriends,
+      MemoryTheme.work => SeedlingColors.themeWork,
+      MemoryTheme.nature => SeedlingColors.themeNature,
+      MemoryTheme.gratitude => SeedlingColors.themeGratitude,
+      MemoryTheme.reflection => SeedlingColors.themeReflection,
+      MemoryTheme.travel => SeedlingColors.themeTravel,
+      MemoryTheme.creativity => SeedlingColors.themeCreativity,
+      MemoryTheme.health => SeedlingColors.themeHealth,
+      MemoryTheme.food => SeedlingColors.themeFood,
+      MemoryTheme.moments => SeedlingColors.themeMoments,
+    };
   }
 }

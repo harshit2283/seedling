@@ -196,6 +196,57 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     );
   }
 
+  Color _resolveHeaderTint(Entry entry) {
+    final base = Theme.of(context).scaffoldBackgroundColor;
+    Color accent = _getTypeColor(entry.type);
+    final theme = MemoryThemeExtension.fromString(entry.detectedTheme);
+    if (theme != null) {
+      accent = _themeColorFor(theme);
+    }
+    if ((entry.type == EntryType.photo || entry.type == EntryType.object) &&
+        entry.mediaPath != null &&
+        entry.mediaPath!.isNotEmpty) {
+      final dominantAsync = ref.watch(dominantColorProvider(entry.mediaPath!));
+      final dominant = dominantAsync.value;
+      if (dominant != null) {
+        accent = dominant;
+      }
+    }
+    return Color.lerp(base, accent, 0.3) ?? base;
+  }
+
+  Color _themeColorFor(MemoryTheme theme) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      return switch (theme) {
+        MemoryTheme.family => SeedlingColors.themeFamilyDark,
+        MemoryTheme.friends => SeedlingColors.themeFriendsDark,
+        MemoryTheme.work => SeedlingColors.themeWorkDark,
+        MemoryTheme.nature => SeedlingColors.themeNatureDark,
+        MemoryTheme.gratitude => SeedlingColors.themeGratitudeDark,
+        MemoryTheme.reflection => SeedlingColors.themeReflectionDark,
+        MemoryTheme.travel => SeedlingColors.themeTravelDark,
+        MemoryTheme.creativity => SeedlingColors.themeCreativityDark,
+        MemoryTheme.health => SeedlingColors.themeHealthDark,
+        MemoryTheme.food => SeedlingColors.themeFoodDark,
+        MemoryTheme.moments => SeedlingColors.themeMomentsDark,
+      };
+    }
+    return switch (theme) {
+      MemoryTheme.family => SeedlingColors.themeFamily,
+      MemoryTheme.friends => SeedlingColors.themeFriends,
+      MemoryTheme.work => SeedlingColors.themeWork,
+      MemoryTheme.nature => SeedlingColors.themeNature,
+      MemoryTheme.gratitude => SeedlingColors.themeGratitude,
+      MemoryTheme.reflection => SeedlingColors.themeReflection,
+      MemoryTheme.travel => SeedlingColors.themeTravel,
+      MemoryTheme.creativity => SeedlingColors.themeCreativity,
+      MemoryTheme.health => SeedlingColors.themeHealth,
+      MemoryTheme.food => SeedlingColors.themeFood,
+      MemoryTheme.moments => SeedlingColors.themeMoments,
+    };
+  }
+
   Widget _buildDetailView(
     BuildContext context,
     Entry entry, {
@@ -205,6 +256,8 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     Widget bodyForEntry(Entry e) {
       return _buildContent(context, e, _getTypeColor(e.type));
     }
+
+    final headerTint = _resolveHeaderTint(entry);
 
     Widget body;
     if (isPageable && pages != null && _pageController != null) {
@@ -275,7 +328,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         navigationBar: CupertinoNavigationBar(
           middle: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
-          backgroundColor: Colors.transparent,
+          backgroundColor: headerTint,
           border: null,
           leading: _isEditMode
               ? CupertinoButton(
@@ -294,7 +347,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
-        backgroundColor: Colors.transparent,
+        backgroundColor: headerTint,
         elevation: 0,
         leading: _isEditMode
             ? IconButton(
