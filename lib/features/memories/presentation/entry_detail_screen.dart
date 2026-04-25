@@ -121,9 +121,10 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     final activeId = _currentEntryId ?? widget.entryId;
 
     // Prefer the currently filtered list so swipe matches what the user saw.
-    List<Entry> pages = filtered.where((e) => e.id == activeId).isNotEmpty
-        ? filtered
-        : allEntries;
+    final List<Entry> pages =
+        filtered.where((e) => e.id == activeId).isNotEmpty
+            ? filtered
+            : allEntries;
 
     final initialIndex = pages.indexWhere((e) => e.id == activeId);
 

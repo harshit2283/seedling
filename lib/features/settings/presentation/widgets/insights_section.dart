@@ -158,7 +158,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
             child: PlatformUtils.isIOS
                 ? CupertinoButton(
                     padding: EdgeInsets.zero,
-                    minSize: 0,
+                    minimumSize: Size.zero,
                     onPressed: () => context.push(AppRoutes.themeInsights),
                     child: Text(
                       'Open full insights',

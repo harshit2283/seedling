@@ -47,7 +47,6 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
   StreamSubscription<Duration>? _playbackPositionSubscription;
   StreamSubscription<Duration>? _playbackDurationSubscription;
   late AudioPlaybackService _playbackService;
-  double _currentAmplitude = 0.0;
   PlaybackState _playbackState = PlaybackState.idle;
   Duration _playbackPosition = Duration.zero;
   Duration _playbackDuration = Duration.zero;
@@ -472,7 +471,6 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
         final previous = _waveformSamples[_waveformCursor];
         final smoothed = previous * 0.35 + normalized * 0.65;
         setState(() {
-          _currentAmplitude = normalized;
           _waveformSamples[_waveformCursor] = smoothed;
           _waveformCursor = (_waveformCursor + 1) % _waveformSamples.length;
         });
@@ -494,7 +492,6 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
 
     setState(() {
       _isRecording = false;
-      _currentAmplitude = 0.0;
     });
 
     if (result.isSuccess) {
@@ -528,7 +525,6 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     setState(() {
       _isRecording = false;
       _currentDuration = Duration.zero;
-      _currentAmplitude = 0.0;
     });
   }
 
@@ -541,7 +537,6 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     _waveformFadeController.reverse();
     setState(() {
       _isRecording = false;
-      _currentAmplitude = 0.0;
     });
   }
 

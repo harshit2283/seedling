@@ -997,7 +997,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                   await ref
                       .read(entryCreatorProvider.notifier)
                       .deleteEntry(entry.id);
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   _showUndoPill(context, entry.id);
                 },
                 child: card,

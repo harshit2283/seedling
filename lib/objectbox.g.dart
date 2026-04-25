@@ -37,7 +37,8 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(2, 4422281124207185487),
         name: 'createdAt',
         type: 10,
-        flags: 0,
+        flags: 8,
+        indexId: const obx_int.IdUid(1, 3928695469656222066),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(3, 353915068729339971),
@@ -91,7 +92,8 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(11, 1952791767777103688),
         name: 'isDeleted',
         type: 1,
-        flags: 0,
+        flags: 8,
+        indexId: const obx_int.IdUid(2, 5746525490482150823),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(12, 95477390163426456),
@@ -133,7 +135,8 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(18, 7049565280661572356),
         name: 'capsuleUnlockDate',
         type: 10,
-        flags: 0,
+        flags: 8,
+        indexId: const obx_int.IdUid(3, 5594065671377155778),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(19, 6989500767525477215),
@@ -331,7 +334,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
     lastEntityId: const obx_int.IdUid(3, 8814026308694728405),
-    lastIndexId: const obx_int.IdUid(0, 0),
+    lastIndexId: const obx_int.IdUid(3, 5594065671377155778),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],

@@ -35,7 +35,7 @@ class EntryCreatorNotifier extends Notifier<void> {
         .recordUsage(saved.type, isCapsule: saved.isCapsule);
     syncEngine.queuePush(saved, SyncChangeType.create);
     // Flag the freshly-inserted entry so the memories list can animate it in.
-    ref.read(recentlyInsertedEntryIdProvider.notifier).state = saved.id;
+    ref.read(recentlyInsertedEntryIdProvider.notifier).mark(saved.id);
     return saved;
   }
 
@@ -308,18 +308,25 @@ final orderedEntryTypesProvider = Provider<List<String>>((ref) {
 /// Holds the id of the most recently inserted entry so the memories list can
 /// animate it into view. Cleared automatically after a short window so the
 /// animation only plays once per save.
-final recentlyInsertedEntryIdProvider = StateProvider<int?>((ref) {
-  Timer? timer;
-  ref.listenSelf((_, next) {
-    timer?.cancel();
-    if (next != null) {
-      timer = Timer(const Duration(milliseconds: 1500), () {
-        if (ref.read(recentlyInsertedEntryIdProvider) == next) {
-          ref.read(recentlyInsertedEntryIdProvider.notifier).state = null;
-        }
-      });
-    }
-  });
-  ref.onDispose(() => timer?.cancel());
-  return null;
-});
+class RecentlyInsertedEntryIdNotifier extends Notifier<int?> {
+  Timer? _clearTimer;
+
+  @override
+  int? build() {
+    ref.onDispose(() => _clearTimer?.cancel());
+    return null;
+  }
+
+  void mark(int id) {
+    _clearTimer?.cancel();
+    state = id;
+    _clearTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (state == id) state = null;
+    });
+  }
+}
+
+final recentlyInsertedEntryIdProvider =
+    NotifierProvider<RecentlyInsertedEntryIdNotifier, int?>(
+      RecentlyInsertedEntryIdNotifier.new,
+    );

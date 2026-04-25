@@ -205,7 +205,7 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
                     horizontal: 8,
                     vertical: 4,
                   ),
-                  minSize: 0,
+                  minimumSize: Size.zero,
                   onPressed: () {
                     HapticFeedback.selectionClick();
                     context.push(AppRoutes.entryRoute(current.id));
@@ -243,7 +243,7 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
     if (PlatformUtils.isIOS) {
       return CupertinoButton(
         padding: const EdgeInsets.all(4),
-        minSize: 0,
+        minimumSize: Size.zero,
         onPressed: _dismiss,
         child: icon,
       );

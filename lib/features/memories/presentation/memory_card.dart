@@ -161,7 +161,7 @@ class MemoryCard extends ConsumerWidget {
           width: double.infinity,
           color: typeColor.withValues(alpha: 0.08),
         ),
-        error: (_, __) => _buildGridColorBlock(typeColor),
+        error: (_, _) => _buildGridColorBlock(typeColor),
         data: (resolvedFile) {
           if (resolvedFile == null) {
             return _buildGridColorBlock(typeColor);
@@ -333,7 +333,7 @@ class MemoryCard extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            error: (_, __) => _buildTypeIndicator(),
+            error: (_, _) => _buildTypeIndicator(),
             data: (resolvedFile) {
               if (resolvedFile == null) {
                 return _buildTypeIndicator();
