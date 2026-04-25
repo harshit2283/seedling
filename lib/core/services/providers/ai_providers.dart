@@ -102,8 +102,14 @@ final ritualCandidatesProvider = Provider<List<RitualCandidate>>((ref) {
 });
 
 /// Theme counts used by memories filtering UI.
-final memoryThemeCountsProvider = Provider<Map<MemoryTheme, int>>((ref) {
-  final entries = ref.watch(entriesProvider);
+///
+/// Auto-disposed so it gets garbage-collected when no UI is watching, and the
+/// underlying entries dependency is taken via `select(length)` so transient
+/// stream emissions that don't change the entry count don't re-tally.
+final memoryThemeCountsProvider =
+    Provider.autoDispose<Map<MemoryTheme, int>>((ref) {
+  ref.watch(entriesProvider.select((entries) => entries.length));
+  final entries = ref.read(entriesProvider);
   final distribution = <MemoryTheme, int>{};
   for (final entry in entries) {
     if (entry.isCapsule || !entry.hasTheme) continue;

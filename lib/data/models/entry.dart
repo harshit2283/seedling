@@ -23,6 +23,7 @@ class Entry {
 
   /// When this memory was captured
   @Property(type: PropertyType.date)
+  @Index()
   DateTime createdAt;
 
   /// Type of entry - stored as int index for ObjectBox
@@ -56,6 +57,7 @@ class Entry {
   bool isReleased;
 
   /// Soft delete flag - entry is hidden but recoverable for 30 days
+  @Index()
   bool isDeleted;
 
   /// When the entry was soft deleted (null if not deleted)
@@ -89,6 +91,7 @@ class Entry {
 
   /// When this capsule should unlock (null for non-capsule entries)
   @Property(type: PropertyType.date)
+  @Index()
   DateTime? capsuleUnlockDate;
 
   // ============================================================================
@@ -115,6 +118,9 @@ class Entry {
   /// True when one or more encrypted fields could not be decrypted at read-time.
   @Transient()
   bool decryptionFailed = false;
+
+  @Transient()
+  String? _searchCache;
 
   /// Default constructor required by ObjectBox
   Entry({
@@ -292,6 +298,14 @@ class Entry {
 
   /// Get all searchable text content for analysis
   String get searchableContent {
+    return searchableLower;
+  }
+
+  /// Memoised lowercased searchable content. Cached per-instance because
+  /// filter loops call this for every entry on every keystroke.
+  String get searchableLower {
+    final cached = _searchCache;
+    if (cached != null) return cached;
     final parts = <String>[];
     if (text != null && text!.isNotEmpty) parts.add(text!);
     if (title != null && title!.isNotEmpty) parts.add(title!);
@@ -300,7 +314,15 @@ class Entry {
     if (transcription != null && transcription!.isNotEmpty) {
       parts.add(transcription!);
     }
-    return parts.join(' ').toLowerCase();
+    final value = parts.join(' ').toLowerCase();
+    _searchCache = value;
+    return value;
+  }
+
+  /// Drop the memoised searchable string so the next read recomputes from the
+  /// current text/title/transcription fields. Called after decrypt/edit.
+  void invalidateSearchCache() {
+    _searchCache = null;
   }
 
   // ============================================================================

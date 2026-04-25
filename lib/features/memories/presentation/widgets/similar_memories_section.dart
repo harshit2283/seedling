@@ -151,6 +151,8 @@ class _RelatedMemoryCard extends StatelessWidget {
               width: 40,
               height: 40,
               fit: BoxFit.cover,
+              cacheWidth: 120,
+              cacheHeight: 120,
               errorBuilder: (context, error, stackTrace) =>
                   _buildTypeIcon(entry),
             ),

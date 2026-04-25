@@ -198,9 +198,9 @@ class ExportService {
 
   Future<List<int>?> _buildZipBytes(
     List<Entry> entries,
-    String mediaBasePath,
-  ) async {
-    final archive = Archive();
+    String mediaBasePath, {
+    void Function(double progress)? onProgress,
+  }) async {
     final normalizedMediaBasePath = mediaBasePath.trim();
     String? resolvedMediaBasePath;
     if (normalizedMediaBasePath.isNotEmpty) {
@@ -210,60 +210,68 @@ class ExportService {
       }
     }
 
-    final jsonData = _entriesToJson(entries);
-    final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
-    final jsonBytes = utf8.encode(jsonString);
-    archive.add(ArchiveFile('entries.json', jsonBytes.length, jsonBytes));
+    onProgress?.call(0.05);
 
-    final manifest = <String, dynamic>{
-      'format': 'seedling-archive',
-      'version': 1,
-      'exportedAt': DateTime.now().toIso8601String(),
-      'entryCount': entries.length,
-    };
-    final manifestBytes = utf8.encode(
-      const JsonEncoder.withIndent('  ').convert(manifest),
-    );
-    archive.add(
-      ArchiveFile('manifest.json', manifestBytes.length, manifestBytes),
-    );
-    final indexHtml = _buildArchiveIndexHtml(entries);
-    final indexBytes = utf8.encode(indexHtml);
-    archive.add(ArchiveFile('index.html', indexBytes.length, indexBytes));
-
+    // Collect media bytes on the main isolate (dart:io File is platform-bound).
+    final mediaPayloads = <_MediaPayload>[];
+    final hasValidMediaBasePath =
+        resolvedMediaBasePath != null &&
+        resolvedMediaBasePath.trim().isNotEmpty;
+    final totalMedia = entries.where(
+      (e) => e.mediaPath != null && e.mediaPath!.isNotEmpty,
+    ).length;
+    var processedMedia = 0;
     for (final entry in entries) {
-      final pagePath = 'entries/entry-${entry.syncUUID ?? entry.id}.html';
-      final page = _buildEntryHtml(entry);
-      final pageBytes = utf8.encode(page);
-      archive.add(ArchiveFile(pagePath, pageBytes.length, pageBytes));
-    }
-
-    for (final entry in entries) {
-      if (entry.mediaPath != null && entry.mediaPath!.isNotEmpty) {
-        final hasValidMediaBasePath =
-            resolvedMediaBasePath?.trim().isNotEmpty ?? false;
-        if (!hasValidMediaBasePath) {
-          continue;
-        }
-        final mediaFile = File(entry.mediaPath!);
-        if (await mediaFile.exists()) {
-          final resolvedFilePath = await mediaFile.resolveSymbolicLinks();
-          if (!resolvedFilePath.startsWith(
-            '$resolvedMediaBasePath${Platform.pathSeparator}',
-          )) {
-            continue;
-          }
-          final bytes = await mediaFile.readAsBytes();
-          final fileName = _fileNameFromPath(entry.mediaPath!);
-          final mediaType = _getMediaFolder(entry.type);
-          archive.add(
-            ArchiveFile('media/$mediaType/$fileName', bytes.length, bytes),
-          );
-        }
+      final mediaPath = entry.mediaPath;
+      if (mediaPath == null || mediaPath.isEmpty) continue;
+      if (!hasValidMediaBasePath) continue;
+      final mediaFile = File(mediaPath);
+      if (!await mediaFile.exists()) continue;
+      final resolvedFilePath = await mediaFile.resolveSymbolicLinks();
+      if (!resolvedFilePath.startsWith(
+        '$resolvedMediaBasePath${Platform.pathSeparator}',
+      )) {
+        continue;
+      }
+      final bytes = await mediaFile.readAsBytes();
+      mediaPayloads.add(_MediaPayload(
+        archivePath:
+            'media/${_getMediaFolder(entry.type)}/${_fileNameFromPath(mediaPath)}',
+        bytes: bytes,
+      ));
+      processedMedia++;
+      if (totalMedia > 0) {
+        onProgress?.call(0.05 + (processedMedia / totalMedia) * 0.5);
       }
     }
 
-    return compute(_encodeZip, archive);
+    onProgress?.call(0.6);
+
+    final entryPayloads = entries
+        .map((e) => _EntryArchivePayload(
+              syncUUID: e.syncUUID,
+              id: e.id,
+              json: _entryToJson(e),
+              title: (e.title ?? '').isNotEmpty ? e.title! : e.typeName,
+              displayContent: e.displayContent,
+              createdAtIso: e.createdAt.toIso8601String(),
+              mediaPath: e.mediaPath,
+              archiveMediaPath: e.mediaPath != null
+                  ? 'media/${_getMediaFolder(e.type)}/${_fileNameFromPath(e.mediaPath!)}'
+                  : null,
+            ))
+        .toList(growable: false);
+
+    final payload = _ZipBuildPayload(
+      entries: entryPayloads,
+      media: mediaPayloads,
+      exportedAtIso: DateTime.now().toIso8601String(),
+      entryCount: entries.length,
+    );
+
+    final result = await compute(_buildAndEncodeZip, payload);
+    onProgress?.call(1.0);
+    return result;
   }
 
   /// Decrypt encrypted backup and return summary info.
@@ -505,89 +513,6 @@ class ExportService {
     }
   }
 
-  String _buildArchiveIndexHtml(List<Entry> entries) {
-    final buffer = StringBuffer();
-    buffer.writeln('<!doctype html>');
-    buffer.writeln('<html lang="en"><head>');
-    buffer.writeln('<meta charset="utf-8">');
-    buffer.writeln(
-      '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    );
-    buffer.writeln('<title>Seedling Archive</title>');
-    buffer.writeln('<style>');
-    buffer.writeln(
-      'body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.5;max-width:900px;margin:2rem auto;padding:0 1rem;color:#222;background:#f8f7f3;}',
-    );
-    buffer.writeln(
-      'a{color:#1f4b31;text-decoration:none;}a:hover{text-decoration:underline;}',
-    );
-    buffer.writeln('li{margin:.45rem 0;}small{color:#666;}');
-    buffer.writeln('</style></head><body>');
-    buffer.writeln('<h1>Seedling Memory Archive</h1>');
-    buffer.writeln('<p>Total entries: ${entries.length}</p>');
-    buffer.writeln('<ul>');
-    for (final entry in entries) {
-      final fileName = 'entries/entry-${entry.syncUUID ?? entry.id}.html';
-      final title = _htmlEscape(
-        (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
-      );
-      final date = _htmlEscape(entry.createdAt.toIso8601String());
-      buffer.writeln(
-        '<li><a href="$fileName">$title</a> <small>($date)</small></li>',
-      );
-    }
-    buffer.writeln('</ul>');
-    buffer.writeln('</body></html>');
-    return buffer.toString();
-  }
-
-  String _buildEntryHtml(Entry entry) {
-    final title = _htmlEscape(
-      (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
-    );
-    final body = _htmlEscape(entry.displayContent);
-    final created = _htmlEscape(entry.createdAt.toIso8601String());
-    final media = entry.mediaPath;
-    final mediaHtml = media == null || media.isEmpty
-        ? ''
-        : '<p><strong>Media:</strong> ${_htmlEscape(_entryToJson(entry)['mediaPath'] as String? ?? '')}</p>';
-
-    return '''
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>$title</title>
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.6;max-width:760px;margin:2rem auto;padding:0 1rem;color:#222;background:#f8f7f3;}
-    main{background:#fff;padding:1.2rem;border-radius:12px;border:1px solid #e8e5dd;}
-    h1{margin-top:0;}
-    p{white-space:pre-wrap;}
-  </style>
-</head>
-<body>
-  <p><a href="../index.html">Back to index</a></p>
-  <main>
-    <h1>$title</h1>
-    <p><strong>Created:</strong> $created</p>
-    $mediaHtml
-    <p>$body</p>
-  </main>
-</body>
-</html>
-''';
-  }
-
-  String _htmlEscape(String input) {
-    return input
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-  }
-
   Future<SecretKey> _deriveKey(
     String passphrase,
     List<int> salt, {
@@ -735,10 +660,170 @@ class _DecryptResult {
   const _DecryptResult({required this.bytes, required this.integrityVerified});
 }
 
-/// Encodes the archive to ZIP format
-///
-/// This is a top-level function to allow it to be run in an isolate via [compute].
-List<int>? _encodeZip(Archive archive) {
-  final encoder = ZipEncoder();
-  return encoder.encode(archive);
+/// Payload sent to the ZIP-build isolate. Holds pre-resolved entry metadata,
+/// JSON-ready maps, and media bytes (loaded on the main isolate).
+class _ZipBuildPayload {
+  final List<_EntryArchivePayload> entries;
+  final List<_MediaPayload> media;
+  final String exportedAtIso;
+  final int entryCount;
+
+  const _ZipBuildPayload({
+    required this.entries,
+    required this.media,
+    required this.exportedAtIso,
+    required this.entryCount,
+  });
+}
+
+class _EntryArchivePayload {
+  final String? syncUUID;
+  final int id;
+  final Map<String, dynamic> json;
+  final String title;
+  final String displayContent;
+  final String createdAtIso;
+  final String? mediaPath;
+  final String? archiveMediaPath;
+
+  const _EntryArchivePayload({
+    required this.syncUUID,
+    required this.id,
+    required this.json,
+    required this.title,
+    required this.displayContent,
+    required this.createdAtIso,
+    required this.mediaPath,
+    required this.archiveMediaPath,
+  });
+}
+
+class _MediaPayload {
+  final String archivePath;
+  final List<int> bytes;
+
+  const _MediaPayload({required this.archivePath, required this.bytes});
+}
+
+String _isolateHtmlEscape(String input) {
+  return input
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+}
+
+String _isolateBuildEntryHtml(_EntryArchivePayload entry) {
+  final title = _isolateHtmlEscape(entry.title);
+  final body = _isolateHtmlEscape(entry.displayContent);
+  final created = _isolateHtmlEscape(entry.createdAtIso);
+  final media = entry.mediaPath;
+  final mediaHtml = (media == null || media.isEmpty)
+      ? ''
+      : '<p><strong>Media:</strong> ${_isolateHtmlEscape(entry.archiveMediaPath ?? '')}</p>';
+
+  return '''
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$title</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.6;max-width:760px;margin:2rem auto;padding:0 1rem;color:#222;background:#f8f7f3;}
+    main{background:#fff;padding:1.2rem;border-radius:12px;border:1px solid #e8e5dd;}
+    h1{margin-top:0;}
+    p{white-space:pre-wrap;}
+  </style>
+</head>
+<body>
+  <p><a href="../index.html">Back to index</a></p>
+  <main>
+    <h1>$title</h1>
+    <p><strong>Created:</strong> $created</p>
+    $mediaHtml
+    <p>$body</p>
+  </main>
+</body>
+</html>
+''';
+}
+
+String _isolateBuildIndexHtml(_ZipBuildPayload payload) {
+  final buffer = StringBuffer();
+  buffer.writeln('<!doctype html>');
+  buffer.writeln('<html lang="en"><head>');
+  buffer.writeln('<meta charset="utf-8">');
+  buffer.writeln(
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+  );
+  buffer.writeln('<title>Seedling Archive</title>');
+  buffer.writeln('<style>');
+  buffer.writeln(
+    'body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.5;max-width:900px;margin:2rem auto;padding:0 1rem;color:#222;background:#f8f7f3;}',
+  );
+  buffer.writeln(
+    'a{color:#1f4b31;text-decoration:none;}a:hover{text-decoration:underline;}',
+  );
+  buffer.writeln('li{margin:.45rem 0;}small{color:#666;}');
+  buffer.writeln('</style></head><body>');
+  buffer.writeln('<h1>Seedling Memory Archive</h1>');
+  buffer.writeln('<p>Total entries: ${payload.entryCount}</p>');
+  buffer.writeln('<ul>');
+  for (final entry in payload.entries) {
+    final fileName = 'entries/entry-${entry.syncUUID ?? entry.id}.html';
+    final title = _isolateHtmlEscape(entry.title);
+    final date = _isolateHtmlEscape(entry.createdAtIso);
+    buffer.writeln(
+      '<li><a href="$fileName">$title</a> <small>($date)</small></li>',
+    );
+  }
+  buffer.writeln('</ul>');
+  buffer.writeln('</body></html>');
+  return buffer.toString();
+}
+
+/// Builds the entry JSON, manifest, HTML pages, and ZIP-encodes the archive.
+/// Runs entirely in an isolate via [compute] to keep the main thread responsive.
+List<int>? _buildAndEncodeZip(_ZipBuildPayload payload) {
+  final archive = Archive();
+
+  final entriesJson = <String, dynamic>{
+    'version': '1.0',
+    'exportedAt': payload.exportedAtIso,
+    'entryCount': payload.entryCount,
+    'entries': payload.entries.map((e) => e.json).toList(),
+  };
+  final entriesBytes = utf8.encode(
+    const JsonEncoder.withIndent('  ').convert(entriesJson),
+  );
+  archive.add(ArchiveFile('entries.json', entriesBytes.length, entriesBytes));
+
+  final manifestBytes = utf8.encode(
+    const JsonEncoder.withIndent('  ').convert({
+      'format': 'seedling-archive',
+      'version': 1,
+      'exportedAt': payload.exportedAtIso,
+      'entryCount': payload.entryCount,
+    }),
+  );
+  archive.add(
+    ArchiveFile('manifest.json', manifestBytes.length, manifestBytes),
+  );
+
+  final indexBytes = utf8.encode(_isolateBuildIndexHtml(payload));
+  archive.add(ArchiveFile('index.html', indexBytes.length, indexBytes));
+
+  for (final entry in payload.entries) {
+    final pagePath = 'entries/entry-${entry.syncUUID ?? entry.id}.html';
+    final pageBytes = utf8.encode(_isolateBuildEntryHtml(entry));
+    archive.add(ArchiveFile(pagePath, pageBytes.length, pageBytes));
+  }
+
+  for (final media in payload.media) {
+    archive.add(ArchiveFile(media.archivePath, media.bytes.length, media.bytes));
+  }
+
+  return ZipEncoder().encode(archive);
 }

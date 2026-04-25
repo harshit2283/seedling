@@ -1,13 +1,13 @@
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
 import '../../../core/platform/platform_utils.dart';
-import '../../../core/services/media/file_storage_service.dart';
+import '../../../core/services/providers/media_providers.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import '../../../data/models/entry.dart';
 
@@ -15,7 +15,7 @@ import '../../../data/models/entry.dart';
 enum MemoryCardStyle { list, grid }
 
 /// Card displaying a single memory entry
-class MemoryCard extends StatelessWidget {
+class MemoryCard extends ConsumerWidget {
   static const double _listThumbnailDisplaySize = 56;
   static const double _gridImageDisplayHeight = 160;
   static const double _gridImageDisplayWidth = 180;
@@ -34,18 +34,18 @@ class MemoryCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (style == MemoryCardStyle.grid) {
-      return _buildGridCard(context);
+      return _buildGridCard(context, ref);
     }
-    return _buildListCard(context);
+    return _buildListCard(context, ref);
   }
 
   // ─────────────────────────────────────────────────────────────────
   // LIST STYLE (unchanged)
   // ─────────────────────────────────────────────────────────────────
 
-  Widget _buildListCard(BuildContext context) {
+  Widget _buildListCard(BuildContext context, WidgetRef ref) {
     return GestureDetector(
       onTap: onTap ?? () => _navigateToDetail(context),
       onLongPress: onLongPress,
@@ -68,7 +68,7 @@ class MemoryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Type indicator or media thumbnail
-              _buildLeading(context),
+              _buildLeading(context, ref),
               const SizedBox(width: 12),
               // Content
               Expanded(
@@ -94,7 +94,7 @@ class MemoryCard extends StatelessWidget {
   // GRID STYLE
   // ─────────────────────────────────────────────────────────────────
 
-  Widget _buildGridCard(BuildContext context) {
+  Widget _buildGridCard(BuildContext context, WidgetRef ref) {
     return GestureDetector(
       onTap: onTap ?? () => _navigateToDetail(context),
       onLongPress: onLongPress,
@@ -123,7 +123,7 @@ class MemoryCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Top visual block: image for media entries, colored block for text
-              _buildGridTopBlock(context),
+              _buildGridTopBlock(context, ref),
               // Bottom info area
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -145,7 +145,7 @@ class MemoryCard extends StatelessWidget {
     );
   }
 
-  Widget _buildGridTopBlock(BuildContext context) {
+  Widget _buildGridTopBlock(BuildContext context, WidgetRef ref) {
     final typeColor = _getTypeColor();
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth = (_gridImageDisplayWidth * dpr).round();
@@ -154,17 +154,15 @@ class MemoryCard extends StatelessWidget {
     // Photo / object with image path — show full-width image
     if ((entry.type == EntryType.photo || entry.type == EntryType.object) &&
         entry.mediaPath != null) {
-      return FutureBuilder<File?>(
-        future: FileStorageService.resolveMediaFile(entry.mediaPath),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return Container(
-              height: 160,
-              width: double.infinity,
-              color: typeColor.withValues(alpha: 0.08),
-            );
-          }
-          final resolvedFile = snapshot.data;
+      final resolved = ref.watch(resolvedMediaFileProvider(entry.mediaPath!));
+      return resolved.when(
+        loading: () => Container(
+          height: 160,
+          width: double.infinity,
+          color: typeColor.withValues(alpha: 0.08),
+        ),
+        error: (_, __) => _buildGridColorBlock(typeColor),
+        data: (resolvedFile) {
           if (resolvedFile == null) {
             return _buildGridColorBlock(typeColor);
           }
@@ -274,35 +272,35 @@ class MemoryCard extends StatelessWidget {
   // SHARED LIST HELPERS
   // ─────────────────────────────────────────────────────────────────
 
-  Widget _buildLeading(BuildContext context) {
+  Widget _buildLeading(BuildContext context, WidgetRef ref) {
     // Show thumbnail for media entries
     if (entry.hasMedia) {
-      return _buildMediaThumbnail(context);
+      return _buildMediaThumbnail(context, ref);
     }
     return _buildTypeIndicator();
   }
 
-  Widget _buildMediaThumbnail(BuildContext context) {
+  Widget _buildMediaThumbnail(BuildContext context, WidgetRef ref) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheSize = (_listThumbnailDisplaySize * dpr).round();
     switch (entry.type) {
       case EntryType.photo:
       case EntryType.object:
         if (entry.mediaPath != null) {
-          return FutureBuilder<File?>(
-            future: FileStorageService.resolveMediaFile(entry.mediaPath),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                );
-              }
-              final resolvedFile = snapshot.data;
+          final resolved = ref.watch(
+            resolvedMediaFileProvider(entry.mediaPath!),
+          );
+          return resolved.when(
+            loading: () => Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Theme.of(context).dividerColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            error: (_, __) => _buildTypeIndicator(),
+            data: (resolvedFile) {
               if (resolvedFile == null) {
                 return _buildTypeIndicator();
               }

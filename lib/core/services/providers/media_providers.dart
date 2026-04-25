@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../media/audio_playback_service.dart';
 import '../media/file_storage_service.dart';
@@ -50,4 +51,21 @@ final audioPlaybackServiceProvider = Provider<AudioPlaybackService>((ref) {
   final service = AudioPlaybackService();
   ref.onDispose(() => service.dispose());
   return service;
+});
+
+/// Resolves a stored media path to an absolute filesystem path.
+/// Memoised per stored path so repeated card builds reuse the same Future.
+final resolvedMediaPathProvider = FutureProvider.autoDispose
+    .family<String?, String>((ref, storedPath) async {
+  if (storedPath.isEmpty) return null;
+  return FileStorageService.resolveMediaPath(storedPath);
+});
+
+/// File-resolved variant of [resolvedMediaPathProvider]; returns null when the
+/// underlying file is missing.
+final resolvedMediaFileProvider = FutureProvider.autoDispose
+    .family<File?, String>((ref, storedPath) async {
+  final path = await ref.watch(resolvedMediaPathProvider(storedPath).future);
+  if (path == null) return null;
+  return File(path);
 });

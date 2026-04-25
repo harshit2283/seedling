@@ -106,55 +106,78 @@ final memoriesFilterProvider =
       MemoriesFilterNotifier.new,
     );
 
-/// Provider for filtered and sorted entries
-final filteredEntriesProvider = Provider<List<Entry>>((ref) {
-  final filterState = ref.watch(memoriesFilterProvider);
-  final baseEntries = filterState.hasActiveFilters
-      ? ref.watch(entriesProvider)
-      : ref.watch(pagedEntriesProvider);
+/// Internal provider that applies type/theme/sort filters but NOT the text
+/// query. Recomputes only when the non-text filter parts change, so typing in
+/// the search box re-runs only the cheap text filter on the narrowed list.
+final _typeAndThemeFilteredProvider = Provider<List<Entry>>((ref) {
+  // Select on filter parts that affect this provider so search query edits do
+  // not invalidate this computation.
+  final typeFilters = ref.watch(
+    memoriesFilterProvider.select((s) => s.typeFilters),
+  );
+  final themeFilters = ref.watch(
+    memoriesFilterProvider.select((s) => s.themeFilters),
+  );
+  final sortOrder = ref.watch(
+    memoriesFilterProvider.select((s) => s.sortOrder),
+  );
+  final hasNonTextFilters = typeFilters.isNotEmpty || themeFilters.isNotEmpty;
 
-  // Memory feed excludes capsule entries; capsules have a dedicated screen.
+  // Search expands the pool to all current-year entries; non-text filters do
+  // too because the user may filter older items than the current paged window.
+  final searchQuery = ref.watch(
+    memoriesFilterProvider.select((s) => s.searchQuery),
+  );
+  final baseEntries =
+      hasNonTextFilters || searchQuery.isNotEmpty
+          ? ref.watch(entriesProvider)
+          : ref.watch(pagedEntriesProvider);
+
   var filtered = baseEntries.where((e) => !e.isCapsule).toList();
 
-  // Apply type filters (if any selected, show only those types)
-  if (filterState.typeFilters.isNotEmpty) {
-    filtered = filtered
-        .where((e) => filterState.typeFilters.contains(e.type))
-        .toList();
+  if (typeFilters.isNotEmpty) {
+    filtered = filtered.where((e) => typeFilters.contains(e.type)).toList();
   }
 
-  // Apply theme filters (if any selected, show only those themes)
-  if (filterState.themeFilters.isNotEmpty) {
+  if (themeFilters.isNotEmpty) {
     filtered = filtered.where((e) {
       if (!e.hasTheme) return false;
       final theme = MemoryThemeExtension.fromString(e.detectedTheme);
-      return theme != null && filterState.themeFilters.contains(theme);
+      return theme != null && themeFilters.contains(theme);
     }).toList();
   }
 
-  // Apply search query — use semantic search for queries >= 3 chars
-  if (filterState.searchQuery.isNotEmpty) {
-    final query = filterState.searchQuery.toLowerCase();
-    // Include transcription and searchableContent in basic search
-    filtered = filtered.where((e) {
-      if (e.searchableContent.contains(query)) return true;
-      if (e.typeName.toLowerCase().contains(query)) return true;
-      if (e.hasTheme) {
-        final theme = MemoryThemeExtension.fromString(e.detectedTheme);
-        if (theme != null && theme.displayName.toLowerCase().contains(query)) {
-          return true;
-        }
-      }
-      return false;
-    }).toList();
-  }
-
-  // Apply sort order
-  if (filterState.sortOrder == SortOrder.oldestFirst) {
+  if (sortOrder == SortOrder.oldestFirst) {
     filtered = filtered.reversed.toList();
   }
 
   return filtered;
+});
+
+/// Provider for filtered and sorted entries.
+///
+/// Composed of [_typeAndThemeFilteredProvider] (heavier, recomputed only when
+/// type/theme/sort filters change) plus a cheap text filter applied on top.
+final filteredEntriesProvider = Provider<List<Entry>>((ref) {
+  final query = ref.watch(
+    memoriesFilterProvider.select((s) => s.searchQuery),
+  );
+  final base = ref.watch(_typeAndThemeFilteredProvider);
+
+  if (query.isEmpty) return base;
+
+  final lowered = query.toLowerCase();
+  return base.where((e) {
+    if (e.searchableLower.contains(lowered)) return true;
+    if (e.typeName.toLowerCase().contains(lowered)) return true;
+    if (e.hasTheme) {
+      final theme = MemoryThemeExtension.fromString(e.detectedTheme);
+      if (theme != null && theme.displayName.toLowerCase().contains(lowered)) {
+        return true;
+      }
+    }
+    return false;
+  }).toList();
 });
 
 /// Async provider for semantic search results (queries >= 3 chars).

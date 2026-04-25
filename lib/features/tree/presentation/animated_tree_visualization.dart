@@ -1042,6 +1042,7 @@ class _TreePainter extends CustomPainter {
   }
 
   void _drawParticles(Canvas canvas, Size size) {
+    if (particles.isEmpty || particleProgress < 0.01) return;
     for (final particle in particles) {
       // Update position based on progress
       final x = (particle.x + particle.vx * particleProgress * 60) * size.width;
@@ -1110,6 +1111,7 @@ class _TreePainter extends CustomPainter {
         oldDelegate.particleProgress != particleProgress ||
         oldDelegate.growthScale != growthScale ||
         oldDelegate.season != season ||
-        oldDelegate.personality != personality;
+        oldDelegate.personality != personality ||
+        oldDelegate.particles.length != particles.length;
   }
 }

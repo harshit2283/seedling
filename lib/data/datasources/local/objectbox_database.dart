@@ -25,6 +25,10 @@ class ObjectBoxDatabase {
   final _entriesController = StreamController<List<Entry>>.broadcast();
   final _capsulesController = StreamController<List<Entry>>.broadcast();
 
+  // Cached decrypted entry lists, invalidated on every mutation.
+  List<Entry>? _allEntriesCache;
+  List<Entry>? _visibleEntriesCache;
+
   static ObjectBoxDatabase? _instance;
 
   ObjectBoxDatabase._();
@@ -101,7 +105,53 @@ class ObjectBoxDatabase {
   }
 
   void _emitEntries() {
-    _entriesController.add(getVisibleEntries());
+    _entriesController.add(_refreshVisibleEntriesCache());
+  }
+
+  /// Invalidate cached decrypted entry lists. Call before every mutation emit
+  /// so the next reader triggers a fresh load.
+  void _invalidateEntryCaches() {
+    _allEntriesCache = null;
+    _visibleEntriesCache = null;
+  }
+
+  List<Entry> _refreshAllEntriesCache() {
+    final entries = _queryAllEntries();
+    _allEntriesCache = entries;
+    return entries;
+  }
+
+  List<Entry> _refreshVisibleEntriesCache() {
+    final entries = _queryVisibleEntries();
+    _visibleEntriesCache = entries;
+    return entries;
+  }
+
+  List<Entry> _queryAllEntries() {
+    final query = _entryBox
+        .query(Entry_.isDeleted.equals(false))
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final results = query.find();
+    query.close();
+    _decryptEntries(results);
+    return results;
+  }
+
+  List<Entry> _queryVisibleEntries() {
+    final startOfYear = DateTime(DateTime.now().year);
+    final query = _entryBox
+        .query(
+          Entry_.createdAt
+              .greaterOrEqual(startOfYear.millisecondsSinceEpoch)
+              .and(Entry_.isDeleted.equals(false)),
+        )
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final results = query.find();
+    query.close();
+    _decryptEntries(results);
+    return results.where((entry) => !entry.isLocked).toList();
   }
 
   // ============== Tree Operations ==============
@@ -168,6 +218,7 @@ class ObjectBoxDatabase {
     await _adjustTreeCountForEntryYear(entry, increment: true);
 
     // Notify listeners
+    _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
     if (entry.isCapsule) {
@@ -188,19 +239,7 @@ class ObjectBoxDatabase {
 
   /// Get all entries for current year, newest first (excludes soft-deleted)
   List<Entry> getCurrentYearEntries() {
-    final startOfYear = DateTime(DateTime.now().year);
-    final query = _entryBox
-        .query(
-          Entry_.createdAt
-              .greaterOrEqual(startOfYear.millisecondsSinceEpoch)
-              .and(Entry_.isDeleted.equals(false)),
-        )
-        .order(Entry_.createdAt, flags: Order.descending)
-        .build();
-    final results = query.find();
-    query.close();
-    _decryptEntries(results);
-    return results.where((entry) => !entry.isLocked).toList();
+    return _visibleEntriesCache ?? _refreshVisibleEntriesCache();
   }
 
   /// Get recent entries (limit, excludes soft-deleted)
@@ -218,14 +257,7 @@ class ObjectBoxDatabase {
 
   /// Get all entries (excludes soft-deleted)
   List<Entry> getAllEntries() {
-    final query = _entryBox
-        .query(Entry_.isDeleted.equals(false))
-        .order(Entry_.createdAt, flags: Order.descending)
-        .build();
-    final results = query.find();
-    query.close();
-    _decryptEntries(results);
-    return results;
+    return _allEntriesCache ?? _refreshAllEntriesCache();
   }
 
   /// Get entries in pages to avoid loading full history in memory.
@@ -280,6 +312,7 @@ class ObjectBoxDatabase {
     await _adjustTreeCountForEntryYear(entry, increment: false);
 
     // Notify listeners
+    _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
 
@@ -300,6 +333,7 @@ class ObjectBoxDatabase {
     final removed = _entryBox.remove(id);
 
     // Notify listeners
+    _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
     _emitCapsules();
@@ -333,6 +367,7 @@ class ObjectBoxDatabase {
     await _adjustTreeCountForEntryYear(entry, increment: true);
 
     // Notify listeners
+    _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
 
@@ -377,6 +412,12 @@ class ObjectBoxDatabase {
     final ids = expiredEntries.map((e) => e.id).toList();
     final removed = _entryBox.removeMany(ids);
 
+    if (removed > 0) {
+      _invalidateEntryCaches();
+      _emitEntries();
+      _emitCapsules();
+    }
+
     return removed;
   }
 
@@ -385,6 +426,7 @@ class ObjectBoxDatabase {
     entry.modifiedAt = DateTime.now();
     _encryptEntryFields(entry);
     _entryBox.put(entry);
+    _invalidateEntryCaches();
     _emitEntries();
   }
 
@@ -403,9 +445,9 @@ class ObjectBoxDatabase {
   /// Watch all entries
   Stream<List<Entry>> watchAllEntries() {
     return Stream<List<Entry>>.multi((controller) {
-      controller.add(getAllEntries());
+      controller.add(_allEntriesCache ?? _refreshAllEntriesCache());
       final subscription = _entriesController.stream.listen(
-        (_) => controller.add(getAllEntries()),
+        (_) => controller.add(_allEntriesCache ?? _refreshAllEntriesCache()),
         onError: controller.addError,
       );
       controller.onCancel = subscription.cancel;
@@ -561,6 +603,7 @@ class ObjectBoxDatabase {
       _treeBox.put(tree);
     }
 
+    _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
     _emitCapsules();
@@ -571,6 +614,7 @@ class ObjectBoxDatabase {
     _entryBox.removeAll();
     _treeBox.removeAll();
     await _ensureCurrentYearTree();
+    _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
     _emitCapsules();
@@ -673,6 +717,7 @@ class ObjectBoxDatabase {
 
   void _decryptEntryFields(Entry entry) {
     entry.decryptionFailed = false;
+    entry.invalidateSearchCache();
 
     String? decryptOrPreserve(String? value) {
       final decrypted = _encryptionService.decryptField(value);
