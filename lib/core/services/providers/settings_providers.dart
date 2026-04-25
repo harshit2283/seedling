@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backup/backup_reminder_service.dart';
 import '../error_reporter.dart';
 import '../export/export_service.dart';
+import '../haptic_service.dart';
 import '../storage/storage_usage_service.dart';
 import '../security/app_lock_service.dart';
 import '../notifications/gentle_reminder_service.dart';
@@ -200,6 +201,12 @@ final shareReceiverServiceProvider = Provider<ShareReceiverService>((ref) {
 final exportServiceProvider = Provider<ExportService>((ref) {
   return ExportService(errorReporter: ref.watch(errorReporterProvider));
 });
+
+/// Provider exposing the haptic service. Override in tests to assert
+/// or suppress haptic calls without touching real platform channels.
+final hapticServiceProvider = Provider<HapticServiceInterface>(
+  (ref) => defaultHapticService,
+);
 
 /// Provider for the storage usage service
 final storageUsageServiceProvider = Provider<StorageUsageService>((ref) {

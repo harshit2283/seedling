@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/entry.dart';
+import '../../../features/capture/domain/capture_intent.dart';
 import '../../../features/prompts/data/prompt_repository.dart';
 import '../../../features/prompts/data/prompt_preferences.dart';
 import '../../../features/prompts/domain/prompt_selector.dart';
@@ -184,6 +185,51 @@ class EntryCreatorNotifier extends Notifier<void> {
     final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
+  }
+
+  /// Single entry point: build the right entry kind for a [CaptureIntent].
+  /// The typed `create*Entry` methods above remain for backwards compat.
+  Future<Entry> create(CaptureIntent intent) {
+    return switch (intent) {
+      LineCapture(:final text, :final capsuleUnlockDate) => createLineEntry(
+        text,
+        capsuleUnlockDate: capsuleUnlockDate,
+      ),
+      FragmentCapture(:final text, :final capsuleUnlockDate) =>
+        createFragmentEntry(text, capsuleUnlockDate: capsuleUnlockDate),
+      ReleaseCapture(:final text, :final capsuleUnlockDate) =>
+        createReleaseEntry(text, capsuleUnlockDate: capsuleUnlockDate),
+      PhotoCapture(:final mediaPath, :final text, :final capsuleUnlockDate) =>
+        createPhotoEntry(
+          mediaPath,
+          text: text,
+          capsuleUnlockDate: capsuleUnlockDate,
+        ),
+      VoiceCapture(:final mediaPath, :final text, :final capsuleUnlockDate) =>
+        createVoiceEntry(
+          mediaPath,
+          text: text,
+          capsuleUnlockDate: capsuleUnlockDate,
+        ),
+      ObjectCapture(
+        :final title,
+        :final mediaPath,
+        :final text,
+        :final capsuleUnlockDate,
+      ) =>
+        createObjectEntry(
+          title,
+          mediaPath: mediaPath,
+          text: text,
+          capsuleUnlockDate: capsuleUnlockDate,
+        ),
+      RitualCapture(:final title, :final capsuleUnlockDate) =>
+        createRitualEntry(title, capsuleUnlockDate: capsuleUnlockDate),
+      CapsuleCapture(:final text, :final unlockDate) => createCapsuleEntry(
+        text,
+        unlockDate,
+      ),
+    };
   }
 }
 

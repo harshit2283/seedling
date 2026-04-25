@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/services/error_reporter.dart';
 import '../../../core/services/media/file_storage_service.dart';
 import '../../../core/services/security/at_rest_encryption_service.dart';
 import '../../../core/services/security/clock_guard_service.dart';
@@ -19,6 +19,7 @@ class ObjectBoxDatabase {
   late final AtRestEncryptionService _encryptionService;
   FileStorageService? _fileStorage;
   ClockGuardService? _clockGuard;
+  ErrorReporter _errorReporter = const ErrorReporter();
 
   // Stream controllers for reactive updates
   final _treeController = StreamController<Tree?>.broadcast();
@@ -78,6 +79,12 @@ class ObjectBoxDatabase {
   /// device-clock rollback.
   void attachClockGuard(ClockGuardService clockGuard) {
     _clockGuard = clockGuard;
+  }
+
+  /// Attach an error reporter so silently-handled failures (e.g. media file
+  /// cleanup) can be funneled to a single sink. Defaults to a no-op reporter.
+  void attachErrorReporter(ErrorReporter errorReporter) {
+    _errorReporter = errorReporter;
   }
 
   /// Returns the trusted "now" (UTC) for capsule unlock comparisons,
@@ -349,8 +356,12 @@ class ObjectBoxDatabase {
     }
     try {
       await fileStorage.deleteFile(mediaPath);
-    } catch (e) {
-      debugPrint('ObjectBoxDatabase._deleteEntryMedia failed: $e');
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'ObjectBoxDatabase._deleteEntryMedia',
+      );
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../util/dominant_color.dart';
+import '../error_reporter.dart';
 import '../media/audio_playback_service.dart';
 import '../media/file_storage_service.dart';
 import '../media/media_compression_service.dart';
@@ -45,6 +46,7 @@ final voiceRecordingServiceProvider = Provider<VoiceRecordingService>((ref) {
   return VoiceRecordingService(
     permissionService: ref.watch(permissionServiceProvider),
     storageService: ref.watch(fileStorageServiceProvider),
+    errorReporter: ref.watch(errorReporterProvider),
   );
 });
 

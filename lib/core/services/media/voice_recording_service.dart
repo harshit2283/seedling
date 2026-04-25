@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
+import '../error_reporter.dart';
 import 'file_storage_service.dart';
 import 'permission_service.dart';
 
@@ -63,6 +64,7 @@ class VoiceRecordingService {
   final AudioRecorder _recorder = AudioRecorder();
   final PermissionService _permissionService;
   final FileStorageService _storageService;
+  final ErrorReporter _errorReporter;
 
   RecordingState _state = RecordingState.idle;
   DateTime? _recordingStartTime;
@@ -78,8 +80,10 @@ class VoiceRecordingService {
   VoiceRecordingService({
     required PermissionService permissionService,
     required FileStorageService storageService,
+    ErrorReporter? errorReporter,
   }) : _permissionService = permissionService,
-       _storageService = storageService;
+       _storageService = storageService,
+       _errorReporter = errorReporter ?? const ErrorReporter();
 
   /// Current recording state
   RecordingState get state => _state;
@@ -135,10 +139,14 @@ class VoiceRecordingService {
       });
 
       return VoiceStartRecordingResult.started();
-    } catch (e) {
+    } catch (e, st) {
       _state = RecordingState.idle;
       _currentRecordingPath = null;
-      debugPrint('VoiceRecordingService.startRecording failed: $e');
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'VoiceRecordingService.startRecording',
+      );
       return VoiceStartRecordingResult.error('Could not start recording');
     }
   }
@@ -170,8 +178,12 @@ class VoiceRecordingService {
       _currentRecordingPath = null;
 
       return VoiceRecordingResult.success(savedPath, duration);
-    } catch (e) {
-      debugPrint('VoiceRecordingService.stopRecording failed: $e');
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'VoiceRecordingService.stopRecording',
+      );
       _state = RecordingState.idle;
       _currentRecordingPath = null;
       return VoiceRecordingResult.error('Could not save recording');
@@ -190,8 +202,12 @@ class VoiceRecordingService {
         if (_currentRecordingPath != null) {
           await _storageService.deleteFile(_currentRecordingPath!);
         }
-      } catch (e) {
-        debugPrint('VoiceRecordingService.cancelRecording failed: $e');
+      } catch (e, st) {
+        _errorReporter.report(
+          e,
+          stack: st,
+          context: 'VoiceRecordingService.cancelRecording',
+        );
       }
     }
 

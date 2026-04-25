@@ -10,6 +10,7 @@ import '../../../core/services/haptic_service.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
+import '../domain/capture_intent.dart';
 import 'widgets/entry_type_button.dart';
 import 'widgets/object_capture_content.dart';
 import 'widgets/photo_capture_content.dart';
@@ -904,6 +905,57 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     return saveFuture.whenComplete(() => _saveFuture = null);
   }
 
+  /// Translate sheet state into a [CaptureIntent]. Returns null when the
+  /// current draft has nothing to save (e.g. an object with no title).
+  CaptureIntent? _buildIntent() {
+    final capsuleUnlockDate = _sealAsCapsule ? _capsuleUnlockDate : null;
+    String? nullIfEmpty(String value) => value.isEmpty ? null : value;
+
+    switch (_captureMode) {
+      case CaptureMode.text:
+        final text = _textController.text.trim();
+        switch (_selectedType) {
+          case EntryType.line:
+            return LineCapture(text, capsuleUnlockDate: capsuleUnlockDate);
+          case EntryType.fragment:
+            return FragmentCapture(
+              nullIfEmpty(text),
+              capsuleUnlockDate: capsuleUnlockDate,
+            );
+          case EntryType.release:
+            return ReleaseCapture(
+              nullIfEmpty(text),
+              capsuleUnlockDate: capsuleUnlockDate,
+            );
+          default:
+            return null;
+        }
+      case CaptureMode.photo:
+        if (_photoPath == null) return null;
+        return PhotoCapture(
+          mediaPath: _photoPath!,
+          text: nullIfEmpty(_photoText.trim()),
+          capsuleUnlockDate: capsuleUnlockDate,
+        );
+      case CaptureMode.voice:
+        if (_voicePath == null) return null;
+        return VoiceCapture(
+          mediaPath: _voicePath!,
+          text: nullIfEmpty(_voiceText.trim()),
+          capsuleUnlockDate: capsuleUnlockDate,
+        );
+      case CaptureMode.object:
+        final title = _objectTitle.trim();
+        if (title.isEmpty) return null;
+        return ObjectCapture(
+          title: title,
+          mediaPath: _objectPhotoPath,
+          text: nullIfEmpty(_objectStory.trim()),
+          capsuleUnlockDate: capsuleUnlockDate,
+        );
+    }
+  }
+
   Future<bool> _performSaveEntry({bool fromDismiss = false}) async {
     // Bulletproof: if already explicitly saved, never save again
     if (_wasExplicitlySaved) return true;
@@ -924,69 +976,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
     try {
       final creator = ref.read(entryCreatorProvider.notifier);
-      final capsuleUnlockDate = _sealAsCapsule ? _capsuleUnlockDate : null;
-
-      switch (_captureMode) {
-        case CaptureMode.text:
-          final text = _textController.text.trim();
-          switch (_selectedType) {
-            case EntryType.line:
-              await creator.createLineEntry(
-                text,
-                capsuleUnlockDate: capsuleUnlockDate,
-              );
-              break;
-            case EntryType.fragment:
-              await creator.createFragmentEntry(
-                text.isEmpty ? null : text,
-                capsuleUnlockDate: capsuleUnlockDate,
-              );
-              break;
-            case EntryType.release:
-              await creator.createReleaseEntry(
-                text.isEmpty ? null : text,
-                capsuleUnlockDate: capsuleUnlockDate,
-              );
-              break;
-            default:
-              break;
-          }
-          break;
-
-        case CaptureMode.photo:
-          if (_photoPath != null) {
-            final text = _photoText.trim();
-            await creator.createPhotoEntry(
-              _photoPath!,
-              text: text.isEmpty ? null : text,
-              capsuleUnlockDate: capsuleUnlockDate,
-            );
-          }
-          break;
-
-        case CaptureMode.voice:
-          if (_voicePath != null) {
-            final text = _voiceText.trim();
-            await creator.createVoiceEntry(
-              _voicePath!,
-              text: text.isEmpty ? null : text,
-              capsuleUnlockDate: capsuleUnlockDate,
-            );
-          }
-          break;
-
-        case CaptureMode.object:
-          final title = _objectTitle.trim();
-          if (title.isNotEmpty) {
-            final story = _objectStory.trim();
-            await creator.createObjectEntry(
-              title,
-              mediaPath: _objectPhotoPath,
-              text: story.isEmpty ? null : story,
-              capsuleUnlockDate: capsuleUnlockDate,
-            );
-          }
-          break;
+      final intent = _buildIntent();
+      if (intent != null) {
+        await creator.create(intent);
       }
 
       if (_sealAsCapsule) {

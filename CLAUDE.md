@@ -355,6 +355,16 @@ showCupertinoModalPopup(
 - Auto-save in deactivate without bulletproof double-save guards (use `_wasExplicitlySaved` flag checked at top of save function)
 - Cache provider values in local state when reactivity is needed (use `ref.watch()` in build instead)
 
+#### Dispose discipline
+Every long-lived object created by a `State` must be released in `dispose()`. Failing to do so leaks memory and can fire callbacks on disposed widgets.
+- `AnimationController`: always call `.dispose()`; never reuse across rebuilds.
+- `StreamController`: always `.close()`; closing it also drops broadcast listeners.
+- `StreamSubscription`: store the subscription and `.cancel()` in `dispose()`.
+- `TextEditingController`: always `.dispose()`; if it was passed in by a parent, do NOT dispose, just drop the reference.
+- `FocusNode`: always `.dispose()` unless the node was provided by an ancestor.
+- `ScrollController` / `PageController` / `TabController`: always `.dispose()`.
+- `Timer` (and `Timer.periodic`): always `.cancel()`; check before reassigning.
+
 ## Phase Roadmap
 
 - **Phase 1 (Complete):** Foundation - LINE, FRAGMENT, RELEASE capture, tree visualization
