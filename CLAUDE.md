@@ -6,7 +6,8 @@ Seedling is a memory-keeping app that feels like breathing, not documenting. It 
 
 **Core Philosophy:**
 - No gamification (no streaks, badges, or daily reminders)
-- No social features (completely private)
+- No social features (private to the user)
+- Local-first; optional cloud sync, off by default and gated behind explicit opt-in
 - Offline-first (must work without internet)
 - No required fields (every field optional except timestamp)
 - Haptic feedback on interactions
@@ -597,7 +598,7 @@ Season.winter  // December, January, February
 
 **Completed:**
 - **Settings headers** — ALL CAPS → sentence case ("Your tree" not "YOUR TREE")
-- **Privacy section** — 3 inline tiles (On your device, No cloud sync, No tracking), dialog removed
+- **Privacy section** — 3 inline tiles (On your device, optional cloud sync, No tracking), dialog removed
 - **Entry type button restyle** — Unselected: 0.5 opacity + muted color. Selected: full opacity + color bg. AnimatedOpacity for smooth transitions. Release/Capsule use same visual system.
 - **Smart button ordering** — `EntryTypeUsageService` records usage on successful save, orders by frequency in rolling 7-day window (capped at 3 uses), stable fallback order for ties
 - **"Plant" save button** — Text-only secondary action, appears when `_canSave()` is true, calls `_saveEntry()` directly

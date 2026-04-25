@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/services/media/file_storage_service.dart';
 import '../../../core/services/security/at_rest_encryption_service.dart';
+import '../../../core/services/security/clock_guard_service.dart';
 import '../../../objectbox.g.dart';
 import '../../models/entry.dart';
 import '../../models/ritual.dart';
@@ -14,6 +17,8 @@ class ObjectBoxDatabase {
   late final Box<Tree> _treeBox;
   late final Box<Ritual> _ritualBox;
   late final AtRestEncryptionService _encryptionService;
+  FileStorageService? _fileStorage;
+  ClockGuardService? _clockGuard;
 
   // Stream controllers for reactive updates
   final _treeController = StreamController<Tree?>.broadcast();
@@ -58,6 +63,28 @@ class ObjectBoxDatabase {
 
     _instance = db;
     return db;
+  }
+
+  /// Attach the media file storage service so hard deletes can clean up files.
+  void attachFileStorage(FileStorageService fileStorage) {
+    _fileStorage = fileStorage;
+  }
+
+  /// Attach a clock guard so capsule visibility queries can defend against
+  /// device-clock rollback.
+  void attachClockGuard(ClockGuardService clockGuard) {
+    _clockGuard = clockGuard;
+  }
+
+  /// Returns the trusted "now" (UTC) for capsule unlock comparisons,
+  /// falling back to system clock when no guard is attached.
+  DateTime _trustedNowUtc() {
+    final guard = _clockGuard;
+    if (guard != null) {
+      final cached = guard.cachedTrustedNow();
+      if (cached != null) return cached;
+    }
+    return DateTime.now().toUtc();
   }
 
   /// Close the database
@@ -246,7 +273,7 @@ class ObjectBoxDatabase {
     if (entry == null || entry.isDeleted) return false;
 
     entry.isDeleted = true;
-    entry.deletedAt = DateTime.now();
+    entry.deletedAt = DateTime.now().toUtc();
     _entryBox.put(entry);
 
     // Update tree count
@@ -266,6 +293,10 @@ class ObjectBoxDatabase {
       await _adjustTreeCountForEntryYear(entry, increment: false);
     }
 
+    if (entry != null) {
+      await _deleteEntryMedia(entry);
+    }
+
     final removed = _entryBox.remove(id);
 
     // Notify listeners
@@ -274,6 +305,19 @@ class ObjectBoxDatabase {
     _emitCapsules();
 
     return removed;
+  }
+
+  Future<void> _deleteEntryMedia(Entry entry) async {
+    final fileStorage = _fileStorage;
+    final mediaPath = entry.mediaPath;
+    if (fileStorage == null || mediaPath == null || mediaPath.isEmpty) {
+      return;
+    }
+    try {
+      await fileStorage.deleteFile(mediaPath);
+    } catch (e) {
+      debugPrint('ObjectBoxDatabase._deleteEntryMedia failed: $e');
+    }
   }
 
   /// Restore a soft-deleted entry
@@ -309,7 +353,9 @@ class ObjectBoxDatabase {
 
   /// Purge entries deleted more than 30 days ago
   Future<int> purgeExpiredEntries() async {
-    final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+    final thirtyDaysAgo = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(days: 30));
     final query = _entryBox
         .query(
           Entry_.isDeleted
@@ -323,6 +369,10 @@ class ObjectBoxDatabase {
     query.close();
 
     if (expiredEntries.isEmpty) return 0;
+
+    for (final entry in expiredEntries) {
+      await _deleteEntryMedia(entry);
+    }
 
     final ids = expiredEntries.map((e) => e.id).toList();
     final removed = _entryBox.removeMany(ids);
@@ -405,7 +455,7 @@ class ObjectBoxDatabase {
 
   /// Get capsules that unlock today
   List<Entry> getCapsulesToUnlockToday() {
-    final today = DateTime.now();
+    final today = _trustedNowUtc().toLocal();
     final startOfDay = DateTime(today.year, today.month, today.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
@@ -587,7 +637,7 @@ class ObjectBoxDatabase {
     if (excludeLockedCapsules) {
       // Exclude entries with capsuleUnlockDate in the future (locked capsules).
       // capsuleUnlockDate is stored unencrypted, so this is query-level filtering.
-      final now = DateTime.now().millisecondsSinceEpoch;
+      final now = _trustedNowUtc().millisecondsSinceEpoch;
       final notLocked = Entry_.capsuleUnlockDate.isNull().or(
         Entry_.capsuleUnlockDate.lessThan(now),
       );
@@ -671,7 +721,7 @@ class ObjectBoxDatabase {
 
   /// Get all object-type entries (non-deleted, unlocked), sorted by createdAt descending
   List<Entry> getObjectEntries() {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = _trustedNowUtc().millisecondsSinceEpoch;
     final notLocked = Entry_.capsuleUnlockDate.isNull().or(
       Entry_.capsuleUnlockDate.lessOrEqual(now),
     );

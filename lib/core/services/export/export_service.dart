@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../data/models/entry.dart';
+import '../error_reporter.dart';
 
 /// Result of an export operation
 class ExportResult {
@@ -89,6 +90,11 @@ class ExportService {
   static const int _maxArchiveEntries = 12000;
   static const int _maxArchiveBytes = 800 * 1024 * 1024;
 
+  final ErrorReporter _errorReporter;
+
+  ExportService({ErrorReporter? errorReporter})
+    : _errorReporter = errorReporter ?? const ErrorReporter();
+
   /// Export entries as JSON file
   Future<ExportResult> exportToJson(List<Entry> entries) async {
     try {
@@ -103,8 +109,8 @@ class ExportService {
       await file.writeAsString(jsonString);
 
       return ExportResult.success(filePath);
-    } catch (e) {
-      debugPrint('ExportService.exportToJson failed: $e');
+    } catch (e, st) {
+      _errorReporter.report(e, stack: st, context: 'ExportService.exportToJson');
       return const ExportResult.failure('Could not export memories to JSON');
     }
   }
@@ -130,8 +136,8 @@ class ExportService {
       await file.writeAsBytes(zipData);
 
       return ExportResult.success(filePath);
-    } catch (e) {
-      debugPrint('ExportService.exportToZip failed: $e');
+    } catch (e, st) {
+      _errorReporter.report(e, stack: st, context: 'ExportService.exportToZip');
       return const ExportResult.failure('Could not create backup archive');
     }
   }
@@ -180,8 +186,12 @@ class ExportService {
       final filePath = '${tempDir.path}/seedling_backup_$timestamp.seedling';
       await File(filePath).writeAsString(jsonEncode(payload));
       return ExportResult.success(filePath);
-    } catch (e) {
-      debugPrint('ExportService.exportEncryptedBackup failed: $e');
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'ExportService.exportEncryptedBackup',
+      );
       return const ExportResult.failure('Could not create encrypted backup');
     }
   }
@@ -272,8 +282,12 @@ class ExportService {
       );
     } on SecretBoxAuthenticationError {
       return const ImportResult.failure('Invalid passphrase');
-    } catch (e) {
-      debugPrint('ExportService.importEncryptedBackup failed: $e');
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'ExportService.importEncryptedBackup',
+      );
       return const ImportResult.failure('Import failed');
     }
   }
@@ -374,8 +388,12 @@ class ExportService {
         manifest =
             jsonDecode(utf8.decode(manifestFiles.first.content as List<int>))
                 as Map<String, dynamic>;
-      } catch (e) {
-        debugPrint('ExportService.loadZipArchive manifest parse failed: $e');
+      } catch (e, st) {
+        _errorReporter.report(
+          e,
+          stack: st,
+          context: 'ExportService.loadZipArchive.manifest',
+        );
         manifest = const {};
       }
     }
@@ -455,6 +473,8 @@ class ExportService {
       'mood': entry.mood,
       'tags': entry.tags,
       'detectedTheme': entry.detectedTheme,
+      'connectionIds': entry.connectionIds,
+      'manualLinkIds': entry.manualLinkIds,
       'sentimentScore': entry.sentimentScore,
       'lastAnalyzedAt': entry.lastAnalyzedAt?.toIso8601String(),
       'mediaPath': entry.mediaPath != null

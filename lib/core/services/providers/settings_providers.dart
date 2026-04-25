@@ -4,6 +4,7 @@ import '../../constants/prefs_keys.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backup/backup_reminder_service.dart';
+import '../error_reporter.dart';
 import '../export/export_service.dart';
 import '../storage/storage_usage_service.dart';
 import '../security/app_lock_service.dart';
@@ -35,6 +36,30 @@ class AppLockEnabledNotifier extends Notifier<bool> {
 final appLockEnabledProvider = NotifierProvider<AppLockEnabledNotifier, bool>(
   AppLockEnabledNotifier.new,
 );
+
+/// Master opt-in for any cloud sync. Defaults to false.
+///
+/// This is the user-facing privacy gate: when false, no Google Drive /
+/// CloudKit code path may upload, download, or authenticate. Existing
+/// per-backend toggles still apply on top of this.
+class CloudSyncEnabledNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final prefs = ref.watch(sharedPreferencesProvider);
+    return prefs.getBool(PrefsKeys.cloudSyncEnabled) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(PrefsKeys.cloudSyncEnabled, enabled);
+  }
+}
+
+final cloudSyncEnabledProvider =
+    NotifierProvider<CloudSyncEnabledNotifier, bool>(
+      CloudSyncEnabledNotifier.new,
+    );
 
 /// Provider for app lock biometric authentication service.
 final appLockServiceProvider = Provider<AppLockService>((ref) {
@@ -173,7 +198,7 @@ final shareReceiverServiceProvider = Provider<ShareReceiverService>((ref) {
 
 /// Provider for the export service
 final exportServiceProvider = Provider<ExportService>((ref) {
-  return ExportService();
+  return ExportService(errorReporter: ref.watch(errorReporterProvider));
 });
 
 /// Provider for the storage usage service

@@ -10,6 +10,7 @@ import 'app/router.dart';
 import 'core/services/media/file_storage_service.dart';
 import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
+import 'core/services/security/clock_guard_service.dart';
 import 'core/services/share/share_receiver_service.dart';
 import 'core/services/widget/widget_data_service.dart';
 import 'data/datasources/local/objectbox_database.dart';
@@ -51,11 +52,20 @@ Future<void> _runApp() async {
 
   // Initialize database
   final database = await ObjectBoxDatabase.create();
-  await database.purgeExpiredEntries();
 
   // Initialize file storage service for media
   final fileStorageService = FileStorageService();
   await fileStorageService.init();
+  database.attachFileStorage(fileStorageService);
+
+  // Initialize clock guard for capsule lock integrity
+  final clockGuardService = ClockGuardService();
+  await clockGuardService.init();
+  database.attachClockGuard(clockGuardService);
+
+  // Purge expired soft-deleted entries (also cleans their media files now
+  // that file storage is attached).
+  await database.purgeExpiredEntries();
 
   // Initialize SharedPreferences for prompts and settings
   final sharedPreferences = await SharedPreferences.getInstance();

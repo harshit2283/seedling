@@ -11,6 +11,9 @@ class PrefsKeys {
   // App lock
   static const String appLockEnabled = 'app_lock_enabled';
 
+  // Master cloud sync opt-in (off by default — gates any network upload).
+  static const String cloudSyncEnabled = 'cloud_sync_enabled';
+
   // Widget memory previews
   static const String widgetMemoryPreviewsEnabled =
       'widget_memory_previews_enabled';

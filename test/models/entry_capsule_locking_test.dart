@@ -38,7 +38,9 @@ void main() {
       expect(entry.type, EntryType.line);
       expect(entry.isCapsule, isTrue);
       expect(entry.isLocked, isTrue);
-      expect(entry.capsuleUnlockDate, unlockDate);
+      // Capsule unlock dates are stored in UTC for clock-rollback safety.
+      expect(entry.capsuleUnlockDate, unlockDate.toUtc());
+      expect(entry.capsuleUnlockDate!.isUtc, isTrue);
     });
 
     test(

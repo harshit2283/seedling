@@ -77,6 +77,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   bool _wasExplicitlySaved = false;
   Future<bool>? _saveFuture;
   bool _didPopDuringSave = false;
+  String? _saveError;
 
   // Photo capture state
   String? _photoPath;
@@ -181,6 +182,42 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               ),
             ],
             const SizedBox(height: 20),
+            if (_saveError != null) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: SeedlingColors.error.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: SeedlingColors.error.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        AdaptiveIcons.error,
+                        size: 18,
+                        color: SeedlingColors.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _saveError!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: SeedlingColors.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             // Save hint and Plant button row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -214,6 +251,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                       onPressed: _canSave()
                           ? () {
                               HapticFeedback.selectionClick();
+                              if (_saveError != null) {
+                                setState(() => _saveError = null);
+                              }
                               _saveEntry();
                             }
                           : null,
@@ -895,10 +935,6 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           break;
       }
 
-      // Record usage for smart ordering
-      final usageService = ref.read(entryTypeUsageServiceProvider);
-      await usageService.recordUsage(_selectedType, isCapsule: _sealAsCapsule);
-
       if (_sealAsCapsule) {
         await HapticService.onCapsuleCreated();
       } else {
@@ -912,12 +948,14 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         Navigator.of(context).pop();
       }
       return true;
-    } catch (e) {
-      // Silently fail on dismiss, show error otherwise
+    } catch (e, st) {
+      ref
+          .read(errorReporterProvider)
+          .report(e, stack: st, context: 'QuickCaptureSheet._saveEntry');
       if (!fromDismiss && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Could not save memory')));
+        setState(() {
+          _saveError = 'Could not save this memory. Please try again.';
+        });
       }
       return false;
     } finally {

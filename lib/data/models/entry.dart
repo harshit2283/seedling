@@ -311,7 +311,9 @@ class Entry {
   bool get isCapsule => capsuleUnlockDate != null;
 
   /// Whether the capsule is still locked (hasn't reached unlock date)
-  bool get isLocked => isCapsule && DateTime.now().isBefore(capsuleUnlockDate!);
+  bool get isLocked =>
+      isCapsule &&
+      DateTime.now().toUtc().isBefore(capsuleUnlockDate!.toUtc());
 
   /// Whether the capsule has been unlocked (past unlock date)
   bool get isUnlocked => isCapsule && !isLocked;
@@ -319,7 +321,7 @@ class Entry {
   /// Days remaining until capsule unlocks (0 if already unlocked or not a capsule)
   int get daysUntilUnlock {
     if (!isCapsule || isUnlocked) return 0;
-    return capsuleUnlockDate!.difference(DateTime.now()).inDays;
+    return capsuleUnlockDate!.toUtc().difference(DateTime.now().toUtc()).inDays;
   }
 
   /// Human-readable time until unlock
@@ -351,7 +353,7 @@ class Entry {
       text: text,
       context: context,
       mood: mood,
-      capsuleUnlockDate: unlockDate,
+      capsuleUnlockDate: unlockDate.toUtc(),
     );
   }
 }
