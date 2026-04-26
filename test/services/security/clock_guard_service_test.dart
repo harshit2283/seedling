@@ -50,21 +50,18 @@ void main() {
       expect(trusted, farFuture);
     });
 
-    test(
-      'isLikelyClockTampered returns true when system clock is far behind '
-      'the highest observed value',
-      () async {
-        final farFuture = DateTime.utc(2099, 1, 1);
-        when(
-          () => storage.read(key: any(named: 'key')),
-        ).thenAnswer((_) async => farFuture.toIso8601String());
+    test('isLikelyClockTampered returns true when system clock is far behind '
+        'the highest observed value', () async {
+      final farFuture = DateTime.utc(2099, 1, 1);
+      when(
+        () => storage.read(key: any(named: 'key')),
+      ).thenAnswer((_) async => farFuture.toIso8601String());
 
-        final service = ClockGuardService(storage: storage);
-        await service.init();
+      final service = ClockGuardService(storage: storage);
+      await service.init();
 
-        expect(await service.isLikelyClockTampered(), isTrue);
-      },
-    );
+      expect(await service.isLikelyClockTampered(), isTrue);
+    });
 
     test(
       'isLikelyClockTampered returns false when there is no stored history',

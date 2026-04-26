@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,9 +16,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      container
-          .read(recentlyInsertedEntryIdProvider.notifier)
-          .mark(42);
+      container.read(recentlyInsertedEntryIdProvider.notifier).mark(42);
 
       expect(container.read(recentlyInsertedEntryIdProvider), 42);
     });
@@ -30,9 +26,7 @@ void main() {
         final container = ProviderContainer();
         addTearDown(container.dispose);
 
-        container
-            .read(recentlyInsertedEntryIdProvider.notifier)
-            .mark(7);
+        container.read(recentlyInsertedEntryIdProvider.notifier).mark(7);
         expect(container.read(recentlyInsertedEntryIdProvider), 7);
 
         async.elapse(const Duration(milliseconds: 1499));
@@ -68,9 +62,7 @@ void main() {
       fakeAsync((async) {
         final container = ProviderContainer();
 
-        container
-            .read(recentlyInsertedEntryIdProvider.notifier)
-            .mark(99);
+        container.read(recentlyInsertedEntryIdProvider.notifier).mark(99);
         container.dispose();
 
         // No exception means the cancelled timer never fired into a disposed

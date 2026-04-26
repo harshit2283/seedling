@@ -334,8 +334,7 @@ class Entry {
 
   /// Whether the capsule is still locked (hasn't reached unlock date)
   bool get isLocked =>
-      isCapsule &&
-      DateTime.now().toUtc().isBefore(capsuleUnlockDate!.toUtc());
+      isCapsule && DateTime.now().toUtc().isBefore(capsuleUnlockDate!.toUtc());
 
   /// Whether the capsule has been unlocked (past unlock date)
   bool get isUnlocked => isCapsule && !isLocked;

@@ -110,7 +110,11 @@ class ExportService {
 
       return ExportResult.success(filePath);
     } catch (e, st) {
-      _errorReporter.report(e, stack: st, context: 'ExportService.exportToJson');
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'ExportService.exportToJson',
+      );
       return const ExportResult.failure('Could not export memories to JSON');
     }
   }
@@ -217,9 +221,9 @@ class ExportService {
     final hasValidMediaBasePath =
         resolvedMediaBasePath != null &&
         resolvedMediaBasePath.trim().isNotEmpty;
-    final totalMedia = entries.where(
-      (e) => e.mediaPath != null && e.mediaPath!.isNotEmpty,
-    ).length;
+    final totalMedia = entries
+        .where((e) => e.mediaPath != null && e.mediaPath!.isNotEmpty)
+        .length;
     var processedMedia = 0;
     for (final entry in entries) {
       final mediaPath = entry.mediaPath;
@@ -234,11 +238,13 @@ class ExportService {
         continue;
       }
       final bytes = await mediaFile.readAsBytes();
-      mediaPayloads.add(_MediaPayload(
-        archivePath:
-            'media/${_getMediaFolder(entry.type)}/${_fileNameFromPath(mediaPath)}',
-        bytes: bytes,
-      ));
+      mediaPayloads.add(
+        _MediaPayload(
+          archivePath:
+              'media/${_getMediaFolder(entry.type)}/${_fileNameFromPath(mediaPath)}',
+          bytes: bytes,
+        ),
+      );
       processedMedia++;
       if (totalMedia > 0) {
         onProgress?.call(0.05 + (processedMedia / totalMedia) * 0.5);
@@ -248,18 +254,20 @@ class ExportService {
     onProgress?.call(0.6);
 
     final entryPayloads = entries
-        .map((e) => _EntryArchivePayload(
-              syncUUID: e.syncUUID,
-              id: e.id,
-              json: _entryToJson(e),
-              title: (e.title ?? '').isNotEmpty ? e.title! : e.typeName,
-              displayContent: e.displayContent,
-              createdAtIso: e.createdAt.toIso8601String(),
-              mediaPath: e.mediaPath,
-              archiveMediaPath: e.mediaPath != null
-                  ? 'media/${_getMediaFolder(e.type)}/${_fileNameFromPath(e.mediaPath!)}'
-                  : null,
-            ))
+        .map(
+          (e) => _EntryArchivePayload(
+            syncUUID: e.syncUUID,
+            id: e.id,
+            json: _entryToJson(e),
+            title: (e.title ?? '').isNotEmpty ? e.title! : e.typeName,
+            displayContent: e.displayContent,
+            createdAtIso: e.createdAt.toIso8601String(),
+            mediaPath: e.mediaPath,
+            archiveMediaPath: e.mediaPath != null
+                ? 'media/${_getMediaFolder(e.type)}/${_fileNameFromPath(e.mediaPath!)}'
+                : null,
+          ),
+        )
         .toList(growable: false);
 
     final payload = _ZipBuildPayload(
@@ -822,7 +830,9 @@ List<int>? _buildAndEncodeZip(_ZipBuildPayload payload) {
   }
 
   for (final media in payload.media) {
-    archive.add(ArchiveFile(media.archivePath, media.bytes.length, media.bytes));
+    archive.add(
+      ArchiveFile(media.archivePath, media.bytes.length, media.bytes),
+    );
   }
 
   return ZipEncoder().encode(archive);

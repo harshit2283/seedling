@@ -127,9 +127,9 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
     if (total == 0) {
       final emptyText = Text(
         'Capture a few memories to see theme patterns.',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: SeedlingColors.textMuted,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
       );
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -147,11 +147,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final entry in top)
-            _ThemeBarRow(
-              theme: entry.key,
-              count: entry.value,
-              total: total,
-            ),
+            _ThemeBarRow(theme: entry.key, count: entry.value, total: total),
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerRight,

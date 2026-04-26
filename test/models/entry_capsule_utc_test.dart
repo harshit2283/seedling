@@ -30,18 +30,13 @@ void main() {
       },
     );
 
-    test(
-      'isLocked correctly identifies past UTC dates as unlocked',
-      () {
-        final pastUtc = DateTime.now()
-            .toUtc()
-            .subtract(const Duration(days: 1));
-        final entry = Entry.line(text: 'a')..capsuleUnlockDate = pastUtc;
+    test('isLocked correctly identifies past UTC dates as unlocked', () {
+      final pastUtc = DateTime.now().toUtc().subtract(const Duration(days: 1));
+      final entry = Entry.line(text: 'a')..capsuleUnlockDate = pastUtc;
 
-        expect(entry.isUnlocked, isTrue);
-        expect(entry.isLocked, isFalse);
-      },
-    );
+      expect(entry.isUnlocked, isTrue);
+      expect(entry.isLocked, isFalse);
+    });
 
     test('daysUntilUnlock yields a stable count regardless of input tz', () {
       final futureLocal = DateTime.now().add(const Duration(days: 10));

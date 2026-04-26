@@ -52,8 +52,10 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
   Duration _playbackDuration = Duration.zero;
 
   static const int _waveformBarCount = 24;
-  final List<double> _waveformSamples =
-      List<double>.filled(_waveformBarCount, 0.0);
+  final List<double> _waveformSamples = List<double>.filled(
+    _waveformBarCount,
+    0.0,
+  );
   int _waveformCursor = 0;
   late AnimationController _waveformFadeController;
 

@@ -399,9 +399,9 @@ class ObjectBoxDatabase {
 
   /// Purge entries deleted more than 30 days ago
   Future<int> purgeExpiredEntries() async {
-    final thirtyDaysAgo = DateTime.now()
-        .toUtc()
-        .subtract(const Duration(days: 30));
+    final thirtyDaysAgo = DateTime.now().toUtc().subtract(
+      const Duration(days: 30),
+    );
     final query = _entryBox
         .query(
           Entry_.isDeleted

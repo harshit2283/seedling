@@ -121,17 +121,15 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     final activeId = _currentEntryId ?? widget.entryId;
 
     // Prefer the currently filtered list so swipe matches what the user saw.
-    final List<Entry> pages =
-        filtered.where((e) => e.id == activeId).isNotEmpty
-            ? filtered
-            : allEntries;
+    final List<Entry> pages = filtered.where((e) => e.id == activeId).isNotEmpty
+        ? filtered
+        : allEntries;
 
     final initialIndex = pages.indexWhere((e) => e.id == activeId);
 
     if (initialIndex == -1) {
       // Active entry not in any list — try to find it directly.
-      final fallback =
-          allEntries.where((e) => e.id == activeId).firstOrNull;
+      final fallback = allEntries.where((e) => e.id == activeId).firstOrNull;
       if (fallback == null) {
         return _buildNotFound(context);
       }
@@ -1371,12 +1369,12 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
               _metadataRow(
                 context,
                 'Theme',
-                MemoryThemeExtension.fromString(entry.detectedTheme)
-                        ?.displayName ??
+                MemoryThemeExtension.fromString(
+                      entry.detectedTheme,
+                    )?.displayName ??
                     entry.detectedTheme!,
               ),
-            if (entry.connectionIds != null &&
-                entry.connectionIds!.isNotEmpty)
+            if (entry.connectionIds != null && entry.connectionIds!.isNotEmpty)
               _metadataRow(
                 context,
                 'Connections',
@@ -1421,9 +1419,9 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
             width: 110,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: SeedlingColors.textMuted,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
             ),
           ),
           Expanded(

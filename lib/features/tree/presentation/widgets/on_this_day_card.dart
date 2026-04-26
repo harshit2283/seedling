@@ -189,10 +189,9 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
         const SizedBox(height: 12),
         Text(
           current.displayContent,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: primary,
-            height: 1.4,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: primary, height: 1.4),
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
         ),

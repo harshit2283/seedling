@@ -49,9 +49,9 @@ void main() {
           isCapsule: any(named: 'isCapsule'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockDb.saveEntry(any()),
-      ).thenAnswer((invocation) async => invocation.positionalArguments[0] as Entry);
+      when(() => mockDb.saveEntry(any())).thenAnswer(
+        (invocation) async => invocation.positionalArguments[0] as Entry,
+      );
 
       container = ProviderContainer(
         overrides: [

@@ -171,8 +171,9 @@ class MemoryCard extends ConsumerWidget {
             transitionOnUserGestures: true,
             flightShuttleBuilder: _heroShuttle,
             child: ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
               child: Image.file(
                 resolvedFile,
                 height: 160,
@@ -226,10 +227,7 @@ class MemoryCard extends ConsumerWidget {
     BuildContext toHeroContext,
   ) {
     final toHero = toHeroContext.widget as Hero;
-    return Material(
-      color: Colors.transparent,
-      child: toHero.child,
-    );
+    return Material(color: Colors.transparent, child: toHero.child);
   }
 
   Widget _buildGridColorBlock(Color typeColor, {Widget? child}) {

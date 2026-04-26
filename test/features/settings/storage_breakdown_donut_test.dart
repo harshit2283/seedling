@@ -4,20 +4,21 @@ import 'package:seedling/core/services/storage/storage_usage_service.dart';
 import 'package:seedling/features/settings/presentation/widgets/storage_breakdown_donut.dart';
 
 void main() {
-  testWidgets('StorageBreakdownDonut renders without throwing for empty usage',
-      (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: StorageBreakdownDonut(usage: StorageUsage()),
+  testWidgets(
+    'StorageBreakdownDonut renders without throwing for empty usage',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: StorageBreakdownDonut(usage: StorageUsage())),
         ),
-      ),
-    );
-    expect(find.byType(StorageBreakdownDonut), findsOneWidget);
-  });
+      );
+      expect(find.byType(StorageBreakdownDonut), findsOneWidget);
+    },
+  );
 
-  testWidgets('StorageBreakdownDonut animates from 0 to final on usage data',
-      (tester) async {
+  testWidgets('StorageBreakdownDonut animates from 0 to final on usage data', (
+    tester,
+  ) async {
     const usage = StorageUsage(
       databaseBytes: 100,
       photosBytes: 200,
@@ -42,8 +43,9 @@ void main() {
     expect(find.byType(StorageBreakdownDonut), findsOneWidget);
   });
 
-  testWidgets('StorageBreakdownLegend shows a row per non-zero category',
-      (tester) async {
+  testWidgets('StorageBreakdownLegend shows a row per non-zero category', (
+    tester,
+  ) async {
     const usage = StorageUsage(
       databaseBytes: 100,
       photosBytes: 200,

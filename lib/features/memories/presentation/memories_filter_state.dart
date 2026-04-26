@@ -128,10 +128,9 @@ final _typeAndThemeFilteredProvider = Provider<List<Entry>>((ref) {
   final searchQuery = ref.watch(
     memoriesFilterProvider.select((s) => s.searchQuery),
   );
-  final baseEntries =
-      hasNonTextFilters || searchQuery.isNotEmpty
-          ? ref.watch(entriesProvider)
-          : ref.watch(pagedEntriesProvider);
+  final baseEntries = hasNonTextFilters || searchQuery.isNotEmpty
+      ? ref.watch(entriesProvider)
+      : ref.watch(pagedEntriesProvider);
 
   var filtered = baseEntries.where((e) => !e.isCapsule).toList();
 
@@ -159,9 +158,7 @@ final _typeAndThemeFilteredProvider = Provider<List<Entry>>((ref) {
 /// Composed of [_typeAndThemeFilteredProvider] (heavier, recomputed only when
 /// type/theme/sort filters change) plus a cheap text filter applied on top.
 final filteredEntriesProvider = Provider<List<Entry>>((ref) {
-  final query = ref.watch(
-    memoriesFilterProvider.select((s) => s.searchQuery),
-  );
+  final query = ref.watch(memoriesFilterProvider.select((s) => s.searchQuery));
   final base = ref.watch(_typeAndThemeFilteredProvider);
 
   if (query.isEmpty) return base;

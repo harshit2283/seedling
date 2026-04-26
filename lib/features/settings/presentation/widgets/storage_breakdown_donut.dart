@@ -12,11 +12,7 @@ class StorageBreakdownDonut extends StatelessWidget {
   final StorageUsage usage;
   final double size;
 
-  const StorageBreakdownDonut({
-    super.key,
-    required this.usage,
-    this.size = 80,
-  });
+  const StorageBreakdownDonut({super.key, required this.usage, this.size = 80});
 
   @override
   Widget build(BuildContext context) {

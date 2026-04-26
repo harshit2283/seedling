@@ -1570,9 +1570,9 @@ class _TimelineScrubberState extends State<_TimelineScrubber> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .scaffoldBackgroundColor
-                                  .withValues(alpha: 0.7),
+                              color: Theme.of(
+                                context,
+                              ).scaffoldBackgroundColor.withValues(alpha: 0.7),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: Theme.of(context).dividerColor,
@@ -1619,9 +1619,10 @@ class _TimelineScrubberState extends State<_TimelineScrubber> {
     final maxScroll = widget.controller.position.maxScrollExtent;
     if (maxScroll <= 0) return null;
     final fraction = (offset / maxScroll).clamp(0.0, 1.0);
-    final index = (fraction * (widget.entries.length - 1))
-        .round()
-        .clamp(0, widget.entries.length - 1);
+    final index = (fraction * (widget.entries.length - 1)).round().clamp(
+      0,
+      widget.entries.length - 1,
+    );
     final entry = widget.entries[index];
     return _formatMonthYear(entry.createdAt);
   }
@@ -1701,9 +1702,7 @@ class _UndoPillState extends State<_UndoPill>
               decoration: BoxDecoration(
                 color: SeedlingColors.warmBrown.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: Row(
                 children: [
@@ -1719,9 +1718,7 @@ class _UndoPillState extends State<_UndoPill>
                   ),
                   PlatformUtils.isIOS
                       ? CupertinoButton(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           onPressed: widget.onUndo,
                           child: const Text(
                             'Undo',

@@ -61,26 +61,29 @@ final audioPlaybackServiceProvider = Provider<AudioPlaybackService>((ref) {
 /// Memoised per stored path so repeated card builds reuse the same Future.
 final resolvedMediaPathProvider = FutureProvider.autoDispose
     .family<String?, String>((ref, storedPath) async {
-  if (storedPath.isEmpty) return null;
-  return FileStorageService.resolveMediaPath(storedPath);
-});
+      if (storedPath.isEmpty) return null;
+      return FileStorageService.resolveMediaPath(storedPath);
+    });
 
 /// File-resolved variant of [resolvedMediaPathProvider]; returns null when the
 /// underlying file is missing.
 final resolvedMediaFileProvider = FutureProvider.autoDispose
     .family<File?, String>((ref, storedPath) async {
-  final path = await ref.watch(resolvedMediaPathProvider(storedPath).future);
-  if (path == null) return null;
-  return File(path);
-});
+      final path = await ref.watch(
+        resolvedMediaPathProvider(storedPath).future,
+      );
+      if (path == null) return null;
+      return File(path);
+    });
 
 /// Extracts a subtle dominant color from a stored media path. Used to tint
 /// the entry detail header for photo/object entries. Returns null on failure.
-final dominantColorProvider = FutureProvider.autoDispose
-    .family<Color?, String>((ref, storedPath) async {
-  final path = await ref.watch(resolvedMediaPathProvider(storedPath).future);
-  if (path == null) return null;
-  final file = File(path);
-  if (!await file.exists()) return null;
-  return extractDominantColor(file);
-});
+final dominantColorProvider = FutureProvider.autoDispose.family<Color?, String>(
+  (ref, storedPath) async {
+    final path = await ref.watch(resolvedMediaPathProvider(storedPath).future);
+    if (path == null) return null;
+    final file = File(path);
+    if (!await file.exists()) return null;
+    return extractDominantColor(file);
+  },
+);

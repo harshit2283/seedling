@@ -72,11 +72,13 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
     _seedAmbientParticles();
 
     // Idle sway - continuous gentle movement
-    _swayController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..repeat(reverse: true)
-      ..addListener(_advanceAmbientParticles);
+    _swayController =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 3000),
+          )
+          ..repeat(reverse: true)
+          ..addListener(_advanceAmbientParticles);
 
     _swayAnimation = Tween<double>(begin: -1, end: 1).animate(
       CurvedAnimation(parent: _swayController, curve: Curves.easeInOutSine),
@@ -132,29 +134,29 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
     _ambientParticles.clear();
     final config = switch (_currentSeason) {
       Season.spring => _AmbientConfig(
-          count: 6,
-          color: const Color(0xFFE8B4C8),
-          baseSize: 3.5,
-          shape: _AmbientShape.petal,
-        ),
+        count: 6,
+        color: const Color(0xFFE8B4C8),
+        baseSize: 3.5,
+        shape: _AmbientShape.petal,
+      ),
       Season.summer => _AmbientConfig(
-          count: 8,
-          color: const Color(0xFFFFE39A),
-          baseSize: 2.5,
-          shape: _AmbientShape.firefly,
-        ),
+        count: 8,
+        color: const Color(0xFFFFE39A),
+        baseSize: 2.5,
+        shape: _AmbientShape.firefly,
+      ),
       Season.autumn => _AmbientConfig(
-          count: 10,
-          color: const Color(0xFFCC7A3A),
-          baseSize: 4.0,
-          shape: _AmbientShape.leaf,
-        ),
+        count: 10,
+        color: const Color(0xFFCC7A3A),
+        baseSize: 4.0,
+        shape: _AmbientShape.leaf,
+      ),
       Season.winter => _AmbientConfig(
-          count: 12,
-          color: Colors.white,
-          baseSize: 2.5,
-          shape: _AmbientShape.snow,
-        ),
+        count: 12,
+        color: Colors.white,
+        baseSize: 2.5,
+        shape: _AmbientShape.snow,
+      ),
     };
 
     for (int i = 0; i < config.count; i++) {

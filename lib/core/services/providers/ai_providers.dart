@@ -106,8 +106,9 @@ final ritualCandidatesProvider = Provider<List<RitualCandidate>>((ref) {
 /// Auto-disposed so it gets garbage-collected when no UI is watching, and the
 /// underlying entries dependency is taken via `select(length)` so transient
 /// stream emissions that don't change the entry count don't re-tally.
-final memoryThemeCountsProvider =
-    Provider.autoDispose<Map<MemoryTheme, int>>((ref) {
+final memoryThemeCountsProvider = Provider.autoDispose<Map<MemoryTheme, int>>((
+  ref,
+) {
   ref.watch(entriesProvider.select((entries) => entries.length));
   final entries = ref.read(entriesProvider);
   final distribution = <MemoryTheme, int>{};
