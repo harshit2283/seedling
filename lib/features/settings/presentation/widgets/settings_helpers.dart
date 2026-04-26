@@ -7,6 +7,7 @@ import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/storage/storage_usage_service.dart';
+import 'storage_breakdown_donut.dart';
 
 /// Shared icon box used across all settings sections (iOS).
 Widget buildSettingsIconBox(
@@ -386,27 +387,38 @@ Widget buildStorageRow(String label, String value, {bool isBold = false}) {
 /// Show storage breakdown dialog.
 void showStorageDetails(BuildContext context, StorageUsage storage) {
   HapticFeedback.selectionClick();
+  final body = Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            StorageBreakdownDonut(usage: storage),
+            const SizedBox(width: 16),
+            Flexible(child: StorageBreakdownLegend(usage: storage)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Total: ${storage.totalFormatted}',
+          style: TextStyle(
+            color: SeedlingColors.forestGreen,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
+
   if (PlatformUtils.isIOS) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Storage Breakdown'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 16),
-          child: Column(
-            children: [
-              buildStorageRow('Database', storage.databaseFormatted),
-              const SizedBox(height: 8),
-              buildStorageRow('Photos', storage.photosFormatted),
-              const SizedBox(height: 8),
-              buildStorageRow('Voice Memos', storage.voicesFormatted),
-              const SizedBox(height: 8),
-              buildStorageRow('Objects', storage.objectsFormatted),
-              const Divider(height: 24),
-              buildStorageRow('Total', storage.totalFormatted, isBold: true),
-            ],
-          ),
-        ),
+        content: body,
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
@@ -420,20 +432,7 @@ void showStorageDetails(BuildContext context, StorageUsage storage) {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Storage Breakdown'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            buildStorageRow('Database', storage.databaseFormatted),
-            const SizedBox(height: 8),
-            buildStorageRow('Photos', storage.photosFormatted),
-            const SizedBox(height: 8),
-            buildStorageRow('Voice Memos', storage.voicesFormatted),
-            const SizedBox(height: 8),
-            buildStorageRow('Objects', storage.objectsFormatted),
-            const Divider(height: 24),
-            buildStorageRow('Total', storage.totalFormatted, isBold: true),
-          ],
-        ),
+        content: body,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

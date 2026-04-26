@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/entry.dart';
+import '../../../features/capture/domain/capture_intent.dart';
 import '../../../features/prompts/data/prompt_repository.dart';
 import '../../../features/prompts/data/prompt_preferences.dart';
 import '../../../features/prompts/domain/prompt_selector.dart';
@@ -31,6 +34,8 @@ class EntryCreatorNotifier extends Notifier<void> {
         .read(entryTypeUsageServiceProvider)
         .recordUsage(saved.type, isCapsule: saved.isCapsule);
     syncEngine.queuePush(saved, SyncChangeType.create);
+    // Flag the freshly-inserted entry so the memories list can animate it in.
+    ref.read(recentlyInsertedEntryIdProvider.notifier).mark(saved.id);
     return saved;
   }
 
@@ -181,6 +186,51 @@ class EntryCreatorNotifier extends Notifier<void> {
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
     return saved;
   }
+
+  /// Single entry point: build the right entry kind for a [CaptureIntent].
+  /// The typed `create*Entry` methods above remain for backwards compat.
+  Future<Entry> create(CaptureIntent intent) {
+    return switch (intent) {
+      LineCapture(:final text, :final capsuleUnlockDate) => createLineEntry(
+        text,
+        capsuleUnlockDate: capsuleUnlockDate,
+      ),
+      FragmentCapture(:final text, :final capsuleUnlockDate) =>
+        createFragmentEntry(text, capsuleUnlockDate: capsuleUnlockDate),
+      ReleaseCapture(:final text, :final capsuleUnlockDate) =>
+        createReleaseEntry(text, capsuleUnlockDate: capsuleUnlockDate),
+      PhotoCapture(:final mediaPath, :final text, :final capsuleUnlockDate) =>
+        createPhotoEntry(
+          mediaPath,
+          text: text,
+          capsuleUnlockDate: capsuleUnlockDate,
+        ),
+      VoiceCapture(:final mediaPath, :final text, :final capsuleUnlockDate) =>
+        createVoiceEntry(
+          mediaPath,
+          text: text,
+          capsuleUnlockDate: capsuleUnlockDate,
+        ),
+      ObjectCapture(
+        :final title,
+        :final mediaPath,
+        :final text,
+        :final capsuleUnlockDate,
+      ) =>
+        createObjectEntry(
+          title,
+          mediaPath: mediaPath,
+          text: text,
+          capsuleUnlockDate: capsuleUnlockDate,
+        ),
+      RitualCapture(:final title, :final capsuleUnlockDate) =>
+        createRitualEntry(title, capsuleUnlockDate: capsuleUnlockDate),
+      CapsuleCapture(:final text, :final unlockDate) => createCapsuleEntry(
+        text,
+        unlockDate,
+      ),
+    };
+  }
 }
 
 /// Provider for entry creation operations
@@ -254,3 +304,29 @@ final orderedEntryTypesProvider = Provider<List<String>>((ref) {
   final usageService = ref.watch(entryTypeUsageServiceProvider);
   return usageService.getOrderedTypes();
 });
+
+/// Holds the id of the most recently inserted entry so the memories list can
+/// animate it into view. Cleared automatically after a short window so the
+/// animation only plays once per save.
+class RecentlyInsertedEntryIdNotifier extends Notifier<int?> {
+  Timer? _clearTimer;
+
+  @override
+  int? build() {
+    ref.onDispose(() => _clearTimer?.cancel());
+    return null;
+  }
+
+  void mark(int id) {
+    _clearTimer?.cancel();
+    state = id;
+    _clearTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (state == id) state = null;
+    });
+  }
+}
+
+final recentlyInsertedEntryIdProvider =
+    NotifierProvider<RecentlyInsertedEntryIdNotifier, int?>(
+      RecentlyInsertedEntryIdNotifier.new,
+    );

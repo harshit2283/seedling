@@ -14,10 +14,10 @@ class SeedlingTypography {
     // Display - Large titles, rarely used
     displayLarge: const TextStyle(
       fontFamily: serifFamily,
-      fontSize: 40,
-      fontWeight: FontWeight.w400,
-      letterSpacing: -0.5,
-      height: 1.2,
+      fontSize: 56,
+      fontWeight: FontWeight.w300,
+      letterSpacing: -1.0,
+      height: 1.05,
       color: SeedlingColors.textPrimary,
     ),
     displayMedium: const TextStyle(
@@ -25,7 +25,7 @@ class SeedlingTypography {
       fontSize: 32,
       fontWeight: FontWeight.w400,
       letterSpacing: -0.25,
-      height: 1.25,
+      height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
     displaySmall: const TextStyle(
@@ -33,7 +33,7 @@ class SeedlingTypography {
       fontSize: 28,
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
-      height: 1.3,
+      height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
 
@@ -43,7 +43,7 @@ class SeedlingTypography {
       fontSize: 24,
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
-      height: 1.35,
+      height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
     headlineMedium: const TextStyle(
@@ -51,7 +51,7 @@ class SeedlingTypography {
       fontSize: 20,
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
-      height: 1.4,
+      height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
     headlineSmall: const TextStyle(
@@ -59,7 +59,7 @@ class SeedlingTypography {
       fontSize: 18,
       fontWeight: FontWeight.w500,
       letterSpacing: 0,
-      height: 1.4,
+      height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
 
@@ -147,10 +147,10 @@ class SeedlingTypography {
     // Display - Large titles
     displayLarge: const TextStyle(
       fontFamily: serifFamily,
-      fontSize: 40,
-      fontWeight: FontWeight.w400,
-      letterSpacing: -0.5,
-      height: 1.2,
+      fontSize: 56,
+      fontWeight: FontWeight.w300,
+      letterSpacing: -1.0,
+      height: 1.05,
       color: SeedlingColors.textPrimaryDark,
     ),
     displayMedium: const TextStyle(
@@ -158,7 +158,7 @@ class SeedlingTypography {
       fontSize: 32,
       fontWeight: FontWeight.w400,
       letterSpacing: -0.25,
-      height: 1.25,
+      height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
     displaySmall: const TextStyle(
@@ -166,7 +166,7 @@ class SeedlingTypography {
       fontSize: 28,
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
-      height: 1.3,
+      height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
 
@@ -176,7 +176,7 @@ class SeedlingTypography {
       fontSize: 24,
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
-      height: 1.35,
+      height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
     headlineMedium: const TextStyle(
@@ -184,7 +184,7 @@ class SeedlingTypography {
       fontSize: 20,
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
-      height: 1.4,
+      height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
     headlineSmall: const TextStyle(
@@ -192,7 +192,7 @@ class SeedlingTypography {
       fontSize: 18,
       fontWeight: FontWeight.w500,
       letterSpacing: 0,
-      height: 1.4,
+      height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
 
@@ -273,5 +273,16 @@ class SeedlingTypography {
       height: 1.4,
       color: SeedlingColors.textMutedDark,
     ),
+  );
+
+  /// Serif accent title — italic Georgia, used for entry titles or accents.
+  /// Not applied globally; opt-in per widget.
+  static const TextStyle serifTitle = TextStyle(
+    fontFamily: serifFamily,
+    fontStyle: FontStyle.italic,
+    fontSize: 22,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0,
+    height: 1.2,
   );
 }

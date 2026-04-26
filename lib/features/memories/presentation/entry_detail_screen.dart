@@ -11,6 +11,8 @@ import '../../../core/services/media/file_storage_service.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
+import '../../../core/services/ai/models/memory_theme.dart';
+import 'memories_filter_state.dart';
 import 'widgets/photo_viewer.dart';
 import 'widgets/memory_share_sheet.dart';
 import 'widgets/voice_player.dart';
@@ -31,24 +33,52 @@ class EntryDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<EntryDetailScreen> createState() => _EntryDetailScreenState();
 }
 
-class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
+class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
+    with SingleTickerProviderStateMixin {
   bool _isEditMode = false;
   bool _isTranscribing = false;
+  bool _metadataExpanded = false;
   late TextEditingController _textController;
   late TextEditingController _titleController;
+  PageController? _pageController;
+  int? _currentEntryId;
+  late final AnimationController _hintFade;
+  bool _hintScheduled = false;
+
+  static bool _hintShownThisSession = false;
 
   @override
   void initState() {
     super.initState();
     _textController = TextEditingController();
     _titleController = TextEditingController();
+    _currentEntryId = widget.entryId;
+    _hintFade = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
   }
 
   @override
   void dispose() {
     _textController.dispose();
     _titleController.dispose();
+    _pageController?.dispose();
+    _hintFade.dispose();
     super.dispose();
+  }
+
+  void _maybeShowSwipeHint(int pageCount) {
+    if (_hintScheduled || _hintShownThisSession || pageCount <= 1) return;
+    _hintScheduled = true;
+    _hintShownThisSession = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      _hintFade.forward();
+      await Future<void>.delayed(const Duration(milliseconds: 2500));
+      if (!mounted) return;
+      await _hintFade.reverse();
+    });
   }
 
   void _enterEditMode(Entry entry) {
@@ -85,14 +115,46 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = ref.watch(entriesProvider);
-    final entry = entries.where((e) => e.id == widget.entryId).firstOrNull;
+    final filtered = ref.watch(filteredEntriesProvider);
+    final allEntries = ref.watch(entriesProvider);
 
-    if (entry == null) {
-      return _buildNotFound(context);
+    final activeId = _currentEntryId ?? widget.entryId;
+
+    // Prefer the currently filtered list so swipe matches what the user saw.
+    final List<Entry> pages = filtered.where((e) => e.id == activeId).isNotEmpty
+        ? filtered
+        : allEntries;
+
+    final initialIndex = pages.indexWhere((e) => e.id == activeId);
+
+    if (initialIndex == -1) {
+      // Active entry not in any list — try to find it directly.
+      final fallback = allEntries.where((e) => e.id == activeId).firstOrNull;
+      if (fallback == null) {
+        return _buildNotFound(context);
+      }
+      return _buildDetailView(context, fallback, isPageable: false);
     }
 
-    return _buildDetailView(context, entry);
+    if (widget.embedded || pages.length <= 1) {
+      return _buildDetailView(context, pages[initialIndex], isPageable: false);
+    }
+
+    _pageController ??= PageController(initialPage: initialIndex);
+    _maybeShowSwipeHint(pages.length);
+
+    // Use the currently active entry (which updates as user swipes) so the nav
+    // bar / action buttons act on the visible memory, not the initial one.
+    final activeEntry = pages.firstWhere(
+      (e) => e.id == (_currentEntryId ?? activeId),
+      orElse: () => pages[initialIndex],
+    );
+    return _buildDetailView(
+      context,
+      activeEntry,
+      isPageable: true,
+      pages: pages,
+    );
   }
 
   Widget _buildNotFound(BuildContext context) {
@@ -133,14 +195,130 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
     );
   }
 
-  Widget _buildDetailView(BuildContext context, Entry entry) {
-    final typeColor = _getTypeColor(entry.type);
+  Color _resolveHeaderTint(Entry entry) {
+    final base = Theme.of(context).scaffoldBackgroundColor;
+    Color accent = _getTypeColor(entry.type);
+    final theme = MemoryThemeExtension.fromString(entry.detectedTheme);
+    if (theme != null) {
+      accent = _themeColorFor(theme);
+    }
+    if ((entry.type == EntryType.photo || entry.type == EntryType.object) &&
+        entry.mediaPath != null &&
+        entry.mediaPath!.isNotEmpty) {
+      final dominantAsync = ref.watch(dominantColorProvider(entry.mediaPath!));
+      final dominant = dominantAsync.value;
+      if (dominant != null) {
+        accent = dominant;
+      }
+    }
+    return Color.lerp(base, accent, 0.3) ?? base;
+  }
+
+  Color _themeColorFor(MemoryTheme theme) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      return switch (theme) {
+        MemoryTheme.family => SeedlingColors.themeFamilyDark,
+        MemoryTheme.friends => SeedlingColors.themeFriendsDark,
+        MemoryTheme.work => SeedlingColors.themeWorkDark,
+        MemoryTheme.nature => SeedlingColors.themeNatureDark,
+        MemoryTheme.gratitude => SeedlingColors.themeGratitudeDark,
+        MemoryTheme.reflection => SeedlingColors.themeReflectionDark,
+        MemoryTheme.travel => SeedlingColors.themeTravelDark,
+        MemoryTheme.creativity => SeedlingColors.themeCreativityDark,
+        MemoryTheme.health => SeedlingColors.themeHealthDark,
+        MemoryTheme.food => SeedlingColors.themeFoodDark,
+        MemoryTheme.moments => SeedlingColors.themeMomentsDark,
+      };
+    }
+    return switch (theme) {
+      MemoryTheme.family => SeedlingColors.themeFamily,
+      MemoryTheme.friends => SeedlingColors.themeFriends,
+      MemoryTheme.work => SeedlingColors.themeWork,
+      MemoryTheme.nature => SeedlingColors.themeNature,
+      MemoryTheme.gratitude => SeedlingColors.themeGratitude,
+      MemoryTheme.reflection => SeedlingColors.themeReflection,
+      MemoryTheme.travel => SeedlingColors.themeTravel,
+      MemoryTheme.creativity => SeedlingColors.themeCreativity,
+      MemoryTheme.health => SeedlingColors.themeHealth,
+      MemoryTheme.food => SeedlingColors.themeFood,
+      MemoryTheme.moments => SeedlingColors.themeMoments,
+    };
+  }
+
+  Widget _buildDetailView(
+    BuildContext context,
+    Entry entry, {
+    bool isPageable = false,
+    List<Entry>? pages,
+  }) {
+    Widget bodyForEntry(Entry e) {
+      return _buildContent(context, e, _getTypeColor(e.type));
+    }
+
+    final headerTint = _resolveHeaderTint(entry);
+
+    Widget body;
+    if (isPageable && pages != null && _pageController != null) {
+      body = Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: pages.length,
+            physics: _isEditMode
+                ? const NeverScrollableScrollPhysics()
+                : const BouncingScrollPhysics(),
+            onPageChanged: (index) {
+              if (index >= 0 && index < pages.length) {
+                setState(() => _currentEntryId = pages[index].id);
+                HapticFeedback.selectionClick();
+              }
+            },
+            itemBuilder: (context, index) {
+              return bodyForEntry(pages[index]);
+            },
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 24,
+            child: IgnorePointer(
+              child: FadeTransition(
+                opacity: _hintFade,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: SeedlingColors.textPrimary.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      '← swipe →',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      body = bodyForEntry(entry);
+    }
 
     // Embedded mode: no scaffold/nav bar, just the content body
     if (widget.embedded) {
       return ColoredBox(
         color: Theme.of(context).scaffoldBackgroundColor,
-        child: SafeArea(child: _buildContent(context, entry, typeColor)),
+        child: SafeArea(child: body),
       );
     }
 
@@ -149,7 +327,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         navigationBar: CupertinoNavigationBar(
           middle: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
-          backgroundColor: Colors.transparent,
+          backgroundColor: headerTint,
           border: null,
           leading: _isEditMode
               ? CupertinoButton(
@@ -160,7 +338,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
               : null,
           trailing: _buildTrailingActions(context, entry),
         ),
-        child: SafeArea(child: _buildContent(context, entry, typeColor)),
+        child: SafeArea(child: body),
       );
     }
 
@@ -168,7 +346,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
-        backgroundColor: Colors.transparent,
+        backgroundColor: headerTint,
         elevation: 0,
         leading: _isEditMode
             ? IconButton(
@@ -178,7 +356,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
             : null,
         actions: _buildMaterialActions(context, entry),
       ),
-      body: _buildContent(context, entry, typeColor),
+      body: body,
     );
   }
 
@@ -787,7 +965,8 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
                     );
                   },
             child: Hero(
-              tag: 'photo_${entry.id}',
+              tag: 'entry-${entry.id}',
+              transitionOnUserGestures: true,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.file(
@@ -1054,40 +1233,208 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
   }
 
   Widget _buildMetadata(BuildContext context, Entry entry, Color typeColor) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Type badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: typeColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(_getTypeIcon(entry.type), color: typeColor, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                entry.typeName,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: typeColor,
-                ),
+        Row(
+          children: [
+            // Type badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: typeColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_getTypeIcon(entry.type), color: typeColor, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    entry.typeName,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: typeColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            // Date
+            Text(
+              _formatDate(entry.createdAt),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+            ),
+          ],
         ),
-        const Spacer(),
-        // Date
-        Text(
-          _formatDate(entry.createdAt),
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
-        ),
+        if (_hasExtraMetadata(entry)) ...[
+          const SizedBox(height: 12),
+          _buildExpandableMetadata(context, entry),
+        ],
       ],
+    );
+  }
+
+  bool _hasExtraMetadata(Entry entry) {
+    return entry.detectedTheme != null ||
+        entry.sentimentScore != null ||
+        entry.lastAnalyzedAt != null ||
+        (entry.connectionIds != null && entry.connectionIds!.isNotEmpty);
+  }
+
+  Widget _buildExpandableMetadata(BuildContext context, Entry entry) {
+    final collapsed = GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _metadataExpanded = true);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'More details',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: SeedlingColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            AnimatedRotation(
+              turns: _metadataExpanded ? 0.5 : 0,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              child: Icon(
+                PlatformUtils.isIOS
+                    ? CupertinoIcons.chevron_down
+                    : Icons.expand_more,
+                size: 14,
+                color: SeedlingColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final expanded = GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _metadataExpanded = false);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Details',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: SeedlingColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                AnimatedRotation(
+                  turns: _metadataExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    PlatformUtils.isIOS
+                        ? CupertinoIcons.chevron_down
+                        : Icons.expand_more,
+                    size: 16,
+                    color: SeedlingColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (entry.detectedTheme != null)
+              _metadataRow(
+                context,
+                'Theme',
+                MemoryThemeExtension.fromString(
+                      entry.detectedTheme,
+                    )?.displayName ??
+                    entry.detectedTheme!,
+              ),
+            if (entry.connectionIds != null && entry.connectionIds!.isNotEmpty)
+              _metadataRow(
+                context,
+                'Connections',
+                '${entry.connectionIds!.split(',').where((s) => s.trim().isNotEmpty).length}',
+              ),
+            if (entry.sentimentScore != null)
+              _metadataRow(
+                context,
+                'Sentiment',
+                entry.sentimentScore!.toStringAsFixed(2),
+              ),
+            if (entry.lastAnalyzedAt != null)
+              _metadataRow(
+                context,
+                'Last analyzed',
+                _formatDate(entry.lastAnalyzedAt!),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    return AnimatedCrossFade(
+      firstChild: collapsed,
+      secondChild: expanded,
+      crossFadeState: _metadataExpanded
+          ? CrossFadeState.showSecond
+          : CrossFadeState.showFirst,
+      duration: const Duration(milliseconds: 260),
+      sizeCurve: Curves.easeOutCubic,
+      firstCurve: Curves.easeOutCubic,
+      secondCurve: Curves.easeOutCubic,
+    );
+  }
+
+  Widget _metadataRow(BuildContext context, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: SeedlingColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1305,6 +1652,8 @@ class _LinkedMemoryCardContent extends StatelessWidget {
               width: 40,
               height: 40,
               fit: BoxFit.cover,
+              cacheWidth: 120,
+              cacheHeight: 120,
               errorBuilder: (context, error, stackTrace) => _buildTypeIcon(),
             ),
           );

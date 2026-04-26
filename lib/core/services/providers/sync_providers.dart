@@ -12,6 +12,7 @@ import '../sync/sync_models.dart';
 import '../../constants/prefs_keys.dart';
 import 'database_providers.dart';
 import 'media_providers.dart';
+import 'settings_providers.dart';
 
 // ============================================================================
 // Cloud Sync Providers (Phase 5)
@@ -118,8 +119,26 @@ final syncStateProvider = StreamProvider<SyncState>((ref) {
   return engine.stateStream;
 });
 
-/// Provider for whether sync is enabled
+/// Provider for whether sync is enabled.
+///
+/// Both the master cloud-sync opt-in ([cloudSyncEnabledProvider]) and the
+/// per-backend metadata flag must be true for sync to be considered active.
 final syncEnabledProvider = Provider<bool>((ref) {
+  final masterEnabled = ref.watch(cloudSyncEnabledProvider);
+  if (!masterEnabled) return false;
   final metadata = ref.watch(syncMetadataProvider);
   return metadata.isEnabled;
+});
+
+/// Listens to the master cloud-sync opt-in and disables the per-backend
+/// session whenever the master flag flips off, so existing sync sessions
+/// stop touching the network.
+final cloudSyncMasterGateProvider = Provider<void>((ref) {
+  ref.listen<bool>(cloudSyncEnabledProvider, (previous, next) {
+    if (previous == next) return;
+    if (!next) {
+      final engine = ref.read(syncEngineProvider);
+      engine.setEnabled(false);
+    }
+  });
 });

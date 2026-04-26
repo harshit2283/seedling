@@ -60,18 +60,25 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   // Season
   late Season _currentSeason;
 
+  // Ambient seasonal particle layer
+  final List<_AmbientParticle> _ambientParticles = [];
+
   @override
   void initState() {
     super.initState();
     _currentSeason = getCurrentSeason();
     _displayedStateValue = widget.state.index.toDouble();
     _previousState = widget.state;
+    _seedAmbientParticles();
 
     // Idle sway - continuous gentle movement
-    _swayController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..repeat(reverse: true);
+    _swayController =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 3000),
+          )
+          ..repeat(reverse: true)
+          ..addListener(_advanceAmbientParticles);
 
     _swayAnimation = Tween<double>(begin: -1, end: 1).animate(
       CurvedAnimation(parent: _swayController, curve: Curves.easeInOutSine),
@@ -120,6 +127,65 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
     // Trigger celebration
     if (widget.celebrateGrowth && !oldWidget.celebrateGrowth) {
       _triggerCelebration();
+    }
+  }
+
+  void _seedAmbientParticles() {
+    _ambientParticles.clear();
+    final config = switch (_currentSeason) {
+      Season.spring => _AmbientConfig(
+        count: 6,
+        color: const Color(0xFFE8B4C8),
+        baseSize: 3.5,
+        shape: _AmbientShape.petal,
+      ),
+      Season.summer => _AmbientConfig(
+        count: 8,
+        color: const Color(0xFFFFE39A),
+        baseSize: 2.5,
+        shape: _AmbientShape.firefly,
+      ),
+      Season.autumn => _AmbientConfig(
+        count: 10,
+        color: const Color(0xFFCC7A3A),
+        baseSize: 4.0,
+        shape: _AmbientShape.leaf,
+      ),
+      Season.winter => _AmbientConfig(
+        count: 12,
+        color: Colors.white,
+        baseSize: 2.5,
+        shape: _AmbientShape.snow,
+      ),
+    };
+
+    for (int i = 0; i < config.count; i++) {
+      _ambientParticles.add(
+        _AmbientParticle(
+          x: _random.nextDouble(),
+          y: _random.nextDouble(),
+          vx: (_random.nextDouble() - 0.5) * 0.0009,
+          vy: 0.0008 + _random.nextDouble() * 0.0014,
+          phase: _random.nextDouble() * math.pi * 2,
+          size: config.baseSize + _random.nextDouble() * 1.5,
+          color: config.color,
+          shape: config.shape,
+        ),
+      );
+    }
+  }
+
+  void _advanceAmbientParticles() {
+    if (_ambientParticles.isEmpty) return;
+    final swayInfluence = _swayAnimation.value * 0.0006;
+    for (final p in _ambientParticles) {
+      p.x += p.vx + swayInfluence;
+      p.y += p.vy;
+      p.phase += 0.04;
+      // Wrap modular position
+      if (p.y > 1.05) p.y = -0.05;
+      if (p.x > 1.05) p.x = -0.05;
+      if (p.x < -0.05) p.x = 1.05;
     }
   }
 
@@ -212,6 +278,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
                         season: _currentSeason,
                         particles: _particles,
                         particleProgress: _celebrationController.value,
+                        ambientParticles: _ambientParticles,
                         growthScale: _growthController.isAnimating
                             ? 0.9 + 0.1 * _growthAnimation.value
                             : 1.0,
@@ -327,6 +394,7 @@ class _TreePainter extends CustomPainter {
   final Season season;
   final List<_Particle> particles;
   final double particleProgress;
+  final List<_AmbientParticle> ambientParticles;
   final double growthScale;
   final TreePersonality? personality;
 
@@ -393,6 +461,7 @@ class _TreePainter extends CustomPainter {
     required this.season,
     required this.particles,
     required this.particleProgress,
+    required this.ambientParticles,
     required this.growthScale,
     this.personality,
   });
@@ -422,9 +491,65 @@ class _TreePainter extends CustomPainter {
 
     canvas.restore();
 
+    // Draw ambient seasonal layer (behind/around the tree, no interaction with celebration)
+    if (ambientParticles.isNotEmpty) {
+      _drawAmbient(canvas, size);
+    }
+
     // Draw celebration particles
     if (particleProgress > 0 && particleProgress < 1) {
       _drawParticles(canvas, size);
+    }
+  }
+
+  void _drawAmbient(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    for (final p in ambientParticles) {
+      final x = p.x * size.width;
+      final y = p.y * size.height;
+      final pulse = (math.sin(p.phase) + 1) / 2;
+      final alpha = switch (p.shape) {
+        _AmbientShape.firefly => 0.35 + pulse * 0.45,
+        _AmbientShape.snow => 0.45 + pulse * 0.25,
+        _AmbientShape.petal => 0.55 + pulse * 0.15,
+        _AmbientShape.leaf => 0.55 + pulse * 0.15,
+      };
+      paint.color = p.color.withValues(alpha: alpha.clamp(0.0, 1.0));
+      switch (p.shape) {
+        case _AmbientShape.firefly:
+          canvas.drawCircle(Offset(x, y), p.size * (0.7 + pulse * 0.5), paint);
+          break;
+        case _AmbientShape.snow:
+          canvas.drawCircle(Offset(x, y), p.size, paint);
+          break;
+        case _AmbientShape.petal:
+          canvas.save();
+          canvas.translate(x, y);
+          canvas.rotate(p.phase * 0.3);
+          final rect = RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: p.size * 1.6,
+              height: p.size * 0.8,
+            ),
+            Radius.circular(p.size),
+          );
+          canvas.drawRRect(rect, paint);
+          canvas.restore();
+          break;
+        case _AmbientShape.leaf:
+          canvas.save();
+          canvas.translate(x, y);
+          canvas.rotate(p.phase * 0.4);
+          final path = Path()
+            ..moveTo(0, -p.size)
+            ..quadraticBezierTo(p.size, 0, 0, p.size)
+            ..quadraticBezierTo(-p.size, 0, 0, -p.size)
+            ..close();
+          canvas.drawPath(path, paint);
+          canvas.restore();
+          break;
+      }
     }
   }
 
@@ -1042,6 +1167,7 @@ class _TreePainter extends CustomPainter {
   }
 
   void _drawParticles(Canvas canvas, Size size) {
+    if (particles.isEmpty || particleProgress < 0.01) return;
     for (final particle in particles) {
       // Update position based on progress
       final x = (particle.x + particle.vx * particleProgress * 60) * size.width;
@@ -1110,6 +1236,45 @@ class _TreePainter extends CustomPainter {
         oldDelegate.particleProgress != particleProgress ||
         oldDelegate.growthScale != growthScale ||
         oldDelegate.season != season ||
-        oldDelegate.personality != personality;
+        oldDelegate.personality != personality ||
+        oldDelegate.particles.length != particles.length ||
+        !identical(oldDelegate.ambientParticles, ambientParticles);
   }
+}
+
+enum _AmbientShape { petal, firefly, leaf, snow }
+
+class _AmbientConfig {
+  final int count;
+  final Color color;
+  final double baseSize;
+  final _AmbientShape shape;
+  const _AmbientConfig({
+    required this.count,
+    required this.color,
+    required this.baseSize,
+    required this.shape,
+  });
+}
+
+class _AmbientParticle {
+  double x;
+  double y;
+  double vx;
+  double vy;
+  double phase;
+  final double size;
+  final Color color;
+  final _AmbientShape shape;
+
+  _AmbientParticle({
+    required this.x,
+    required this.y,
+    required this.vx,
+    required this.vy,
+    required this.phase,
+    required this.size,
+    required this.color,
+    required this.shape,
+  });
 }

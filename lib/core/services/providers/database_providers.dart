@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/prefs_keys.dart';
@@ -195,22 +196,22 @@ final treeProgressProvider = Provider<double>((ref) {
 
 /// Notifier for tree growth celebration state
 class TreeGrowthNotifier extends Notifier<bool> {
-  bool _disposed = false;
+  Timer? _resetTimer;
 
   @override
   bool build() {
-    _disposed = false;
-    ref.onDispose(() => _disposed = true);
+    ref.onDispose(() {
+      _resetTimer?.cancel();
+      _resetTimer = null;
+    });
     return false;
   }
 
   void triggerCelebration() {
     state = true;
-    // Auto-reset after celebration animation completes
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!_disposed) {
-        state = false;
-      }
+    _resetTimer?.cancel();
+    _resetTimer = Timer(const Duration(seconds: 2), () {
+      state = false;
     });
   }
 }
