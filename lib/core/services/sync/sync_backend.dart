@@ -1,3 +1,5 @@
+import 'dart:io';
+
 /// Result of fetching remote changes from a sync backend.
 class SyncFetchResult {
   final List<Map<String, dynamic>> records;
@@ -53,8 +55,20 @@ abstract class SyncBackend {
   /// Fetch remote changes since [changeToken].
   Future<SyncFetchResult?> fetchChanges({String? changeToken});
 
-  /// Download a media asset referenced by [syncUUID].
-  Future<String?> downloadAsset(String syncUUID, String targetPath);
+  /// Upload an already-encrypted media blob under [assetId]. Backends only
+  /// ever see ciphertext (see SyncMediaCrypto); there is deliberately no
+  /// way to upload a plaintext file.
+  Future<void> uploadMediaBlob(String assetId, File ciphertext) async =>
+      throw UnsupportedError('This sync backend does not sync media');
+
+  /// Download the encrypted blob [assetId] into [target]. Returns false when
+  /// the blob doesn't exist (yet).
+  Future<bool> downloadMediaBlob(String assetId, File target) async =>
+      throw UnsupportedError('This sync backend does not sync media');
+
+  /// Delete the blob [assetId]; deleting a missing blob is not an error.
+  Future<void> deleteMediaBlob(String assetId) async =>
+      throw UnsupportedError('This sync backend does not sync media');
 
   /// Connect to provider account interactively when supported.
   Future<bool> connect() async => false;

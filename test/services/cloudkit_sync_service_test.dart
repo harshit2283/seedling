@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/sync/cloudkit_sync_service.dart';
@@ -17,22 +19,34 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  test('downloadAsset uses destinationPath and fieldName keys', () async {
-    MethodCall? captured;
+  test('media blob calls pass only an asset id and file paths', () async {
+    final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-          captured = call;
-          return '/tmp/dest.m4a';
+          calls.add(call);
+          return call.method == 'downloadMediaBlob' ? true : null;
         });
 
-    final result = await service.downloadAsset('uuid-2', '/tmp/dest.m4a');
+    await service.uploadMediaBlob('asset-1', File('/tmp/blob.enc'));
+    final found = await service.downloadMediaBlob(
+      'asset-1',
+      File('/tmp/out.enc'),
+    );
+    await service.deleteMediaBlob('asset-1');
 
-    expect(result, '/tmp/dest.m4a');
-    expect(captured?.method, 'downloadAsset');
-    expect(captured?.arguments, <String, dynamic>{
-      'syncUUID': 'uuid-2',
-      'destinationPath': '/tmp/dest.m4a',
-      'fieldName': 'mediaAsset',
+    expect(found, isTrue);
+    expect(calls.map((c) => c.method), [
+      'uploadMediaBlob',
+      'downloadMediaBlob',
+      'deleteMediaBlob',
+    ]);
+    expect(calls[0].arguments, <String, dynamic>{
+      'assetId': 'asset-1',
+      'sourcePath': '/tmp/blob.enc',
+    });
+    expect(calls[1].arguments, <String, dynamic>{
+      'assetId': 'asset-1',
+      'destinationPath': '/tmp/out.enc',
     });
   });
 

@@ -6,7 +6,7 @@ import CloudKit
 /// Provides iCloud Private Database sync using the default record zone.
 /// All sensitive text fields are expected to be encrypted by the Dart layer
 /// before reaching this plugin. This plugin handles CloudKit record CRUD,
-/// change token management, and CKAsset upload/download.
+/// change token management, and encrypted media blobs (CKAsset).
 ///
 /// Method channel: com.seedling.cloudkit_sync
 public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
@@ -24,7 +24,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         "capsuleUnlockDate", "transcription", "mediaPath", "deviceId",
         "manualLinkIds", "syncEncryptionVersion", "syncEncryptionSalt"
     ]
-    private static let assetFieldAllowlist: Set<String> = ["mediaAsset"]
 
     // MARK: - Plugin Registration
 
@@ -90,24 +89,43 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
             }
             publishKeyring(kdfSalt: kdfSalt, result: result)
 
-        case "downloadAsset":
+        case "uploadMediaBlob":
             guard let args = call.arguments as? [String: Any],
-                  let syncUUID = args["syncUUID"] as? String,
-                  let fieldName = args["fieldName"] as? String,
-                  let destinationPath = args["destinationPath"] as? String else {
+                  let assetId = args["assetId"] as? String,
+                  let sourcePath = args["sourcePath"] as? String else {
                 result(FlutterError(
                     code: "INVALID_ARGS",
-                    message: "downloadAsset requires syncUUID, fieldName, and destinationPath",
+                    message: "uploadMediaBlob requires assetId and sourcePath",
                     details: nil
                 ))
                 return
             }
-            downloadAsset(
-                syncUUID: syncUUID,
-                fieldName: fieldName,
-                destinationPath: destinationPath,
-                result: result
-            )
+            uploadMediaBlob(assetId: assetId, sourcePath: sourcePath, result: result)
+
+        case "downloadMediaBlob":
+            guard let args = call.arguments as? [String: Any],
+                  let assetId = args["assetId"] as? String,
+                  let destinationPath = args["destinationPath"] as? String else {
+                result(FlutterError(
+                    code: "INVALID_ARGS",
+                    message: "downloadMediaBlob requires assetId and destinationPath",
+                    details: nil
+                ))
+                return
+            }
+            downloadMediaBlob(assetId: assetId, destinationPath: destinationPath, result: result)
+
+        case "deleteMediaBlob":
+            guard let args = call.arguments as? [String: Any],
+                  let assetId = args["assetId"] as? String else {
+                result(FlutterError(
+                    code: "INVALID_ARGS",
+                    message: "deleteMediaBlob requires assetId",
+                    details: nil
+                ))
+                return
+            }
+            deleteMediaBlob(assetId: assetId, result: result)
 
         default:
             result(FlutterMethodNotImplemented)
@@ -539,95 +557,108 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         privateDB.add(zoneChangesOp)
     }
 
-    // MARK: - downloadAsset
+    // MARK: - Encrypted media blobs
 
-    /// Download a CKAsset from a record to a local file path
-    private func downloadAsset(
-        syncUUID: String,
-        fieldName: String,
-        destinationPath: String,
-        result: @escaping FlutterResult
-    ) {
-        guard Self.assetFieldAllowlist.contains(fieldName) else {
-            result(FlutterError(
-                code: "INVALID_FIELD",
-                message: "Field '\(fieldName)' is not allowed for asset download",
-                details: nil
-            ))
+    /// Media files are encrypted in Dart before they reach this plugin; each
+    /// blob is a `SeedlingMedia` record holding one CKAsset. There is no
+    /// path that uploads a plaintext file.
+    private let mediaRecordType = "SeedlingMedia"
+
+    private func mediaRecordID(_ assetId: String) -> CKRecord.ID? {
+        guard UUID(uuidString: assetId) != nil else { return nil }
+        return CKRecord.ID(recordName: "media-\(assetId.lowercased())")
+    }
+
+    private func uploadMediaBlob(assetId: String, sourcePath: String, result: @escaping FlutterResult) {
+        guard let recordID = mediaRecordID(assetId),
+              isPathWithinAllowedSandbox(sourcePath),
+              FileManager.default.fileExists(atPath: sourcePath) else {
+            result(FlutterError(code: "INVALID_ARGS", message: "Bad media upload arguments", details: nil))
             return
         }
-
-        guard isPathWithinAllowedSandbox(destinationPath) else {
-            result(FlutterError(
-                code: "INVALID_DESTINATION",
-                message: "destinationPath is outside the app sandbox allowlist",
-                details: nil
-            ))
-            return
-        }
-
-        let recordID = CKRecord.ID(recordName: syncUUID)
-
-        privateDB.fetch(withRecordID: recordID) { existingRecord, fetchError in
+        let record = CKRecord(recordType: mediaRecordType, recordID: recordID)
+        record["blob"] = CKAsset(fileURL: URL(fileURLWithPath: sourcePath))
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        // Blobs are immutable: an existing one (an earlier, interrupted push)
+        // is already the same content.
+        operation.savePolicy = .ifServerRecordUnchanged
+        operation.modifyRecordsCompletionBlock = { _, _, error in
             DispatchQueue.main.async {
-                if let fetchError = fetchError {
-                    self.handleCKError(fetchError, result: result)
+                if let ckError = error as? CKError {
+                    let partial = ckError.partialErrorsByItemID?[recordID] as? CKError
+                    if (partial?.code ?? ckError.code) == .serverRecordChanged {
+                        result(true)
+                        return
+                    }
+                    self.handleCKError(ckError, result: result)
                     return
                 }
-
-                guard let record = existingRecord else {
-                    result(FlutterError(
-                        code: "RECORD_NOT_FOUND",
-                        message: "No record found with syncUUID: \(syncUUID)",
-                        details: nil
-                    ))
+                if let error = error {
+                    self.handleCKError(error, result: result)
                     return
                 }
+                result(true)
+            }
+        }
+        privateDB.add(operation)
+    }
 
-                guard let asset = record[fieldName] as? CKAsset,
-                      let assetURL = asset.fileURL else {
-                    result(FlutterError(
-                        code: "ASSET_NOT_FOUND",
-                        message: "No asset found in field '\(fieldName)' for record \(syncUUID)",
-                        details: nil
-                    ))
+    /// Copies the blob to `destinationPath`; returns false if it doesn't exist.
+    private func downloadMediaBlob(assetId: String, destinationPath: String, result: @escaping FlutterResult) {
+        guard let recordID = mediaRecordID(assetId),
+              isPathWithinAllowedSandbox(destinationPath) else {
+            result(FlutterError(code: "INVALID_ARGS", message: "Bad media download arguments", details: nil))
+            return
+        }
+        privateDB.fetch(withRecordID: recordID) { record, error in
+            DispatchQueue.main.async {
+                if let ckError = error as? CKError, ckError.code == .unknownItem {
+                    result(false)
                     return
                 }
-
-                let destinationURL = URL(fileURLWithPath: destinationPath)
-
-                // Ensure the parent directory exists
-                let parentDir = destinationURL.deletingLastPathComponent()
+                if let error = error {
+                    self.handleCKError(error, result: result)
+                    return
+                }
+                guard let asset = record?["blob"] as? CKAsset, let url = asset.fileURL else {
+                    result(false)
+                    return
+                }
+                let destination = URL(fileURLWithPath: destinationPath)
                 do {
                     try FileManager.default.createDirectory(
-                        at: parentDir,
+                        at: destination.deletingLastPathComponent(),
                         withIntermediateDirectories: true,
                         attributes: nil
                     )
+                    if FileManager.default.fileExists(atPath: destinationPath) {
+                        try FileManager.default.removeItem(at: destination)
+                    }
+                    try FileManager.default.copyItem(at: url, to: destination)
+                    result(true)
                 } catch {
-                    result(FlutterError(
-                        code: "DIR_ERROR",
-                        message: "Failed to create directory: \(error.localizedDescription)",
-                        details: nil
-                    ))
+                    result(FlutterError(code: "COPY_ERROR", message: error.localizedDescription, details: nil))
+                }
+            }
+        }
+    }
+
+    private func deleteMediaBlob(assetId: String, result: @escaping FlutterResult) {
+        guard let recordID = mediaRecordID(assetId) else {
+            result(FlutterError(code: "INVALID_ARGS", message: "Bad asset id", details: nil))
+            return
+        }
+        privateDB.delete(withRecordID: recordID) { _, error in
+            DispatchQueue.main.async {
+                if let ckError = error as? CKError, ckError.code == .unknownItem {
+                    result(true)
                     return
                 }
-
-                // Remove existing file if present
-                if FileManager.default.fileExists(atPath: destinationPath) {
-                    try? FileManager.default.removeItem(atPath: destinationPath)
+                if let error = error {
+                    self.handleCKError(error, result: result)
+                    return
                 }
-
-                do {
-                    try FileManager.default.copyItem(at: assetURL, to: destinationURL)
-                    result(destinationPath)
-                } catch {
-                    result(FlutterError(
-                        code: "COPY_ERROR",
-                        message: "Failed to copy asset to destination: \(error.localizedDescription)",
-                        details: nil
-                    ))
-                }
+                result(true)
             }
         }
     }

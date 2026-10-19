@@ -99,9 +99,29 @@ class _MemoryBackend implements SyncBackend {
   Future<String?> readKdfSalt() async => kdfSalt;
   @override
   Future<String> publishKdfSalt(String salt) async => kdfSalt ??= salt;
+  final blobs = <String, List<int>>{};
+  final blobDeletes = <String>[];
+  var blobUploads = 0;
   @override
-  Future<String?> downloadAsset(String syncUUID, String targetPath) async =>
-      null;
+  Future<void> uploadMediaBlob(String assetId, File ciphertext) async {
+    blobUploads++;
+    blobs[assetId] = await ciphertext.readAsBytes();
+  }
+
+  @override
+  Future<bool> downloadMediaBlob(String assetId, File target) async {
+    final bytes = blobs[assetId];
+    if (bytes == null) return false;
+    await target.writeAsBytes(bytes);
+    return true;
+  }
+
+  @override
+  Future<void> deleteMediaBlob(String assetId) async {
+    blobDeletes.add(assetId);
+    blobs.remove(assetId);
+  }
+
   @override
   Future<bool> connect() async => true;
   @override
@@ -137,6 +157,20 @@ class _MemoryDrive implements DriveFileStore {
   Future<void> overwrite(String fileId, List<int> bytes) async {
     await Future<void>.delayed(Duration.zero);
     _files[fileId] = (name: _files[fileId]!.name, bytes: bytes);
+  }
+
+  @override
+  Future<String> createFromFile(String name, File source) async =>
+      create(name, await source.readAsBytes());
+
+  @override
+  Future<void> downloadTo(String fileId, File target) async {
+    await target.writeAsBytes(_files[fileId]!.bytes);
+  }
+
+  @override
+  Future<void> delete(String fileId) async {
+    _files.remove(fileId);
   }
 }
 
@@ -450,6 +484,217 @@ void main() {
     expect(metadata.lastError, contains('Re-enter your sync passphrase'));
     expect(backend.saved, isEmpty);
     mismatched.dispose();
+  });
+
+  group('encrypted media', () {
+    late Directory mediaA;
+    late Directory mediaB;
+    late Directory dirB;
+    late ObjectBoxDatabase dbB;
+    late SyncMetadata metaB;
+    var allowed = true;
+
+    setUp(() async {
+      if (db == null) return;
+      allowed = true;
+      mediaA = await Directory.systemTemp.createTemp('media_a');
+      mediaB = await Directory.systemTemp.createTemp('media_b');
+      dirB = await Directory.systemTemp.createTemp('sync_store_b');
+      dbB = await ObjectBoxDatabase.openForTesting(
+        directory: dirB.path,
+        encryptionService: AtRestEncryptionService(),
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('sync_enabled_b', true);
+      metaB = SyncMetadata(prefs, namespace: 'b');
+      await metaB.setFormatVersion(SyncEngine.currentFormatVersion);
+    });
+
+    tearDown(() async {
+      if (db == null) return;
+      dbB.close();
+      for (final d in [mediaA, mediaB, dirB]) {
+        await d.delete(recursive: true);
+      }
+    });
+
+    SyncEngine engineFor(
+      ObjectBoxDatabase database,
+      SyncMetadata meta,
+      Directory media,
+    ) => SyncEngine(
+      database: database,
+      backend: backend,
+      metadata: meta,
+      cryptoService: _FakeCrypto(),
+      mediaBasePath: media.path,
+      networkAllowed: () => allowed,
+    );
+
+    Future<Entry> photoOn(ObjectBoxDatabase database, Directory media) async {
+      final file = File('${media.path}/photos/IMG_1.jpg')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.generate(200000, (i) => i % 251));
+      return database.saveEntry(Entry.photo(mediaPath: file.path, text: 'p'));
+    }
+
+    test('a new photo is uploaded encrypted and downloaded on pull', () async {
+      if (skip()) return;
+      final a = engineFor(db!, metadata, mediaA);
+      final b = engineFor(dbB, metaB, mediaB);
+      final photo = await photoOn(db!, mediaA);
+      a.queuePush(photo, SyncChangeType.create);
+      await a.push();
+
+      // One blob, and it is ciphertext.
+      expect(backend.blobs, hasLength(1));
+      final blob = backend.blobs.values.single;
+      final original = File(photo.mediaPath!).readAsBytesSync();
+      expect(blob, isNot(original));
+      expect(blob.length, greaterThan(original.length));
+      final record = backend.saved.single;
+      expect(record['mediaAssetId'], backend.blobs.keys.single);
+      expect(record['mediaKey'], isA<String>());
+      expect(db!.getEntry(photo.id)!.mediaAssetId, record['mediaAssetId']);
+
+      // Device B: record arrives first (placeholder), file follows.
+      backend.nextFetch = SyncFetchResult(
+        records: backend.saved,
+        deletedUUIDs: const [],
+      );
+      await b.pull();
+      await b.downloadPendingMedia();
+      final pulled = dbB.getAllEntries().single;
+      expect(pulled.mediaPath, startsWith('${mediaB.path}/photos/'));
+      expect(File(pulled.mediaPath!).readAsBytesSync(), original);
+      expect(dbB.getEntriesNeedingMediaDownload(), isEmpty);
+
+      // Pushing again doesn't re-upload.
+      a.queuePush(db!.getEntry(photo.id)!, SyncChangeType.update);
+      await a.push();
+      expect(backend.blobUploads, 1);
+      a.dispose();
+      b.dispose();
+    });
+
+    test('a missing blob stays pending and resumes later', () async {
+      if (skip()) return;
+      final a = engineFor(db!, metadata, mediaA);
+      final b = engineFor(dbB, metaB, mediaB);
+      final photo = await photoOn(db!, mediaA);
+      a.queuePush(photo, SyncChangeType.create);
+      await a.push();
+      final saved = List<Map<String, dynamic>>.of(backend.saved);
+      final blobs = Map<String, List<int>>.of(backend.blobs);
+      backend.blobs.clear(); // e.g. not propagated yet
+
+      backend.nextFetch = SyncFetchResult(
+        records: saved,
+        deletedUUIDs: const [],
+      );
+      await b.pull();
+      await b.downloadPendingMedia();
+      expect(dbB.getEntriesNeedingMediaDownload(), hasLength(1));
+
+      backend.blobs.addAll(blobs);
+      await b.downloadPendingMedia();
+      expect(dbB.getEntriesNeedingMediaDownload(), isEmpty);
+      a.dispose();
+      b.dispose();
+    });
+
+    test('a tampered blob is rejected and nothing is stored', () async {
+      if (skip()) return;
+      final a = engineFor(db!, metadata, mediaA);
+      final b = engineFor(dbB, metaB, mediaB);
+      final photo = await photoOn(db!, mediaA);
+      a.queuePush(photo, SyncChangeType.create);
+      await a.push();
+      final id = backend.blobs.keys.single;
+      backend.blobs[id]![100] ^= 0xff;
+
+      backend.nextFetch = SyncFetchResult(
+        records: backend.saved,
+        deletedUUIDs: const [],
+      );
+      await b.pull();
+      await b.downloadPendingMedia();
+      expect(dbB.getAllEntries().single.mediaPath, isNull);
+      expect(
+        Directory('${mediaB.path}/photos').existsSync() &&
+            Directory('${mediaB.path}/photos').listSync().isNotEmpty,
+        isFalse,
+      );
+      a.dispose();
+      b.dispose();
+    });
+
+    test('deleting a memory removes its blob (also via purge)', () async {
+      if (skip()) return;
+      final a = engineFor(db!, metadata, mediaA);
+      final photo = await photoOn(db!, mediaA);
+      a.queuePush(photo, SyncChangeType.create);
+      await a.push();
+      final id = backend.blobs.keys.single;
+
+      final stored = db!.getEntry(photo.id)!;
+      await db!.deleteEntry(stored.id);
+      a.queuePush(stored, SyncChangeType.delete);
+      await a.push();
+      expect(backend.blobDeletes, [id]);
+      expect(backend.blobs, isEmpty);
+
+      // Purged trash takes its blob with it too.
+      final second = await photoOn(db!, mediaA);
+      a.queuePush(second, SyncChangeType.create);
+      await a.push();
+      final secondId = backend.blobs.keys.single;
+      await db!.saveEntry(
+        db!.getEntry(second.id)!
+          ..isDeleted = true
+          ..deletedAt = DateTime.now().toUtc().subtract(
+            const Duration(days: 40),
+          ),
+      );
+      await db!.purgeExpiredEntries();
+      await a.init();
+      expect(backend.blobDeletes, [id, secondId]);
+      a.dispose();
+    });
+
+    test('no media (or records) move before the cloud-sync opt-in', () async {
+      if (skip()) return;
+      allowed = false;
+      final a = engineFor(db!, metadata, mediaA);
+      final photo = await photoOn(db!, mediaA);
+      a.queuePush(photo, SyncChangeType.create);
+      await a.push();
+      await a.init();
+      await a.downloadPendingMedia();
+      expect(backend.blobUploads, 0);
+      expect(backend.saved, isEmpty);
+      expect(backend.fetchCalls, 0);
+      a.dispose();
+    });
+
+    test('files over 50 MB are skipped with a warning', () async {
+      if (skip()) return;
+      final a = engineFor(db!, metadata, mediaA);
+      final big = File('${mediaA.path}/voices/long.m4a')
+        ..createSync(recursive: true);
+      final raf = big.openSync(mode: FileMode.write)
+        ..truncateSync(51 * 1024 * 1024)
+        ..closeSync();
+      expect(raf, isNotNull);
+      final entry = await db!.saveEntry(Entry.voice(mediaPath: big.path));
+      a.queuePush(entry, SyncChangeType.create);
+      final result = await a.push();
+      expect(result.success, isTrue);
+      expect(backend.blobUploads, 0);
+      expect(backend.saved.single['mediaAssetId'], isNull);
+      expect(metadata.lastError, contains('50 MB'));
+      a.dispose();
+    });
   });
 
   test('first enable uploads existing entries', () async {

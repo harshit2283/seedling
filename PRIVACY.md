@@ -70,19 +70,32 @@ Settings and choose a provider:
 
 Sync requires a passphrase that you choose. Before anything leaves the
 device, the text of each memory (text, title, context, mood, tags,
-transcription, and detected theme) is encrypted with a key derived from
-that passphrase (AES-256-GCM, PBKDF2). The passphrase stays on your
-devices. Without it, those fields can't be read by Apple, Google, or us.
+transcription, detected theme, and links between memories) is encrypted
+with a key derived from that passphrase (AES-256-GCM; PBKDF2 with a random
+salt unique to your account, stored in your own sync space). The
+passphrase itself is never stored, on your devices or anywhere else.
+Without it, those fields can't be read by Apple, Google, or us.
 
-What sync does **not** encrypt end-to-end today:
+**Photos, voice memos, and object photos sync end-to-end encrypted.** Each
+file is encrypted on your device with its own random key (AES-256-GCM,
+in authenticated chunks) before upload, and that key travels only inside
+the encrypted memory record. Apple and Google store only ciphertext. On
+your other devices the file is downloaded in the background after the
+memory arrives (a placeholder shows until then), checked for tampering,
+and saved under a new local name. Deleting a memory permanently, or
+letting it expire from Recently Deleted, also deletes its encrypted file.
+Files larger than 50 MB are not synced.
 
-- **Photos and voice memos are not synced yet.** Only the memory record
-  (with the media file's name) is synced, so a photo or voice memo appears
-  on your other device as a memory without its file. When media sync
-  ships, files will be encrypted with your passphrase before upload.
-- **Record metadata** such as memory type, dates, capsule unlock dates,
-  deletion state, a sentiment score, file names, and a random device ID
-  are stored unencrypted alongside the encrypted text, so sync can work.
+What sync does **not** encrypt end-to-end:
+
+- **Record metadata** such as memory type, creation and modification
+  dates, capsule unlock dates, deletion state and date, a sentiment score,
+  the local media file name, a random media file id, and a random device
+  ID are stored unencrypted alongside the encrypted fields, so sync can
+  work.
+- **Sizes and timing.** Apple or Google can see how many records and media
+  files you have, roughly how large each encrypted file is, and when they
+  change.
 
 Apple's and Google's handling of data in your account is governed by their
 own privacy policies.
@@ -127,8 +140,10 @@ children, because it collects no information at all.
 
 Being honest about where the code doesn't yet match the ideal:
 
-1. Photos and voice memos are not synced between devices yet.
-2. Some sync metadata (dates, type, sentiment score) is not encrypted.
+1. Some sync metadata (dates, type, sentiment score, media file name and
+   id) is not encrypted, and encrypted media sizes are visible to the
+   storage provider.
+2. Media files over 50 MB are not synced.
 3. On Android, ML Kit may contact Google to download its language model
    on first launch, before any opt-in.
 

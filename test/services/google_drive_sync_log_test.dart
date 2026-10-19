@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/sync/drive_sync_log.dart';
@@ -38,6 +39,20 @@ class _MemoryDrive implements DriveFileStore {
   Future<void> overwrite(String fileId, List<int> bytes) async {
     await Future<void>.delayed(Duration.zero);
     files[fileId] = (name: files[fileId]!.name, bytes: bytes);
+  }
+
+  @override
+  Future<String> createFromFile(String name, File source) async =>
+      create(name, await source.readAsBytes());
+
+  @override
+  Future<void> downloadTo(String fileId, File target) async {
+    await target.writeAsBytes(files[fileId]!.bytes);
+  }
+
+  @override
+  Future<void> delete(String fileId) async {
+    files.remove(fileId);
   }
 }
 
@@ -163,6 +178,36 @@ void main() {
     final second = await c.fetchChanges(changeToken: first.newChangeToken);
     expect(second!.records, isEmpty);
     expect(second.deletedUUIDs, isEmpty);
+  });
+
+  test('media blobs upload once, download, and delete', () async {
+    final tmp = await Directory.systemTemp.createTemp('drive_blob');
+    try {
+      final sealed = File('${tmp.path}/x.enc')..writeAsBytesSync([9, 8, 7]);
+      final id = _uuid(42);
+      await a.uploadMediaBlob(id, sealed);
+      await a.uploadMediaBlob(id, sealed); // retry after an interruption
+      expect(
+        drive.files.values.where(
+          (f) => f.name.startsWith(DriveSyncLogStore.mediaPrefix),
+        ),
+        hasLength(1),
+      );
+
+      final out = File('${tmp.path}/out.enc');
+      expect(await c.downloadMediaBlob(id, out), isTrue);
+      expect(out.readAsBytesSync(), [9, 8, 7]);
+
+      await b.deleteMediaBlob(id);
+      expect(await c.downloadMediaBlob(id, out), isFalse);
+      // Ids end up in a Drive query string: anything but a UUID is refused.
+      await expectLater(
+        a.uploadMediaBlob("x' or name contains '", sealed),
+        throwsArgumentError,
+      );
+    } finally {
+      await tmp.delete(recursive: true);
+    }
   });
 
   test('key salt: first publisher wins and racing devices agree', () async {

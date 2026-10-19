@@ -149,6 +149,8 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     metadata: ref.watch(syncMetadataProvider),
     cryptoService: ref.watch(syncCryptoServiceProvider),
     mediaBasePath: fileStorage.basePath,
+    // Nothing (records or media) touches the network before the opt-in.
+    networkAllowed: () => ref.read(cloudSyncEnabledProvider),
   );
   ref.onDispose(() => engine.dispose());
   return engine;

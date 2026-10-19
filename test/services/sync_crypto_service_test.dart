@@ -495,6 +495,27 @@ void main() {
       );
     });
 
+    test('the media file key is encrypted in the record', () async {
+      final storage = _MockSecureStorage();
+      _wireStorage(storage, <String, String>{});
+      final service = SyncCryptoService(
+        secureStorage: storage,
+        kdfSaltProvider: () async => List<int>.filled(32, 5),
+      );
+      await service.setPassphrase('correct horse battery staple');
+      const fileKey = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJA==';
+      final encrypted = await service.encryptRecordFields(<String, dynamic>{
+        'mediaAssetId': '550e8400-e29b-41d4-a716-446655440077',
+        'mediaKey': fileKey,
+      });
+      expect(encrypted['mediaKey'], startsWith('syncenc:v1:'));
+      expect(encrypted['mediaAssetId'], '550e8400-e29b-41d4-a716-446655440077');
+      expect(
+        (await service.decryptRecordFields(encrypted))['mediaKey'],
+        fileKey,
+      );
+    });
+
     test('throws user-facing error when passphrase is missing', () async {
       final storage = _MockSecureStorage();
       final values = <String, String>{};

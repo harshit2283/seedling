@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:980722598120104709",
-      "lastPropertyId": "23:8840600702752248780",
+      "lastPropertyId": "25:3378884658581427632",
       "name": "Entry",
       "properties": [
         {
@@ -127,6 +127,16 @@
         {
           "id": "23:8840600702752248780",
           "name": "manualLinkIds",
+          "type": 9
+        },
+        {
+          "id": "24:8754591307827403872",
+          "name": "mediaAssetId",
+          "type": 9
+        },
+        {
+          "id": "25:3378884658581427632",
+          "name": "mediaKey",
           "type": 9
         }
       ],

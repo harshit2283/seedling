@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'sync_backend.dart';
 import 'sync_models.dart';
@@ -27,6 +28,15 @@ abstract class DriveFileStore {
 
   /// Replace the contents of [fileId].
   Future<void> overwrite(String fileId, List<int> bytes);
+
+  /// Create a file streamed from [source] (for media blobs).
+  Future<String> createFromFile(String name, File source);
+
+  /// Stream the contents of [fileId] into [target].
+  Future<void> downloadTo(String fileId, File target);
+
+  /// Delete [fileId].
+  Future<void> delete(String fileId);
 }
 
 /// One device's change log.
@@ -389,6 +399,43 @@ class DriveSyncLogStore {
     );
     // Re-read: if another device raced us, both settle on the same file.
     return (await readKdfSalt())!;
+  }
+
+  /// Encrypted media blobs, one appData file per asset id.
+  static const mediaPrefix = 'seedling_media_v1_';
+
+  static String _blobName(String assetId) {
+    // The id ends up inside a Drive query string; only allow UUIDs.
+    if (!RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(assetId)) {
+      throw ArgumentError.value(assetId, 'assetId', 'must be a UUID');
+    }
+    return '$mediaPrefix$assetId.bin';
+  }
+
+  Future<DriveFileInfo?> _findBlob(String assetId) async {
+    final name = _blobName(assetId);
+    return (await _files.listByPrefix(
+      name,
+    )).where((f) => f.name == name).firstOrNull;
+  }
+
+  /// Blobs are immutable (a new file always gets a new id), so an existing
+  /// blob is left as is - that also makes an interrupted push safe to retry.
+  Future<void> uploadBlob(String assetId, File ciphertext) async {
+    if (await _findBlob(assetId) != null) return;
+    await _files.createFromFile(_blobName(assetId), ciphertext);
+  }
+
+  Future<bool> downloadBlob(String assetId, File target) async {
+    final blob = await _findBlob(assetId);
+    if (blob == null) return false;
+    await _files.downloadTo(blob.id, target);
+    return true;
+  }
+
+  Future<void> deleteBlob(String assetId) async {
+    final blob = await _findBlob(assetId);
+    if (blob != null) await _files.delete(blob.id);
   }
 
   /// Rewrites the legacy document with [quarantine] cleared.
