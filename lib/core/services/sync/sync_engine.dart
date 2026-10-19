@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:uuid/uuid.dart';
-
 import '../../../data/datasources/local/objectbox_database.dart';
 import '../../../data/models/entry.dart';
+import '../../../data/models/sync_id.dart';
 import 'sync_backend.dart';
 import 'sync_crypto_service.dart';
 import 'sync_metadata.dart';
@@ -22,10 +21,6 @@ class SyncEngine {
   final SyncMetadata _metadata;
   final SyncCryptoService _crypto;
   final String _mediaBasePath;
-  static const _uuid = Uuid();
-  static final _uuidPattern = RegExp(
-    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-  );
   static final _uuidV4Pattern = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
   );
@@ -83,7 +78,7 @@ class SyncEngine {
   /// Call this before saving entries.
   void ensureSyncUUID(Entry entry) {
     if (!_isValidUuid(entry.syncUUID)) {
-      entry.syncUUID = _uuid.v4();
+      entry.syncUUID = SyncId.generate();
     }
     if (!_isValidUuidV4(entry.deviceId)) {
       entry.deviceId = _metadata.deviceId;
@@ -334,7 +329,7 @@ class SyncEngine {
           : null,
       transcription: decrypted['transcription'] as String?,
       mediaPath: _toAbsoluteMediaPath(decrypted['mediaPath'] as String?),
-      syncUUID: _isValidUuid(syncUUID) ? syncUUID : _uuid.v4(),
+      syncUUID: _isValidUuid(syncUUID) ? syncUUID : SyncId.generate(),
       modifiedAt: decrypted['modifiedAt'] != null
           ? DateTime.fromMillisecondsSinceEpoch(decrypted['modifiedAt'] as int)
           : null,
@@ -367,10 +362,7 @@ class SyncEngine {
     entry.deviceId = _isValidUuidV4(deviceId) ? deviceId : _metadata.deviceId;
   }
 
-  bool _isValidUuid(String? value) {
-    if (value == null || value.isEmpty) return false;
-    return _uuidPattern.hasMatch(value);
-  }
+  bool _isValidUuid(String? value) => SyncId.isValid(value);
 
   bool _isValidUuidV4(String? value) {
     if (value == null || value.isEmpty) return false;

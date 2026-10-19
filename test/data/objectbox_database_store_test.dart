@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/security/at_rest_encryption_service.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
+import 'package:seedling/data/models/sync_id.dart';
 
 Future<ObjectBoxDatabase?> _tryOpen(Directory dir) async {
   try {
@@ -123,5 +124,45 @@ void main() {
     final linked = store.getEntriesBySyncUUIDs([oldId, newId]);
     expect(linked.map((e) => e.text), containsAll(['last summer', 'today']));
     expect(store.getEntryBySyncUUID(oldId)!.text, 'last summer');
+  });
+
+  test('saveEntry assigns a v4 syncUUID when missing', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    final saved = await store.saveEntry(Entry.line(text: 'no id yet'));
+    expect(SyncId.isValid(saved.syncUUID), isTrue);
+    expect(store.getEntry(saved.id)!.syncUUID, saved.syncUUID);
+  });
+
+  test('legacy base36 link ids are migrated without breaking links', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    // What the old link editor wrote: a base36 timestamp id.
+    const legacyId = 'lq3x9k2abc';
+    final target = await store.saveEntry(
+      Entry.line(text: 'the old bench')..syncUUID = legacyId,
+    );
+    final source = await store.saveEntry(
+      Entry.line(text: 'walked past it')..manualLinkIds = legacyId,
+    );
+    store.close();
+
+    final reopened = await ObjectBoxDatabase.openForTesting(
+      directory: dir.path,
+      encryptionService: AtRestEncryptionService(),
+    );
+    db = reopened;
+
+    final migratedId = reopened.getEntry(target.id)!.syncUUID;
+    expect(SyncId.isValid(migratedId), isTrue);
+    final links = reopened.getEntry(source.id)!.manualLinkList;
+    expect(links, [migratedId]);
+    expect(reopened.getEntriesBySyncUUIDs(links).single.text, 'the old bench');
   });
 }

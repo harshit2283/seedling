@@ -11,6 +11,7 @@ import '../../../core/services/media/file_storage_service.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
+import '../../../data/models/sync_id.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import 'memories_filter_state.dart';
 import 'widgets/photo_viewer.dart';
@@ -768,12 +769,14 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     db.updateEntry(other);
   }
 
-  /// Returns the existing syncUUID or generates and assigns a new one
+  /// Returns the existing syncUUID or generates and assigns a new one.
+  /// Uses the same generator as the database and sync, so the id is never
+  /// replaced later (which would break the link).
   String _ensureSyncUUID(Entry entry) {
     if (entry.syncUUID != null && entry.syncUUID!.isNotEmpty) {
       return entry.syncUUID!;
     }
-    final newUUID = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final newUUID = SyncId.generate();
     entry.syncUUID = newUUID;
     return newUUID;
   }
