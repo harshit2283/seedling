@@ -61,6 +61,14 @@ void showQuickCaptureSheet(
   }
 }
 
+/// Opens the capture sheet if onboarding asked for a first memory. Call
+/// from the home screen once it is on screen.
+void openPendingFirstCapture(BuildContext context, WidgetRef ref) {
+  if (ref.read(pendingFirstCaptureProvider.notifier).consume()) {
+    showQuickCaptureSheet(context);
+  }
+}
+
 /// Quick capture bottom sheet for adding memories.
 ///
 /// Philosophy: capture should feel like breathing, not documenting. The
@@ -1083,7 +1091,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       return 'Add a note (optional)';
     }
     if (_showTitle) return 'Its story (optional)';
-    return 'What stayed with you?';
+    return captureHintFor(ref.watch(captureIntentionProvider));
   }
 
   String _readyLabel() {

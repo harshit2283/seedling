@@ -8,6 +8,10 @@ class PrefsKeys {
   // Onboarding
   static const String onboardingCompleted = 'onboarding_completed';
 
+  // Implementation intention ("When I make my morning coffee"), optional.
+  // Shown softly as the capture field's hint.
+  static const String captureIntention = 'capture_intention';
+
   // App lock
   static const String appLockEnabled = 'app_lock_enabled';
 

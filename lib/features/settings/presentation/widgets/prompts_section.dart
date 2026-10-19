@@ -19,6 +19,8 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
   @override
   Widget build(BuildContext context) {
     final reminderSettings = ref.watch(reminderSettingsProvider);
+    final intention = ref.watch(captureIntentionProvider);
+    final intentionSubtitle = intention ?? 'A cue for capturing, if you like';
 
     if (PlatformUtils.isIOS) {
       return CupertinoListSection.insetGrouped(
@@ -40,6 +42,17 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
                 ref.invalidate(promptsEnabledProvider);
               },
             ),
+          ),
+          CupertinoListTile(
+            leading: buildSettingsIconBox(
+              context,
+              CupertinoIcons.time,
+              SeedlingColors.forestGreen,
+            ),
+            title: const Text('Your moment'),
+            subtitle: Text(intentionSubtitle),
+            trailing: const CupertinoListTileChevron(),
+            onTap: _editIntention,
           ),
           CupertinoListTile(
             leading: buildSettingsIconBox(
@@ -120,6 +133,13 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             ref.invalidate(promptsEnabledProvider);
           },
         ),
+        buildMaterialActionTile(
+          context,
+          icon: Icons.schedule,
+          title: 'Your moment',
+          subtitle: intentionSubtitle,
+          onTap: _editIntention,
+        ),
         buildMaterialSwitchTile(
           context,
           icon: Icons.notifications_outlined,
@@ -163,6 +183,23 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
         ),
       ],
     );
+  }
+
+  /// Edit (or clear) the optional "When I make my morning coffee" cue that
+  /// the capture sheet shows as its hint.
+  Future<void> _editIntention() async {
+    final initial = ref.read(captureIntentionProvider) ?? '';
+    final result = PlatformUtils.isIOS
+        ? await showCupertinoDialog<String>(
+            context: context,
+            builder: (_) => _IntentionDialog(initial: initial),
+          )
+        : await showDialog<String>(
+            context: context,
+            builder: (_) => _IntentionDialog(initial: initial),
+          );
+    if (result == null || !mounted) return;
+    await ref.read(captureIntentionProvider.notifier).set(result);
   }
 
   String _formatTime(int hour, int minute) {
@@ -290,5 +327,74 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
     await ref
         .read(reminderSettingsProvider.notifier)
         .setTime(hour: picked.hour, minute: picked.minute);
+  }
+}
+
+/// Edits the optional capture cue. Returns the new text ('' clears it), or
+/// null when dismissed.
+class _IntentionDialog extends StatefulWidget {
+  const _IntentionDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_IntentionDialog> createState() => _IntentionDialogState();
+}
+
+class _IntentionDialogState extends State<_IntentionDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const title = Text('When do small moments find you?');
+    const hint = 'e.g. When I make my morning coffee';
+    void clear() => Navigator.of(context).pop('');
+    void save() => Navigator.of(context).pop(_controller.text);
+
+    if (PlatformUtils.isIOS) {
+      return CupertinoAlertDialog(
+        title: title,
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(
+            controller: _controller,
+            placeholder: hint,
+            autofocus: true,
+            maxLength: 80,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(onPressed: clear, child: const Text('Clear')),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: save,
+            child: const Text('Save'),
+          ),
+        ],
+      );
+    }
+    return AlertDialog(
+      title: title,
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 80,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(hintText: hint),
+      ),
+      actions: [
+        TextButton(onPressed: clear, child: const Text('Clear')),
+        TextButton(onPressed: save, child: const Text('Save')),
+      ],
+    );
   }
 }

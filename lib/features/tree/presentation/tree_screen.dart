@@ -30,6 +30,16 @@ class TreeScreen extends ConsumerStatefulWidget {
 }
 
 class _TreeScreenState extends ConsumerState<TreeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Onboarding's "Add your first memory" lands here, then opens capture.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      openPendingFirstCapture(context, ref);
+    });
+  }
+
   void _dismissPrompt() {
     final selector = ref.read(promptSelectorProvider);
     selector.dismissPrompt();
