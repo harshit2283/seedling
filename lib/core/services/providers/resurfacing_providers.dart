@@ -16,6 +16,35 @@ final resurfaceClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
 
+/// Today's calendar day key. Ticks over at local midnight so the
+/// resurfaced memory and the "dismissed for today" state roll over even when
+/// nothing is saved.
+class ResurfaceDayNotifier extends Notifier<String> {
+  Timer? _midnight;
+
+  @override
+  String build() {
+    final clock = ref.watch(resurfaceClockProvider);
+    ref.onDispose(() => _midnight?.cancel());
+    _scheduleRollover(clock);
+    return resurfaceDayKey(clock());
+  }
+
+  void _scheduleRollover(DateTime Function() clock) {
+    _midnight?.cancel();
+    final now = clock();
+    final next = DateTime(now.year, now.month, now.day + 1);
+    _midnight = Timer(next.difference(now) + const Duration(seconds: 1), () {
+      state = resurfaceDayKey(clock());
+      _scheduleRollover(clock);
+    });
+  }
+}
+
+final resurfaceDayProvider = NotifierProvider<ResurfaceDayNotifier, String>(
+  ResurfaceDayNotifier.new,
+);
+
 /// Today's resurfaced memory, or null when nothing is old enough yet.
 ///
 /// On-this-day memories from earlier years come first; otherwise a memory at
@@ -23,6 +52,7 @@ final resurfaceClockProvider = Provider<DateTime Function()>(
 /// anything in the trash, never something the person let go of.
 final resurfacedMemoryProvider = Provider<ResurfacedMemory?>((ref) {
   final entries = ref.watch(allEntriesProvider);
+  ref.watch(resurfaceDayProvider);
   final now = ref.watch(resurfaceClockProvider)();
   return pickResurfacedMemory(entries, now);
 });
@@ -38,7 +68,7 @@ class ResurfaceDismissedNotifier extends Notifier<bool> {
   @override
   bool build() {
     final prefs = ref.watch(sharedPreferencesProvider);
-    final today = resurfaceDayKey(ref.watch(resurfaceClockProvider)());
+    final today = ref.watch(resurfaceDayProvider);
     return prefs.getString(PrefsKeys.resurfaceDismissedDate) == today;
   }
 
