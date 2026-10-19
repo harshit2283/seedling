@@ -112,9 +112,19 @@ void main() {
       });
     });
 
-    Widget harness({bool show = true}) {
+    Widget harness({
+      bool show = true,
+      bool ritualFails = false,
+      bool asSheet = false,
+    }) {
       final ritual = _MockRitual();
-      when(() => ritual.updateAfterEntry(any())).thenAnswer((_) async {});
+      if (ritualFails) {
+        when(
+          () => ritual.updateAfterEntry(any()),
+        ).thenThrow(StateError('ritual db'));
+      } else {
+        when(() => ritual.updateAfterEntry(any())).thenAnswer((_) async {});
+      }
       return ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
@@ -126,7 +136,16 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: show ? const QuickCaptureSheet() : const SizedBox(),
+            body: !show
+                ? const SizedBox()
+                : asSheet
+                ? Builder(
+                    builder: (context) => TextButton(
+                      onPressed: () => showQuickCaptureSheet(context),
+                      child: const Text('open'),
+                    ),
+                  )
+                : const QuickCaptureSheet(),
           ),
         ),
       );
@@ -181,6 +200,35 @@ void main() {
       expect(saved.single.type, EntryType.photo);
       expect(saved.single.mediaPath, picked);
       expect(saved.single.text, 'just words');
+      expect(deleted, isEmpty);
+    });
+
+    testWidgets('a failure after the entry is written keeps its photo', (
+      tester,
+    ) async {
+      await tester.pumpWidget(harness(ritualFails: true, asSheet: true));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final picked = await pickPhoto(tester);
+
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+      // However the sheet goes away, the saved photo must survive it.
+      if (find.byType(QuickCaptureSheet).evaluate().isNotEmpty) {
+        await tester.fling(
+          find.byType(QuickCaptureSheet),
+          const Offset(0, 500),
+          2000,
+        );
+        await tester.pumpAndSettle();
+      }
+      await tester.pumpWidget(harness(show: false));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+
+      expect(saved, hasLength(1));
+      expect(saved.single.mediaPath, picked);
       expect(deleted, isEmpty);
     });
 

@@ -459,5 +459,26 @@ void main() {
       expect(find.byType(QuickCaptureSheet), findsNothing);
       expect(savedEntries(), hasLength(1));
     });
+
+    testWidgets('a failure after the entry is written does not duplicate it', (
+      tester,
+    ) async {
+      when(
+        () => mockRitualService.updateAfterEntry(any()),
+      ).thenThrow(StateError('ritual db'));
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'A long enough sentence here',
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Could not save'), findsNothing);
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      expect(savedEntries(), hasLength(1));
+    });
   });
 }

@@ -79,6 +79,66 @@ void main() {
       ]);
     });
 
+    group('once the entry is written, the save has succeeded', () {
+      setUp(() {
+        when(() => mockDb.saveEntry(any())).thenAnswer((inv) async {
+          return (inv.positionalArguments.first as Entry)..id = 7;
+        });
+      });
+
+      test('a failing usage record does not fail the save', () async {
+        when(
+          () => mockUsageService.recordUsage(
+            any(),
+            isCapsule: any(named: 'isCapsule'),
+          ),
+        ).thenThrow(StateError('prefs'));
+
+        final notifier = container.read(entryCreatorProvider.notifier);
+        final saved = await notifier.createLineEntry('kept anyway');
+
+        expect(saved.id, 7);
+        verify(() => mockDb.saveEntry(any())).called(1);
+        // Later side effects still run.
+        verify(() => mockSyncEngine.queuePush(saved, SyncChangeType.create));
+        verify(() => mockRitualService.updateAfterEntry(saved));
+      });
+
+      test('a failing ritual update does not fail the save', () async {
+        when(
+          () => mockRitualService.updateAfterEntry(any()),
+        ).thenThrow(StateError('ritual db'));
+
+        final notifier = container.read(entryCreatorProvider.notifier);
+        final saved = await notifier.createPhotoEntry('/m/p.jpg');
+
+        expect(saved.id, 7);
+        verify(() => mockDb.saveEntry(any())).called(1);
+      });
+
+      test('a failing sync queue does not fail the save', () async {
+        when(
+          () => mockSyncEngine.queuePush(any(), any()),
+        ).thenThrow(StateError('sync'));
+
+        final notifier = container.read(entryCreatorProvider.notifier);
+        final saved = await notifier.createVoiceEntry('/m/v.m4a');
+
+        expect(saved.id, 7);
+        verify(() => mockRitualService.updateAfterEntry(saved));
+      });
+
+      test('a failing database write still fails the save', () async {
+        when(() => mockDb.saveEntry(any())).thenThrow(StateError('disk'));
+
+        final notifier = container.read(entryCreatorProvider.notifier);
+        await expectLater(
+          notifier.createLineEntry('not saved'),
+          throwsStateError,
+        );
+      });
+    });
+
     test('createPhotoEntry calls ensureSyncUUID and queuePush', () async {
       final savedEntry = Entry.photo(mediaPath: '/photo.jpg')..id = 2;
       when(() => mockDb.saveEntry(any())).thenAnswer((_) async => savedEntry);

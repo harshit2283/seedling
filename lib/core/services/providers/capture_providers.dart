@@ -9,6 +9,7 @@ import '../../../features/prompts/domain/prompt_selector.dart';
 import '../entry_type_usage_service.dart';
 import '../../../features/onboarding/data/onboarding_preferences.dart';
 import '../sync/sync_models.dart';
+import '../error_reporter.dart';
 import 'database_providers.dart';
 import 'ai_providers.dart';
 import 'sync_providers.dart';
@@ -24,6 +25,13 @@ class EntryCreatorNotifier extends Notifier<void> {
 
   /// Ensure sync UUID is set on entry before saving, so the UUID gets persisted
   /// in the same DB write. Then queue a sync push after save.
+  ///
+  /// Once `db.saveEntry` returns, the memory is saved: every
+  /// later step (usage ordering, sync queue, the insert animation, ritual
+  /// streaks) is best-effort. A failure there is reported and swallowed,
+  /// never rethrown — otherwise the sheet would say "Could not save" about
+  /// a saved memory, a retry would duplicate it, and closing would delete
+  /// its media.
   Future<Entry> _saveAndSync(Entry entry) async {
     final db = ref.read(databaseProvider);
     final syncEngine = ref.read(syncEngineProvider);
@@ -32,13 +40,36 @@ class EntryCreatorNotifier extends Notifier<void> {
     // filters never have to re-run keyword detection over the collection.
     ref.read(themeDetectorProvider).assignTheme(entry);
     final saved = await db.saveEntry(entry);
+
+    final reporter = ref.read(errorReporterProvider);
+    Future<void> bestEffort(String step, FutureOr<void> Function() run) async {
+      try {
+        await run();
+      } catch (e, st) {
+        reporter.report(e, stack: st, context: 'EntryCreator.$step');
+      }
+    }
+
     // Record entry type usage for smart button ordering
-    await ref
-        .read(entryTypeUsageServiceProvider)
-        .recordUsage(saved.type, isCapsule: saved.isCapsule);
-    syncEngine.queuePush(saved, SyncChangeType.create);
+    await bestEffort(
+      'recordUsage',
+      () => ref
+          .read(entryTypeUsageServiceProvider)
+          .recordUsage(saved.type, isCapsule: saved.isCapsule),
+    );
+    await bestEffort(
+      'queuePush',
+      () => syncEngine.queuePush(saved, SyncChangeType.create),
+    );
     // Flag the freshly-inserted entry so the memories list can animate it in.
-    ref.read(recentlyInsertedEntryIdProvider.notifier).mark(saved.id);
+    await bestEffort(
+      'markInserted',
+      () => ref.read(recentlyInsertedEntryIdProvider.notifier).mark(saved.id),
+    );
+    await bestEffort(
+      'ritualUpdate',
+      () => ref.read(ritualServiceProvider).updateAfterEntry(saved),
+    );
     return saved;
   }
 
@@ -49,9 +80,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   }) async {
     final entry = Entry.line(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Create a RELEASE entry (let go)
@@ -61,9 +90,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   }) async {
     final entry = Entry.release(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Create a FRAGMENT entry
@@ -73,9 +100,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   }) async {
     final entry = Entry.fragment(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Create a RITUAL entry. [title] names the ritual; [text] defaults to
@@ -87,9 +112,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   }) async {
     final entry = Entry.ritual(title: title, text: text ?? title);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Create a PHOTO entry
@@ -100,9 +123,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   }) async {
     final entry = Entry.photo(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Create a VOICE entry
@@ -113,9 +134,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   }) async {
     final entry = Entry.voice(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Create an OBJECT entry
@@ -127,9 +146,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   }) async {
     final entry = Entry.object(title: title, mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Soft delete an entry (recoverable for 30 days)
@@ -199,9 +216,7 @@ class EntryCreatorNotifier extends Notifier<void> {
   /// Create a CAPSULE entry (time capsule)
   Future<Entry> createCapsuleEntry(String? text, DateTime unlockDate) async {
     final entry = Entry.capsule(text: text, unlockDate: unlockDate);
-    final saved = await _saveAndSync(entry);
-    await ref.read(ritualServiceProvider).updateAfterEntry(saved);
-    return saved;
+    return _saveAndSync(entry);
   }
 
   /// Single entry point: build the right entry kind for a [CaptureIntent].

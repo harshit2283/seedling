@@ -1305,53 +1305,71 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     // Read everything the save needs up front: a swipe can close the sheet
     // while the save is still running, and ref is gone after dispose.
     final errorReporter = ref.read(errorReporterProvider);
+    final Entry saved;
+    final CaptureIntent? intent;
+    final EntryCreatorNotifier creator;
     try {
-      final creator = ref.read(entryCreatorProvider.notifier);
-      final intent = _buildIntent();
-      Entry? saved;
-      if (intent != null) {
-        saved = await creator.create(intent);
+      creator = ref.read(entryCreatorProvider.notifier);
+      intent = _buildIntent();
+      if (intent == null) {
+        _setNotSaving();
+        return false;
       }
-      if (saved != null &&
-          saved.type == EntryType.release &&
-          !saved.isCapsule &&
-          mounted) {
-        _offerReleaseCeremony(saved, creator);
-      }
-      // Keep the saved file; drop media captured but not kept.
-      unawaited(_draftMedia.commit(_mediaPathOf(intent)));
-
-      if (_sealAsCapsule) {
-        await HapticService.onCapsuleCreated();
-      } else {
-        HapticFeedback.lightImpact();
-      }
-
-      _wasExplicitlySaved = true;
-
-      if (!fromDismiss && mounted) {
-        _didPopDuringSave = true;
-        Navigator.of(context).pop();
-      }
-      return true;
+      saved = await creator.create(intent);
     } catch (e, st) {
       errorReporter.report(
         e,
         stack: st,
         context: 'QuickCaptureSheet._saveEntry',
       );
-      if (!fromDismiss && mounted) {
-        setState(() {
-          _saveError = 'Could not save this memory. Please try again.';
-        });
-      }
-      return false;
-    } finally {
       if (mounted) {
-        setState(() => _isSaving = false);
+        setState(() {
+          _isSaving = false;
+          if (!fromDismiss) {
+            _saveError = 'Could not save this memory. Please try again.';
+          }
+        });
       } else {
         _isSaving = false;
       }
+      return false;
+    }
+
+    // The entry exists now. From here on nothing may undo that: mark it
+    // saved first (no second save, no discard on close) and keep its file.
+    _wasExplicitlySaved = true;
+    unawaited(_draftMedia.commit(_mediaPathOf(intent)));
+
+    try {
+      if (saved.type == EntryType.release && !saved.isCapsule && mounted) {
+        _offerReleaseCeremony(saved, creator);
+      }
+      if (_sealAsCapsule) {
+        await HapticService.onCapsuleCreated();
+      } else {
+        unawaited(HapticFeedback.lightImpact());
+      }
+    } catch (e, st) {
+      errorReporter.report(
+        e,
+        stack: st,
+        context: 'QuickCaptureSheet._saveEntry (after save)',
+      );
+    }
+
+    _setNotSaving();
+    if (!fromDismiss && mounted) {
+      _didPopDuringSave = true;
+      Navigator.of(context).pop();
+    }
+    return true;
+  }
+
+  void _setNotSaving() {
+    if (mounted) {
+      setState(() => _isSaving = false);
+    } else {
+      _isSaving = false;
     }
   }
 
