@@ -83,7 +83,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             allTreesProvider.overrideWithValue(trees),
           ],
-          child: const MaterialApp(home: ForestScreen()),
+          child: MaterialApp(home: ForestScreen(now: DateTime(2026, 10, 19))),
         ),
       );
       await tester.pump();
@@ -91,16 +91,17 @@ void main() {
 
     testWidgets('shows totals and stages normally', (tester) async {
       await pumpForest(tester, calm: false);
-      expect(find.text('49 leaves'), findsOneWidget);
-      expect(find.text('The Growth'), findsOneWidget);
+      expect(find.text('49 memories across 2 years'), findsOneWidget);
+      expect(find.text('2026 \u00b7 Sapling'), findsOneWidget);
+      expect(find.text('42 memories'), findsOneWidget);
     });
 
     testWidgets('hides totals, stages and counts in calm mode', (tester) async {
       final semantics = tester.ensureSemantics();
       await pumpForest(tester, calm: true);
 
-      expect(find.textContaining('leaves'), findsNothing);
-      expect(find.text('The Growth'), findsNothing);
+      expect(find.textContaining('memories'), findsNothing);
+      expect(find.textContaining('Sapling'), findsNothing);
       expect(find.bySemanticsLabel(RegExp('memories')), findsNothing);
       expect(find.text('2026'), findsWidgets);
       semantics.dispose();
