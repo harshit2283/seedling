@@ -45,7 +45,7 @@ class CapsulesScreen extends ConsumerWidget {
             : CupertinoColors.systemGroupedBackground.withValues(alpha: 0.9),
         border: null,
         middle: Text(
-          'Memory Capsules',
+          'Memory capsules',
           style: TextStyle(color: context.palette.textPrimary),
         ),
         leading: CupertinoNavigationBarBackButton(
@@ -75,7 +75,7 @@ class CapsulesScreen extends ConsumerWidget {
   ) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Memory Capsules'),
+        title: const Text('Memory capsules'),
         leading: IconButton(
           icon: Icon(AdaptiveIcons.back),
           onPressed: () => context.pop(),
@@ -97,7 +97,6 @@ class CapsulesScreen extends ConsumerWidget {
   Widget _buildEmptyState(BuildContext context, bool isDark) {
     final textPrimary = context.palette.textPrimary;
     final textSecondary = context.palette.textSecondary;
-    final textMuted = context.palette.textMuted;
     final accentColor = context.palette.primaryContainer;
 
     return Center(
@@ -125,25 +124,17 @@ class CapsulesScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'No Memory Capsules',
+              'No capsules yet',
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(color: textPrimary),
             ),
             const SizedBox(height: 12),
             Text(
-              'Create a memory capsule to send\na message to your future self.',
+              'Write a few words now. They stay sealed\nuntil the day you choose.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap Create capsule to start\na new Time Capsule.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: textMuted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -227,7 +218,12 @@ class CapsulesScreen extends ConsumerWidget {
 
         // Locked section
         if (lockedCapsules.isNotEmpty) ...[
-          _buildSectionHeader(context, 'Locked', lockedCapsules.length, isDark),
+          _buildSectionHeader(
+            context,
+            'Waiting to open',
+            lockedCapsules.length,
+            isDark,
+          ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
@@ -249,7 +245,7 @@ class CapsulesScreen extends ConsumerWidget {
         if (unlockedCapsules.isNotEmpty) ...[
           _buildSectionHeader(
             context,
-            'Unlocked',
+            'Opened',
             unlockedCapsules.length,
             isDark,
           ),
@@ -297,10 +293,10 @@ class CapsulesScreen extends ConsumerWidget {
               label: title,
               excludeSemantics: true,
               child: Text(
-                title.toUpperCase(),
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: textSecondary,
-                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
