@@ -198,6 +198,8 @@ struct MediumWidgetView: View {
                                 .font(.system(size: 13))
                                 .foregroundColor(Color(hex: "3D3D3D"))
                                 .lineLimit(2)
+                                // Redact memory text on the lock screen / when locked.
+                                .privacySensitive()
                         }
                     } else {
                         Text("Tap to add your first memory")
@@ -307,6 +309,8 @@ struct LargeWidgetView: View {
                                     .font(.system(size: 13))
                                     .foregroundColor(Color(hex: "3D3D3D"))
                                     .lineLimit(1)
+                                    // Redact memory text on the lock screen / when locked.
+                                    .privacySensitive()
 
                                 Spacer()
                             }
