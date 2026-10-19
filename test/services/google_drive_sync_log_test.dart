@@ -5,57 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/sync/drive_sync_log.dart';
 import 'package:seedling/core/services/sync/google_drive_sync_service.dart';
 
+import '../support/memory_file_store.dart';
+
 /// In-memory appData folder. Every call yields to the event loop first, so
 /// concurrent pushes from several "devices" genuinely interleave.
-class _MemoryDrive implements DriveFileStore {
-  final files = <String, ({String name, List<int> bytes})>{};
-  var _nextId = 0;
-
-  @override
-  Future<List<DriveFileInfo>> listByPrefix(String prefix) async {
-    await Future<void>.delayed(Duration.zero);
-    return [
-      for (final MapEntry(:key, :value) in files.entries)
-        if (value.name.startsWith(prefix))
-          DriveFileInfo(id: key, name: value.name),
-    ];
-  }
-
-  @override
-  Future<List<int>?> read(String fileId) async {
-    await Future<void>.delayed(Duration.zero);
-    return files[fileId]?.bytes;
-  }
-
-  @override
-  Future<String> create(String name, List<int> bytes) async {
-    await Future<void>.delayed(Duration.zero);
-    final id = 'f${_nextId++}';
-    files[id] = (name: name, bytes: bytes);
-    return id;
-  }
-
-  @override
-  Future<void> overwrite(String fileId, List<int> bytes) async {
-    await Future<void>.delayed(Duration.zero);
-    files[fileId] = (name: files[fileId]!.name, bytes: bytes);
-  }
-
-  @override
-  Future<String> createFromFile(String name, File source) async =>
-      create(name, await source.readAsBytes());
-
-  @override
-  Future<void> downloadTo(String fileId, File target) async {
-    await target.writeAsBytes(files[fileId]!.bytes);
-  }
-
-  @override
-  Future<void> delete(String fileId) async {
-    files.remove(fileId);
-  }
-}
-
 const _devA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const _devB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const _devC = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -75,13 +28,13 @@ String _uuid(int n) =>
     '00000000-0000-4000-8000-${n.toString().padLeft(12, '0')}';
 
 void main() {
-  late _MemoryDrive drive;
+  late MemoryFileStore drive;
   late GoogleDriveSyncService a;
   late GoogleDriveSyncService b;
   late GoogleDriveSyncService c;
 
   setUp(() {
-    drive = _MemoryDrive();
+    drive = MemoryFileStore();
     a = GoogleDriveSyncService.withStore(drive, deviceId: _devA);
     b = GoogleDriveSyncService.withStore(drive, deviceId: _devB);
     c = GoogleDriveSyncService.withStore(drive, deviceId: _devC);
@@ -143,13 +96,14 @@ void main() {
     expect(second!.records.map((r) => r['text']), ['after']);
   });
 
-  test('a batch push is a single write', () async {
+  test('a batch push is a single small chunk write', () async {
     await a.saveRecords([
       for (var i = 0; i < 50; i++) _rec(_uuid(i), modifiedAt: i),
     ]);
     expect(drive.files, hasLength(1));
+    expect(drive.files.values.single.name, endsWith('_c1-50.json'));
     final log = jsonDecode(utf8.decode(drive.files.values.single.bytes));
-    expect(log['seq'], 50);
+    expect((log['records'] as Map).length, 50);
   });
 
   test('old timestamp tokens fall back to a full fetch', () async {
@@ -237,9 +191,177 @@ void main() {
   });
 
   test('an unreadable log from one device does not block the others', () async {
-    await drive.create('${DriveSyncLogStore.logPrefix}broken.json', [1, 2, 3]);
+    await drive.create(
+      '${DriveSyncLogStore.logPrefix}dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+      '_deadbeef_c1-1.json',
+      [1, 2, 3],
+    );
     await b.saveRecord(_rec(_uuid(1), modifiedAt: 1, text: 'ok'));
     final fetched = await c.fetchChanges();
     expect(fetched!.records.map((r) => r['text']), ['ok']);
+  });
+
+  test('a log that restarts (wiped or lost) is re-read, not ignored', () async {
+    await a.saveRecords([
+      _rec(_uuid(1), modifiedAt: 1),
+      _rec(_uuid(2), modifiedAt: 2),
+      _rec(_uuid(3), modifiedAt: 3),
+    ]);
+    final first = await c.fetchChanges();
+    expect(first!.records, hasLength(3));
+
+    // The zone/appData folder loses A's files; A (restarted) pushes again
+    // from seq 1. Before epochs, C waited for seq > 3 and missed it.
+    drive.files.removeWhere(
+      (_, f) => f.name.startsWith('${DriveSyncLogStore.logPrefix}$_devA'),
+    );
+    final aAgain = GoogleDriveSyncService.withStore(drive, deviceId: _devA);
+    await aAgain.saveRecord(_rec(_uuid(4), modifiedAt: 4, text: 'after wipe'));
+    final second = await c.fetchChanges(changeToken: first.newChangeToken);
+    expect(second!.records.map((r) => r['text']), ['after wipe']);
+  });
+
+  test('duplicate files from a retried create are read once', () async {
+    await a.saveRecord(_rec(_uuid(1), modifiedAt: 1, text: 'once'));
+    final original = drive.files.values.single;
+    await drive.create(original.name, original.bytes); // Drive allows dupes
+    final fetched = await c.fetchChanges();
+    expect(fetched!.records.map((r) => r['text']), ['once']);
+  });
+
+  group('log store', () {
+    DriveSyncLogStore storeFor(String device, {int maxChunks = 3}) =>
+        DriveSyncLogStore(
+          drive,
+          deviceId: device,
+          maxChunks: maxChunks,
+          keyringSettle: Duration.zero,
+        );
+
+    test('compacts chunks into a base; readers see the same data', () async {
+      final writer = storeFor(_devA);
+      final reader = storeFor(_devC);
+      await writer.append(records: [_rec(_uuid(1), modifiedAt: 1, text: 'v1')]);
+      final mid = await reader.fetch(null);
+      for (var i = 2; i <= 6; i++) {
+        await writer.append(
+          records: [_rec(_uuid(i), modifiedAt: i, text: 'v$i')],
+        );
+      }
+      await writer.append(deletions: [_uuid(2)]);
+      final aFiles = drive
+          .namesWithPrefix('${DriveSyncLogStore.logPrefix}$_devA')
+          .toList();
+      expect(aFiles.where((n) => n.contains('_b')), hasLength(1));
+      expect(aFiles.length, lessThanOrEqualTo(3));
+
+      final fresh = await storeFor(_devB).fetch(null);
+      expect(fresh.records.map((r) => r['text']).toSet(), {
+        'v1',
+        'v3',
+        'v4',
+        'v5',
+        'v6',
+      });
+      expect(fresh.deletedUUIDs, [_uuid(2)]);
+
+      final incremental = await reader.fetch(mid.newChangeToken);
+      expect(incremental.records.map((r) => r['text']).toSet(), {
+        'v3',
+        'v4',
+        'v5',
+        'v6',
+      });
+      expect(incremental.deletedUUIDs, [_uuid(2)]);
+    });
+
+    test(
+      'this device\'s log is cached: pushes do not re-download it',
+      () async {
+        final writer = storeFor(_devA, maxChunks: 100);
+        for (var i = 0; i < 5; i++) {
+          await writer.append(records: [_rec(_uuid(i), modifiedAt: i)]);
+        }
+        expect(drive.listCalls, 1); // the first load only
+      },
+    );
+
+    test('old tombstones are pruned on compaction', () async {
+      final writer = storeFor(_devA, maxChunks: 2);
+      final long = DateTime(2026, 1, 1);
+      await writer.append(deletions: [_uuid(9)], now: long);
+      await writer.append(
+        records: [_rec(_uuid(1), modifiedAt: 1)],
+        now: long.add(const Duration(days: 100)),
+      );
+      final fresh = await storeFor(_devB).fetch(null);
+      expect(fresh.deletedUUIDs, isEmpty);
+      expect(fresh.records, hasLength(1));
+    });
+
+    test('idle device logs are found and removed (keyrings kept)', () async {
+      final clock = DateTime(2026, 1, 1);
+      drive.now = () => clock;
+      await storeFor(_devB).append(records: [_rec(_uuid(1), modifiedAt: 1)]);
+      await storeFor(
+        _devB,
+      ).publishKeyring({'kdfSalt': base64Encode(List<int>.filled(32, 2))});
+      drive.now = DateTime.now;
+      final mine = storeFor(_devA);
+      await mine.append(records: [_rec(_uuid(2), modifiedAt: 2)]);
+      final idle = await mine.idleDevices(
+        const Duration(days: 180),
+        now: clock.add(const Duration(days: 200)),
+      );
+      expect(idle, [_devB]);
+      await mine.deleteDeviceLogs(idle);
+      expect(
+        drive.namesWithPrefix('${DriveSyncLogStore.logPrefix}$_devB'),
+        isEmpty,
+      );
+      expect(
+        drive.namesWithPrefix(DriveSyncLogStore.keyringPrefix),
+        hasLength(1),
+      );
+    });
+
+    test('orphan blobs are deleted only when old and unreferenced', () async {
+      final tmp = await Directory.systemTemp.createTemp('orphans');
+      try {
+        final f = File('${tmp.path}/b')..writeAsBytesSync([1]);
+        final store = storeFor(_devA);
+        drive.now = () => DateTime(2026, 1, 1);
+        await store.uploadBlob(_uuid(1), f); // old, referenced
+        await store.uploadBlob(_uuid(2), f); // old, orphan
+        drive.now = DateTime.now;
+        await store.uploadBlob(_uuid(3), f); // new, orphan (maybe in flight)
+        final deleted = await store.deleteOrphanBlobs({_uuid(1)});
+        expect(deleted, 1);
+        expect(drive.namesWithPrefix(DriveSyncLogStore.mediaPrefix).toSet(), {
+          '${DriveSyncLogStore.mediaPrefix}${_uuid(1)}.bin',
+          '${DriveSyncLogStore.mediaPrefix}${_uuid(3)}.bin',
+        });
+      } finally {
+        await tmp.delete(recursive: true);
+      }
+    });
+
+    test(
+      'a key check is added to a keyring that lacks one (same salt only)',
+      () async {
+        final salt = base64Encode(List<int>.filled(32, 4));
+        final store = storeFor(_devA);
+        await store.publishKeyring({'kdfSalt': salt});
+        expect((await store.readKeyring())!['check'], isNull);
+        await store.publishKeyring({'kdfSalt': salt, 'check': 'c'});
+        expect((await store.readKeyring())!['check'], 'c');
+        // A different salt never replaces it.
+        await store.publishKeyring({
+          'kdfSalt': base64Encode(List<int>.filled(32, 9)),
+          'check': 'x',
+        });
+        expect((await store.readKeyring())!['kdfSalt'], salt);
+      },
+    );
   });
 }

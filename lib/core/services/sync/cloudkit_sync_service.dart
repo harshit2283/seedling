@@ -12,24 +12,68 @@ import 'sync_metadata.dart';
 const _channel = MethodChannel('com.seedling.cloudkit_sync');
 
 /// [DriveFileStore] over the CloudKit plugin: each file is a `SeedlingFile`
-/// record in a private custom zone. Ids are the file names.
+/// record in a private custom zone. Ids are the file names, so exact-name
+/// lookups are single-record fetches (no zone scans). Throttling errors are
+/// retried with backoff, honouring CloudKit's retry-after hint.
 class CloudKitFileStore implements DriveFileStore {
-  final Directory _temp;
+  static const _retryable = {
+    'RATE_LIMITED',
+    'ZONE_BUSY',
+    'NETWORK_UNAVAILABLE',
+    'SERVICE_UNAVAILABLE',
+  };
 
-  CloudKitFileStore({Directory? tempDirectory})
-    : _temp = tempDirectory ?? Directory.systemTemp;
+  final Directory _temp;
+  final int _maxAttempts;
+  final Future<void> Function(Duration) _sleep;
+
+  CloudKitFileStore({
+    Directory? tempDirectory,
+    int maxAttempts = 4,
+    Future<void> Function(Duration)? sleep,
+  }) : _temp = tempDirectory ?? Directory.systemTemp,
+       _maxAttempts = maxAttempts,
+       _sleep = sleep ?? Future<void>.delayed;
+
+  Future<T?> _call<T>(String method, Map<String, Object?> args) async {
+    for (var attempt = 1; ; attempt++) {
+      try {
+        return await _channel.invokeMethod<T>(method, args);
+      } on PlatformException catch (e) {
+        if (!_retryable.contains(e.code) || attempt >= _maxAttempts) rethrow;
+        final details = e.details;
+        final hinted = details is Map ? details['retryAfterSeconds'] : null;
+        final seconds = hinted is num
+            ? hinted.toDouble().clamp(1, 120)
+            : (1 << attempt).toDouble();
+        await _sleep(Duration(milliseconds: (seconds * 1000).round()));
+      }
+    }
+  }
+
+  static DriveFileInfo? _info(Object? item) {
+    if (item is! Map || item['id'] is! String || item['name'] is! String) {
+      return null;
+    }
+    final created = item['createdAt'];
+    return DriveFileInfo(
+      id: item['id'] as String,
+      name: item['name'] as String,
+      createdAt: created is num
+          ? DateTime.fromMillisecondsSinceEpoch(created.toInt())
+          : null,
+    );
+  }
 
   @override
   Future<List<DriveFileInfo>> listByPrefix(String prefix) async {
-    final raw = await _channel.invokeListMethod<Object?>('fsList', {
-      'prefix': prefix,
-    });
-    return [
-      for (final item in raw ?? const <Object?>[])
-        if (item is Map && item['id'] is String && item['name'] is String)
-          DriveFileInfo(id: item['id'] as String, name: item['name'] as String),
-    ];
+    final raw = await _call<List<Object?>>('fsList', {'prefix': prefix});
+    return [for (final item in raw ?? const <Object?>[]) ?_info(item)];
   }
+
+  @override
+  Future<DriveFileInfo?> findByName(String name) async =>
+      _info(await _call<Object?>('fsExists', {'id': name}));
 
   File _tempFile(String tag) => File(
     '${_temp.path}/seedling_ck_${tag}_${DateTime.now().microsecondsSinceEpoch}',
@@ -39,7 +83,7 @@ class CloudKitFileStore implements DriveFileStore {
   Future<List<int>?> read(String fileId) async {
     final tmp = _tempFile('read');
     try {
-      final found = await _channel.invokeMethod<bool>('fsRead', {
+      final found = await _call<bool>('fsRead', {
         'id': fileId,
         'destinationPath': tmp.path,
       });
@@ -63,13 +107,13 @@ class CloudKitFileStore implements DriveFileStore {
 
   @override
   Future<void> overwrite(String fileId, List<int> bytes) async {
-    // Ids are names, so overwriting is creating under the same name.
+    // Ids are names, so overwriting is writing under the same name.
     await create(fileId, bytes);
   }
 
   @override
   Future<String> createFromFile(String name, File source) async {
-    await _channel.invokeMethod<bool>('fsWrite', {
+    await _call<bool>('fsWrite', {
       'id': name,
       'name': name,
       'sourcePath': source.path,
@@ -78,8 +122,13 @@ class CloudKitFileStore implements DriveFileStore {
   }
 
   @override
+  Future<void> overwriteFromFile(String fileId, File source) async {
+    await createFromFile(fileId, source);
+  }
+
+  @override
   Future<void> downloadTo(String fileId, File target) async {
-    final found = await _channel.invokeMethod<bool>('fsRead', {
+    final found = await _call<bool>('fsRead', {
       'id': fileId,
       'destinationPath': target.path,
     });
@@ -90,7 +139,7 @@ class CloudKitFileStore implements DriveFileStore {
 
   @override
   Future<void> delete(String fileId) async {
-    await _channel.invokeMethod<bool>('fsDelete', {'id': fileId});
+    await _call<bool>('fsDelete', {'id': fileId});
   }
 }
 
@@ -222,8 +271,23 @@ class CloudKitSyncService implements SyncBackend {
   ) async => (await _logs()).publishKeyring(keyring);
 
   @override
-  Future<void> uploadMediaBlob(String assetId, File ciphertext) async =>
-      (await _logs()).uploadBlob(assetId, ciphertext);
+  Future<void> uploadMediaBlob(
+    String assetId,
+    File ciphertext, {
+    bool replace = false,
+  }) async => (await _logs()).uploadBlob(assetId, ciphertext, replace: replace);
+
+  @override
+  Future<int> deleteOrphanMediaBlobs(Set<String> referenced) async =>
+      (await _logs()).deleteOrphanBlobs(referenced);
+
+  @override
+  Future<List<String>> idleDeviceIds(Duration idle) async =>
+      (await _logs()).idleDevices(idle);
+
+  @override
+  Future<void> deleteDeviceLogs(List<String> deviceIds) async =>
+      (await _logs()).deleteDeviceLogs(deviceIds);
 
   @override
   Future<bool> downloadMediaBlob(String assetId, File target) async =>

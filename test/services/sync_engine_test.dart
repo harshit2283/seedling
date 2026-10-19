@@ -25,6 +25,8 @@ void main() {
     registerFallbackValue(<String, dynamic>{});
     registerFallbackValue(<Map<String, dynamic>>[]);
     registerFallbackValue(<String>[]);
+    registerFallbackValue(<String>{});
+    registerFallbackValue(Duration.zero);
     registerFallbackValue(<Entry>[]);
     registerFallbackValue(Entry());
     registerFallbackValue(_FakeSyncEncryptionSession());
@@ -42,6 +44,18 @@ void main() {
       when(() => backend.readKeyring()).thenAnswer((_) async => null);
       when(() => crypto.hasPassphrase()).thenAnswer((_) async => true);
       when(() => crypto.keyFingerprint()).thenAnswer((_) async => 'k');
+      when(
+        () => crypto.keyringForCurrentKey(),
+      ).thenAnswer((_) async => {'kdfSalt': 's', 'check': 'c'});
+      when(() => backend.publishKeyring(any())).thenAnswer(
+        (i) async => i.positionalArguments.first as Map<String, dynamic>,
+      );
+      when(() => crypto.matchesKeyring(any())).thenAnswer((_) async => true);
+      when(
+        () => backend.deleteOrphanMediaBlobs(any()),
+      ).thenAnswer((_) async => 0);
+      when(() => backend.idleDeviceIds(any())).thenAnswer((_) async => []);
+      when(() => database.getAllMediaAssetIds()).thenReturn([]);
       when(() => database.getEntriesNeedingMediaDownload()).thenReturn([]);
       when(
         () => crypto.createEncryptionSession(),
