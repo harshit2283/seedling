@@ -23,6 +23,7 @@ import 'widgets/keepsake_memory_card.dart';
 import 'widgets/photo_viewer.dart';
 import 'widgets/memory_share_sheet.dart';
 import 'widgets/voice_player.dart';
+import 'widgets/season_sprig.dart';
 import 'widgets/similar_memories_section.dart';
 import '../../../core/widgets/feedback/seedling_toast.dart';
 
@@ -591,6 +592,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     const gutter = 24.0;
 
     final words = <Widget>[
+      // Without a photo, a small seasonal sprig gives the page its moment.
+      if (!hero && !_isEditMode && !_isOnThisDay(entry)) ...[
+        SeasonSprigHeader(date: entry.createdAt),
+        const SizedBox(height: 14),
+      ],
       if (_isOnThisDay(entry)) ...[
         _buildOnThisDayKicker(context, entry),
         const SizedBox(height: 10),
