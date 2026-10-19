@@ -126,12 +126,6 @@ final _entities = <obx_int.ModelEntity>[
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(17, 4822441182230169529),
-        name: 'connectedIds',
-        type: 27,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
         id: const obx_int.IdUid(18, 7049565280661572356),
         name: 'capsuleUnlockDate',
         type: 10,
@@ -148,13 +142,15 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(20, 5287589025787022643),
         name: 'syncUUID',
         type: 9,
-        flags: 0,
+        flags: 2048,
+        indexId: const obx_int.IdUid(4, 8635589592904350413),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(21, 2626856446788976910),
         name: 'modifiedAt',
         type: 10,
-        flags: 0,
+        flags: 8,
+        indexId: const obx_int.IdUid(5, 6316197321341892688),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(22, 3618374170569244160),
@@ -334,12 +330,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
     lastEntityId: const obx_int.IdUid(3, 8814026308694728405),
-    lastIndexId: const obx_int.IdUid(3, 5594065671377155778),
+    lastIndexId: const obx_int.IdUid(5, 6316197321341892688),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
     retiredIndexUids: const [],
-    retiredPropertyUids: const [],
+    retiredPropertyUids: const [4822441182230169529],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -380,7 +376,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final connectionIdsOffset = object.connectionIds == null
             ? null
             : fbb.writeString(object.connectionIds!);
-        final connectedIdsOffset = fbb.writeListInt64(object.connectedIds);
         final transcriptionOffset = object.transcription == null
             ? null
             : fbb.writeString(object.transcription!);
@@ -410,7 +405,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(13, connectionIdsOffset);
         fbb.addFloat64(14, object.sentimentScore);
         fbb.addInt64(15, object.lastAnalyzedAt?.millisecondsSinceEpoch);
-        fbb.addOffset(16, connectedIdsOffset);
         fbb.addInt64(17, object.capsuleUnlockDate?.millisecondsSinceEpoch);
         fbb.addOffset(18, transcriptionOffset);
         fbb.addOffset(19, syncUUIDOffset);
@@ -523,35 +517,30 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final deviceIdParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 46);
-        final object =
-            Entry(
-                id: idParam,
-                createdAt: createdAtParam,
-                typeIndex: typeIndexParam,
-                text: textParam,
-                mediaPath: mediaPathParam,
-                title: titleParam,
-                context: contextParam,
-                mood: moodParam,
-                tags: tagsParam,
-                isReleased: isReleasedParam,
-                isDeleted: isDeletedParam,
-                deletedAt: deletedAtParam,
-                detectedTheme: detectedThemeParam,
-                connectionIds: connectionIdsParam,
-                manualLinkIds: manualLinkIdsParam,
-                sentimentScore: sentimentScoreParam,
-                lastAnalyzedAt: lastAnalyzedAtParam,
-                capsuleUnlockDate: capsuleUnlockDateParam,
-                transcription: transcriptionParam,
-                syncUUID: syncUUIDParam,
-                modifiedAt: modifiedAtParam,
-                deviceId: deviceIdParam,
-              )
-              ..connectedIds = const fb.ListReader<int>(
-                fb.Int64Reader(),
-                lazy: false,
-              ).vTableGet(buffer, rootOffset, 36, []);
+        final object = Entry(
+          id: idParam,
+          createdAt: createdAtParam,
+          typeIndex: typeIndexParam,
+          text: textParam,
+          mediaPath: mediaPathParam,
+          title: titleParam,
+          context: contextParam,
+          mood: moodParam,
+          tags: tagsParam,
+          isReleased: isReleasedParam,
+          isDeleted: isDeletedParam,
+          deletedAt: deletedAtParam,
+          detectedTheme: detectedThemeParam,
+          connectionIds: connectionIdsParam,
+          manualLinkIds: manualLinkIdsParam,
+          sentimentScore: sentimentScoreParam,
+          lastAnalyzedAt: lastAnalyzedAtParam,
+          capsuleUnlockDate: capsuleUnlockDateParam,
+          transcription: transcriptionParam,
+          syncUUID: syncUUIDParam,
+          modifiedAt: modifiedAtParam,
+          deviceId: deviceIdParam,
+        );
 
         return object;
       },
@@ -804,39 +793,34 @@ class Entry_ {
     _entities[0].properties[15],
   );
 
-  /// See [Entry.connectedIds].
-  static final connectedIds = obx.QueryIntegerVectorProperty<Entry>(
-    _entities[0].properties[16],
-  );
-
   /// See [Entry.capsuleUnlockDate].
   static final capsuleUnlockDate = obx.QueryDateProperty<Entry>(
-    _entities[0].properties[17],
+    _entities[0].properties[16],
   );
 
   /// See [Entry.transcription].
   static final transcription = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[18],
+    _entities[0].properties[17],
   );
 
   /// See [Entry.syncUUID].
   static final syncUUID = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[19],
+    _entities[0].properties[18],
   );
 
   /// See [Entry.modifiedAt].
   static final modifiedAt = obx.QueryDateProperty<Entry>(
-    _entities[0].properties[20],
+    _entities[0].properties[19],
   );
 
   /// See [Entry.deviceId].
   static final deviceId = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[21],
+    _entities[0].properties[20],
   );
 
   /// See [Entry.manualLinkIds].
   static final manualLinkIds = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[22],
+    _entities[0].properties[21],
   );
 }
 

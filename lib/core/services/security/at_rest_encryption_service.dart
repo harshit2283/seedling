@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pointycastle/export.dart';
 
@@ -14,6 +15,12 @@ class AtRestEncryptionService {
 
   final FlutterSecureStorage _secureStorage;
   late final Uint8List _masterKey;
+  int _decryptCount = 0;
+
+  /// How many encrypted values this instance has decrypted. Lets tests and
+  /// benchmarks assert that hot paths are not re-decrypting the whole store.
+  @visibleForTesting
+  int get decryptCount => _decryptCount;
 
   AtRestEncryptionService({FlutterSecureStorage? secureStorage})
     : _secureStorage = secureStorage ?? createSeedlingSecureStorage();
@@ -52,6 +59,7 @@ class AtRestEncryptionService {
   String? decryptField(String? value) {
     if (value == null || value.isEmpty) return value;
     if (!isEncryptedValue(value)) return value;
+    _decryptCount++;
 
     try {
       final payload = value.substring(_payloadPrefix.length);

@@ -11,6 +11,7 @@ import '../../../core/services/media/file_storage_service.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
+import '../../../data/models/sync_id.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import 'memories_filter_state.dart';
 import 'widgets/photo_viewer.dart';
@@ -692,7 +693,6 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
 
   void _unlinkEntries(Entry current, Entry linked) {
     HapticFeedback.lightImpact();
-    final db = ref.read(databaseProvider);
 
     // Ensure both have syncUUIDs before proceeding
     final currentUUID = _ensureSyncUUID(current);
@@ -704,13 +704,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     current.manualLinkIds = currentLinks.isEmpty
         ? null
         : currentLinks.join(',');
-    db.updateEntry(current);
+    _updateAndSync(current);
 
     // Remove current's UUID from linked's manualLinkIds
     final linkedLinks = List<String>.from(linked.manualLinkList)
       ..remove(currentUUID);
     linked.manualLinkIds = linkedLinks.isEmpty ? null : linkedLinks.join(',');
-    db.updateEntry(linked);
+    _updateAndSync(linked);
   }
 
   void _showLinkPicker(BuildContext context, Entry current) {
@@ -737,7 +737,6 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
 
   void _linkEntries(Entry current, Entry other) {
     HapticFeedback.lightImpact();
-    final db = ref.read(databaseProvider);
 
     // Ensure both entries have a syncUUID
     final currentUUID = _ensureSyncUUID(current);
@@ -757,7 +756,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       currentLinks.add(otherUUID);
     }
     current.manualLinkIds = currentLinks.join(',');
-    db.updateEntry(current);
+    _updateAndSync(current);
 
     // Add currentUUID to other's manualLinkIds (bidirectional, avoid duplicates)
     final otherLinks = List<String>.from(other.manualLinkList);
@@ -765,15 +764,23 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       otherLinks.add(currentUUID);
     }
     other.manualLinkIds = otherLinks.join(',');
-    db.updateEntry(other);
+    _updateAndSync(other);
   }
 
-  /// Returns the existing syncUUID or generates and assigns a new one
+  /// Saves [entry] and queues it for sync, so links and transcriptions reach
+  /// the user's other devices.
+  void _updateAndSync(Entry entry) {
+    ref.read(entryCreatorProvider.notifier).saveEdit(entry);
+  }
+
+  /// Returns the existing syncUUID or generates and assigns a new one.
+  /// Uses the same generator as the database and sync, so the id is never
+  /// replaced later (which would break the link).
   String _ensureSyncUUID(Entry entry) {
     if (entry.syncUUID != null && entry.syncUUID!.isNotEmpty) {
       return entry.syncUUID!;
     }
-    final newUUID = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final newUUID = SyncId.generate();
     entry.syncUUID = newUUID;
     return newUUID;
   }
@@ -1146,7 +1153,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         final freshEntry = db.getEntry(entry.id);
         if (freshEntry != null) {
           freshEntry.transcription = result.transcription;
-          db.updateEntry(freshEntry);
+          _updateAndSync(freshEntry);
         }
         HapticFeedback.lightImpact();
       } else {

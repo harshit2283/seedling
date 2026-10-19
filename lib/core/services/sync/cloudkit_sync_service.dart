@@ -50,6 +50,42 @@ class CloudKitSyncService implements SyncBackend {
   }
 
   @override
+  Future<void> saveRecords(List<Map<String, dynamic>> records) async {
+    for (final record in records) {
+      await saveRecord(record);
+    }
+  }
+
+  @override
+  Future<void> deleteRecords(List<String> syncUUIDs) async {
+    for (final syncUUID in syncUUIDs) {
+      await deleteRecord(syncUUID);
+    }
+  }
+
+  /// Per-user key salt, stored in a single `SeedlingKeyring` record.
+  @override
+  Future<String?> readKdfSalt() async {
+    return _channel.invokeMethod<String>('readKeyring');
+  }
+
+  /// CloudKit refuses to create a record that already exists, so the first
+  /// device to publish wins atomically; the native side returns the winner.
+  @override
+  Future<String> publishKdfSalt(String salt) async {
+    final winner = await _channel.invokeMethod<String>('publishKeyring', {
+      'kdfSalt': salt,
+    });
+    if (winner == null || winner.isEmpty) {
+      throw PlatformException(
+        code: 'KEYRING_FAILED',
+        message: 'Could not read the sync keyring',
+      );
+    }
+    return winner;
+  }
+
+  @override
   /// Fetch changes since the given change token.
   ///
   /// If [changeToken] is null, fetches all records (full sync).

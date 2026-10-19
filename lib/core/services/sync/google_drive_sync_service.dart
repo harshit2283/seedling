@@ -1,103 +1,110 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../constants/prefs_keys.dart';
+import 'drive_sync_log.dart';
 import 'sync_backend.dart';
+import 'sync_metadata.dart';
 import 'sync_models.dart';
 
-class _DriveSyncDocument {
-  final int metadataVersion;
-  final int updatedAt;
-  final Map<String, Map<String, dynamic>> records;
-  final Map<String, int> deletions;
-  final Map<String, Map<String, dynamic>> quarantine;
+/// [DriveFileStore] over the Drive v3 API, scoped to the appData folder.
+class _DriveApiFileStore implements DriveFileStore {
+  final drive.DriveApi _api;
 
-  const _DriveSyncDocument({
-    this.metadataVersion = 1,
-    required this.updatedAt,
-    required this.records,
-    required this.deletions,
-    this.quarantine = const {},
-  });
+  _DriveApiFileStore(this._api);
 
-  factory _DriveSyncDocument.empty() => const _DriveSyncDocument(
-    metadataVersion: 1,
-    updatedAt: 0,
-    records: {},
-    deletions: {},
-    quarantine: {},
-  );
-
-  Map<String, dynamic> toJson() => {
-    'metadataVersion': metadataVersion,
-    'updatedAt': updatedAt,
-    'records': records,
-    'deletions': deletions,
-    'quarantine': quarantine,
-  };
-
-  factory _DriveSyncDocument.fromJson(Map<String, dynamic> json) {
-    final rawRecords = json['records'] as Map<String, dynamic>? ?? {};
-    final rawDeletions = json['deletions'] as Map<String, dynamic>? ?? {};
-    final rawQuarantine = json['quarantine'] as Map<String, dynamic>? ?? {};
-    return _DriveSyncDocument(
-      metadataVersion: json['metadataVersion'] as int? ?? 0,
-      updatedAt: json['updatedAt'] as int? ?? 0,
-      records: rawRecords.map(
-        (key, value) => MapEntry(
-          key,
-          Map<String, dynamic>.from((value as Map).cast<String, dynamic>()),
-        ),
-      ),
-      deletions: rawDeletions.map(
-        (key, value) => MapEntry(key, (value as num).toInt()),
-      ),
-      quarantine: rawQuarantine.map(
-        (key, value) => MapEntry(
-          key,
-          Map<String, dynamic>.from((value as Map).cast<String, dynamic>()),
-        ),
-      ),
-    );
+  @override
+  Future<List<DriveFileInfo>> listByPrefix(String prefix) async {
+    final found = <DriveFileInfo>[];
+    String? pageToken;
+    do {
+      // Drive's `contains` is a prefix match on names; filter exactly below.
+      final page = await _api.files.list(
+        q: "name contains '$prefix' and trashed=false and 'appDataFolder' in parents",
+        spaces: 'appDataFolder',
+        $fields: 'nextPageToken, files(id,name)',
+        pageSize: 100,
+        pageToken: pageToken,
+      );
+      for (final file in page.files ?? const <drive.File>[]) {
+        final id = file.id;
+        final name = file.name;
+        if (id != null && name != null && name.startsWith(prefix)) {
+          found.add(DriveFileInfo(id: id, name: name));
+        }
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken != null);
+    return found;
   }
 
-  _DriveSyncDocument copyWith({
-    int? metadataVersion,
-    int? updatedAt,
-    Map<String, Map<String, dynamic>>? records,
-    Map<String, int>? deletions,
-    Map<String, Map<String, dynamic>>? quarantine,
-  }) {
-    return _DriveSyncDocument(
-      metadataVersion: metadataVersion ?? this.metadataVersion,
-      updatedAt: updatedAt ?? this.updatedAt,
-      records: records ?? this.records,
-      deletions: deletions ?? this.deletions,
-      quarantine: quarantine ?? this.quarantine,
+  @override
+  Future<List<int>?> read(String fileId) async {
+    final media = await _api.files.get(
+      fileId,
+      downloadOptions: drive.DownloadOptions.fullMedia,
+    );
+    if (media is! drive.Media) return null;
+    return media.stream.expand((chunk) => chunk).toList();
+  }
+
+  @override
+  Future<String> create(String name, List<int> bytes) async {
+    final created = await _api.files.create(
+      drive.File()
+        ..name = name
+        ..parents = ['appDataFolder'],
+      uploadMedia: drive.Media(Stream.value(bytes), bytes.length),
+    );
+    return created.id!;
+  }
+
+  @override
+  Future<void> overwrite(String fileId, List<int> bytes) async {
+    await _api.files.update(
+      drive.File(),
+      fileId,
+      uploadMedia: drive.Media(Stream.value(bytes), bytes.length),
     );
   }
 }
 
 /// Google Drive appData-based sync backend used on iOS/Android.
+///
+/// Each device appends to its own change log (see [DriveSyncLog]); pulls
+/// read every device's log by sequence number. The v1 shared document is
+/// still read so data pushed by older app versions keeps arriving.
 class GoogleDriveSyncService implements SyncBackend {
-  static const _syncFileName = 'seedling_sync_db_v1.json';
   static const _recoveryDirName = 'sync_recovery';
   static const _scopes = <String>[drive.DriveApi.driveAppdataScope];
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  GoogleSignIn get _googleSignIn => GoogleSignIn.instance;
+
+  final DriveFileStore? _injectedStore;
+  final String? _injectedDeviceId;
 
   drive.DriveApi? _driveApi;
-  String? _syncFileId;
+  Future<DriveSyncLogStore>? _logStoreFuture;
   bool _initialized = false;
   SharedPreferences? _prefs;
+
+  GoogleDriveSyncService() : _injectedStore = null, _injectedDeviceId = null;
+
+  /// A service over [store] that needs no Google sign-in.
+  @visibleForTesting
+  GoogleDriveSyncService.withStore(
+    DriveFileStore store, {
+    required String deviceId,
+  }) : _injectedStore = store,
+       _injectedDeviceId = deviceId;
 
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
@@ -110,6 +117,7 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   Future<bool> _ensureReady({bool interactive = false}) async {
+    if (_injectedStore != null) return true;
     await _ensureInitialized();
     if (_driveApi != null) return true;
 
@@ -129,6 +137,34 @@ class GoogleDriveSyncService implements SyncBackend {
     final client = authz.authClient(scopes: _scopes);
     _driveApi = drive.DriveApi(client);
     return true;
+  }
+
+  /// One log store per connection: it owns the write lock for this device's
+  /// log, so concurrent callers must share it.
+  Future<DriveSyncLogStore> _logs() =>
+      _logStoreFuture ??= _createLogStore().catchError((Object e) {
+        _logStoreFuture = null;
+        throw e;
+      });
+
+  Future<DriveSyncLogStore> _createLogStore() async {
+    final String deviceId;
+    if (_injectedDeviceId != null) {
+      deviceId = _injectedDeviceId;
+    } else {
+      await _ensurePrefs();
+      // Same (un-namespaced) id SyncMetadata stamps on records.
+      deviceId = SyncMetadata(
+        _prefs!,
+        namespace: SyncProviderType.googleDrive.name,
+      ).deviceId;
+    }
+    return DriveSyncLogStore(
+      _injectedStore ?? _DriveApiFileStore(_driveApi!),
+      deviceId: deviceId,
+      backup: (operation, bytes) =>
+          _backupRawData(operation: operation, data: bytes),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -212,8 +248,8 @@ class GoogleDriveSyncService implements SyncBackend {
 
     final client = authz.authClient(scopes: _scopes);
     _driveApi = drive.DriveApi(client);
+    _logStoreFuture = null;
 
-    await _findOrCreateSyncFileId();
     await _pinAccount(email);
     return true;
   }
@@ -221,7 +257,8 @@ class GoogleDriveSyncService implements SyncBackend {
   @override
   Future<void> disconnect() async {
     _driveApi = null;
-    _syncFileId = null;
+    _logStoreFuture = null;
+    if (_injectedStore != null) return;
     await _googleSignIn.disconnect();
   }
 
@@ -232,6 +269,7 @@ class GoogleDriveSyncService implements SyncBackend {
 
   @override
   Future<String> getAccountStatus() async {
+    if (_injectedStore != null) return 'test';
     await _ensureInitialized();
     final account = await _googleSignIn.attemptLightweightAuthentication();
     if (account == null) return 'Not connected';
@@ -239,92 +277,65 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   @override
-  Future<void> saveRecord(Map<String, dynamic> record) async {
+  Future<void> saveRecord(Map<String, dynamic> record) => saveRecords([record]);
+
+  @override
+  Future<void> deleteRecord(String syncUUID) => deleteRecords([syncUUID]);
+
+  @override
+  Future<void> saveRecords(List<Map<String, dynamic>> records) async {
+    if (records.isEmpty) return;
+    for (final record in records) {
+      final syncUUID = record['syncUUID'] as String?;
+      if (syncUUID == null || syncUUID.isEmpty) {
+        throw ArgumentError('syncUUID is required');
+      }
+    }
     if (!await _ensureReady()) {
       throw StateError('Google Drive not connected');
     }
-    final syncUUID = record['syncUUID'] as String?;
-    if (syncUUID == null || syncUUID.isEmpty) {
-      throw ArgumentError('syncUUID is required');
-    }
-
-    final doc = await _loadDocument();
-    doc.records[syncUUID] = Map<String, dynamic>.from(record);
-    doc.deletions.remove(syncUUID);
-
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final updated = doc.copyWith(
-      updatedAt: now,
-      records: doc.records,
-      deletions: doc.deletions,
-    );
-    await _withRetry(() => _saveDocument(updated));
+    final logs = await _logs();
+    await _withRetry(() => logs.append(records: records));
   }
 
   @override
-  Future<void> deleteRecord(String syncUUID) async {
+  Future<void> deleteRecords(List<String> syncUUIDs) async {
+    if (syncUUIDs.isEmpty) return;
     if (!await _ensureReady()) {
       throw StateError('Google Drive not connected');
     }
+    final logs = await _logs();
+    await _withRetry(() => logs.append(deletions: syncUUIDs));
+  }
 
-    final doc = await _loadDocument();
-    doc.records.remove(syncUUID);
-    doc.deletions[syncUUID] = DateTime.now().millisecondsSinceEpoch;
+  @override
+  Future<String?> readKdfSalt() async {
+    if (!await _ensureReady()) {
+      throw StateError('Google Drive not connected');
+    }
+    final logs = await _logs();
+    return _withRetry(logs.readKdfSalt);
+  }
 
-    final updated = doc.copyWith(
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-      records: doc.records,
-      deletions: doc.deletions,
-    );
-    await _withRetry(() => _saveDocument(updated));
+  @override
+  Future<String> publishKdfSalt(String salt) async {
+    if (!await _ensureReady()) {
+      throw StateError('Google Drive not connected');
+    }
+    final logs = await _logs();
+    return _withRetry(() => logs.publishKdfSalt(salt));
   }
 
   @override
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async {
     if (!await _ensureReady()) return null;
-
-    final doc = await _loadDocument();
-    final since = int.tryParse(changeToken ?? '') ?? 0;
-
-    final changedRecords = <Map<String, dynamic>>[];
-    for (final entry in doc.records.entries) {
-      final record = entry.value;
-      final modifiedAtRaw = record['modifiedAt'];
-      if (modifiedAtRaw != null && modifiedAtRaw is! num) {
-        final backupPath = await _backupRawData(
-          operation: 'fetch_record_corrupt',
-          data: utf8.encode(jsonEncode(record)),
-        );
-        throw SyncDocumentCorruptedException(
-          operation: 'fetch',
-          message:
-              'Record ${entry.key} has invalid modifiedAt type: ${modifiedAtRaw.runtimeType}',
-          backupPath: backupPath,
-        );
-      }
-      final modifiedAt = (modifiedAtRaw as num?)?.toInt() ?? 0;
-      if (modifiedAt > since) {
-        changedRecords.add(record);
-      }
-    }
-
-    final deletedUUIDs = <String>[];
-    for (final entry in doc.deletions.entries) {
-      if (entry.value > since) {
-        deletedUUIDs.add(entry.key);
-      }
-    }
-
-    return SyncFetchResult(
-      records: changedRecords,
-      deletedUUIDs: deletedUUIDs,
-      newChangeToken: doc.updatedAt.toString(),
-    );
+    final logs = await _logs();
+    return _withRetry(() => logs.fetch(changeToken));
   }
 
   @override
   Future<String?> downloadAsset(String syncUUID, String targetPath) async {
-    if (!await _ensureReady()) return null;
+    if (!await _ensureReady() || _driveApi == null) return null;
 
     return _withRetry(() async {
       final api = _driveApi!;
@@ -354,118 +365,30 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   // ---------------------------------------------------------------------------
-  // Quarantine helpers
+  // Quarantine helpers (records an older version set aside in the v1 doc)
   // ---------------------------------------------------------------------------
 
   Future<void> clearQuarantine() async {
     if (!await _ensureReady()) return;
-    final doc = await _loadDocument();
-    final updated = doc.copyWith(quarantine: {});
-    await _saveDocument(updated);
+    await (await _logs()).clearLegacyQuarantine();
   }
 
   Future<int> get quarantineCount async {
     if (!await _ensureReady()) return 0;
-    final doc = await _loadDocument();
-    return doc.quarantine.length;
+    final doc = await (await _logs()).readLegacyDocument();
+    final quarantine = doc?['quarantine'];
+    return quarantine is Map ? quarantine.length : 0;
   }
 
   // ---------------------------------------------------------------------------
   // Internal helpers
   // ---------------------------------------------------------------------------
 
-  Future<_DriveSyncDocument> _loadDocument() async {
-    final api = _driveApi!;
-    await _findOrCreateSyncFileId();
-    if (_syncFileId == null) return _DriveSyncDocument.empty();
-
-    final media = await api.files.get(
-      _syncFileId!,
-      downloadOptions: drive.DownloadOptions.fullMedia,
-    );
-    if (media is! drive.Media) return _DriveSyncDocument.empty();
-
-    final bytes = await media.stream.expand((chunk) => chunk).toList();
-    if (bytes.isEmpty) return _DriveSyncDocument.empty();
-
-    try {
-      final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      final doc = _DriveSyncDocument.fromJson(json);
-      return _migrateMetadata(doc);
-    } catch (error, stackTrace) {
-      final backupPath = await _backupRawData(
-        operation: 'load_document_corrupt',
-        data: bytes,
-      );
-      developer.log(
-        'Corrupted sync document encountered while loading',
-        name: 'GoogleDriveSyncService',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      throw SyncDocumentCorruptedException(
-        operation: 'load',
-        message: 'Unable to decode sync document',
-        backupPath: backupPath,
-      );
-    }
-  }
-
-  _DriveSyncDocument _migrateMetadata(_DriveSyncDocument doc) {
-    // v0 → v1: no changes needed yet, just stamp version
-    if (doc.metadataVersion >= 1) return doc;
-    return _DriveSyncDocument(
-      metadataVersion: 1,
-      updatedAt: doc.updatedAt,
-      records: doc.records,
-      deletions: doc.deletions,
-      quarantine: doc.quarantine,
-    );
-  }
-
-  Future<void> _saveDocument(_DriveSyncDocument doc) async {
-    final api = _driveApi!;
-    await _findOrCreateSyncFileId();
-    late final List<int> bytes;
-    try {
-      bytes = utf8.encode(jsonEncode(doc.toJson()));
-    } catch (error, stackTrace) {
-      final raw = utf8.encode(doc.toJson().toString());
-      final backupPath = await _backupRawData(
-        operation: 'save_document_corrupt',
-        data: raw,
-      );
-      developer.log(
-        'Unable to encode sync document for save',
-        name: 'GoogleDriveSyncService',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      throw SyncDocumentCorruptedException(
-        operation: 'save',
-        message: 'Unable to encode sync document',
-        backupPath: backupPath,
-      );
-    }
-    final stream = Stream<List<int>>.value(bytes);
-    final media = drive.Media(stream, bytes.length);
-
-    if (_syncFileId == null) {
-      final metadata = drive.File()
-        ..name = _syncFileName
-        ..parents = ['appDataFolder'];
-      final created = await api.files.create(metadata, uploadMedia: media);
-      _syncFileId = created.id;
-      return;
-    }
-
-    await api.files.update(drive.File(), _syncFileId!, uploadMedia: media);
-  }
-
   Future<String?> _backupRawData({
     required String operation,
     required List<int> data,
   }) async {
+    if (_injectedStore != null) return null;
     try {
       final docsDir = await getApplicationDocumentsDirectory();
       final recoveryDir = Directory('${docsDir.path}/$_recoveryDirName');
@@ -487,28 +410,5 @@ class GoogleDriveSyncService implements SyncBackend {
       );
       return null;
     }
-  }
-
-  Future<void> _findOrCreateSyncFileId() async {
-    if (_syncFileId != null) return;
-    final api = _driveApi!;
-    final files = await api.files.list(
-      q: "name='$_syncFileName' and trashed=false and 'appDataFolder' in parents",
-      spaces: 'appDataFolder',
-      $fields: 'files(id,name)',
-      pageSize: 1,
-    );
-    final found = files.files;
-    if (found != null && found.isNotEmpty) {
-      _syncFileId = found.first.id;
-      return;
-    }
-
-    final created = await api.files.create(
-      drive.File()
-        ..name = _syncFileName
-        ..parents = ['appDataFolder'],
-    );
-    _syncFileId = created.id;
   }
 }
