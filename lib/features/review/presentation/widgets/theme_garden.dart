@@ -15,10 +15,14 @@ class ThemeGarden extends StatelessWidget {
   /// Whether the host app is in dark mode.
   final bool isDark;
 
+  /// False in calm mode: the bars stay, the numbers go.
+  final bool showCounts;
+
   const ThemeGarden({
     super.key,
     required this.distribution,
     required this.isDark,
+    this.showCounts = true,
   });
 
   @override
@@ -49,6 +53,7 @@ class ThemeGarden extends StatelessWidget {
               count: entry.value,
               maxCount: maxCount,
               isDark: isDark,
+              showCount: showCounts,
             ),
           ),
       ],
@@ -61,12 +66,14 @@ class _ThemeBar extends StatelessWidget {
   final int count;
   final int maxCount;
   final bool isDark;
+  final bool showCount;
 
   const _ThemeBar({
     required this.theme,
     required this.count,
     required this.maxCount,
     required this.isDark,
+    required this.showCount,
   });
 
   @override
@@ -130,17 +137,18 @@ class _ThemeBar extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(width: 8),
-
-        // Count
-        SizedBox(
-          width: 28,
-          child: Text(
-            '$count',
-            style: textTheme.bodySmall,
-            textAlign: TextAlign.end,
+        if (showCount) ...[
+          const SizedBox(width: 8),
+          // Count
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$count',
+              style: textTheme.bodySmall,
+              textAlign: TextAlign.end,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

@@ -18,11 +18,15 @@ class SeasonCard extends StatelessWidget {
   /// Whether the host app is in dark mode.
   final bool isDark;
 
+  /// False in calm mode, which hides the memory count.
+  final bool showCount;
+
   const SeasonCard({
     super.key,
     required this.season,
     required this.data,
     required this.isDark,
+    this.showCount = true,
   });
 
   @override
@@ -61,15 +65,16 @@ class SeasonCard extends StatelessWidget {
               Text(data.name, style: theme.textTheme.titleMedium),
             ],
           ),
-          const SizedBox(height: 8),
-
-          // Entry count
-          Text(
-            data.entryCount == 1 ? '1 memory' : '${data.entryCount} memories',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: context.palette.textSecondary,
+          if (showCount) ...[
+            const SizedBox(height: 8),
+            // Entry count
+            Text(
+              data.entryCount == 1 ? '1 memory' : '${data.entryCount} memories',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.palette.textSecondary,
+              ),
             ),
-          ),
+          ],
 
           // Sample snippet
           if (data.sampleSnippet != null) ...[

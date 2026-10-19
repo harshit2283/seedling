@@ -18,9 +18,12 @@ class ForestScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trees = ref.watch(allTreesProvider);
+    // Calm mode: the forest is still there, it just stops keeping score
+    // (no leaf totals, no growth-stage titles, no per-year counts).
+    final calm = ref.watch(calmModeProvider);
     final content = trees.isEmpty
-        ? _buildEmpty(context)
-        : _buildForest(context, trees);
+        ? _buildEmpty(context, calm: calm)
+        : _buildForest(context, trees, calm: calm);
 
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
@@ -32,10 +35,10 @@ class ForestScreen extends ConsumerWidget {
     return Scaffold(backgroundColor: context.palette.background, body: content);
   }
 
-  Widget _buildEmpty(BuildContext context) {
+  Widget _buildEmpty(BuildContext context, {required bool calm}) {
     return Column(
       children: [
-        _buildTopBar(context, totalLeaves: 0),
+        _buildTopBar(context, totalLeaves: calm ? null : 0),
         Expanded(
           child: Center(
             child: Padding(
@@ -54,7 +57,11 @@ class ForestScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildForest(BuildContext context, List<Tree> trees) {
+  Widget _buildForest(
+    BuildContext context,
+    List<Tree> trees, {
+    required bool calm,
+  }) {
     final latest = trees.first;
     final totalLeaves = trees.fold<int>(
       0,
@@ -63,7 +70,7 @@ class ForestScreen extends ConsumerWidget {
 
     return Column(
       children: [
-        _buildTopBar(context, totalLeaves: totalLeaves),
+        _buildTopBar(context, totalLeaves: calm ? null : totalLeaves),
         const SizedBox(height: 30),
         Text(
           '${latest.year}',
@@ -73,13 +80,14 @@ class ForestScreen extends ConsumerWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        Text(
-          _seasonSubtitle(latest.state),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: context.palette.secondary,
-            fontStyle: FontStyle.italic,
+        if (!calm)
+          Text(
+            _seasonSubtitle(latest.state),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: context.palette.secondary,
+              fontStyle: FontStyle.italic,
+            ),
           ),
-        ),
         const SizedBox(height: 8),
         Text(
           'Tap a year to open its review',
@@ -93,16 +101,17 @@ class ForestScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Stack(
               alignment: Alignment.center,
-              children: _buildCanopyCircles(context, trees),
+              children: _buildCanopyCircles(context, trees, calm: calm),
             ),
           ),
         ),
-        _buildTimeline(context, trees),
+        _buildTimeline(context, trees, calm: calm),
       ],
     );
   }
 
-  Widget _buildTopBar(BuildContext context, {required int totalLeaves}) {
+  /// [totalLeaves] is null in calm mode, which hides the count.
+  Widget _buildTopBar(BuildContext context, {required int? totalLeaves}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Row(
@@ -137,26 +146,34 @@ class ForestScreen extends ConsumerWidget {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: context.palette.surfaceMuted,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              '$totalLeaves leaves',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: context.palette.bark,
-                fontWeight: FontWeight.w600,
+          if (totalLeaves != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: context.palette.surfaceMuted,
+                borderRadius: BorderRadius.circular(8),
               ),
-            ),
-          ),
+              child: Text(
+                '$totalLeaves leaves',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: context.palette.bark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          else
+            // Keeps the title centred where the count used to sit.
+            const SizedBox(width: 48),
         ],
       ),
     );
   }
 
-  List<Widget> _buildCanopyCircles(BuildContext context, List<Tree> trees) {
+  List<Widget> _buildCanopyCircles(
+    BuildContext context,
+    List<Tree> trees, {
+    required bool calm,
+  }) {
     final visible = trees.take(5).toList();
     const offsets = <Offset>[
       Offset(0, 0),
@@ -167,15 +184,17 @@ class ForestScreen extends ConsumerWidget {
     ];
     return List<Widget>.generate(visible.length, (index) {
       final tree = visible[index];
-      final size = 150.0 + tree.entryCount.clamp(0, 220) * 0.25;
+      // In calm mode every year is the same size: size would be a score.
+      final size = calm ? 170.0 : 150.0 + tree.entryCount.clamp(0, 220) * 0.25;
       final color = _stateColor(tree.state);
       return Transform.translate(
         offset: offsets[index],
         child: Semantics(
           button: true,
-          label:
-              '${tree.year}: ${_seasonSubtitle(tree.state)}, '
-              '${tree.entryCount} memories',
+          label: calm
+              ? '${tree.year}'
+              : '${tree.year}: ${_seasonSubtitle(tree.state)}, '
+                    '${tree.entryCount} memories',
           child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -204,7 +223,11 @@ class ForestScreen extends ConsumerWidget {
     });
   }
 
-  Widget _buildTimeline(BuildContext context, List<Tree> trees) {
+  Widget _buildTimeline(
+    BuildContext context,
+    List<Tree> trees, {
+    required bool calm,
+  }) {
     return Container(
       height: 82,
       decoration: BoxDecoration(
@@ -227,9 +250,11 @@ class ForestScreen extends ConsumerWidget {
               return Semantics(
                 button: true,
                 selected: isLatest,
-                label:
-                    '${tree.year}, ${isLatest ? 'current year, ' : ''}'
-                    '${_seasonSubtitle(tree.state)}, ${tree.entryCount} memories',
+                label: calm
+                    ? '${tree.year}${isLatest ? ', current year' : ''}'
+                    : '${tree.year}, ${isLatest ? 'current year, ' : ''}'
+                          '${_seasonSubtitle(tree.state)}, '
+                          '${tree.entryCount} memories',
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(

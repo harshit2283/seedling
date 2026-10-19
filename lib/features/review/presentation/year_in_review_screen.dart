@@ -39,6 +39,9 @@ class YearInReviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(reviewDataProvider(year));
+    // Calm mode: the year is told without keeping score (no counts, no
+    // growth-stage labels).
+    final calm = ref.watch(calmModeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isIOS = Platform.isIOS;
 
@@ -57,8 +60,8 @@ class YearInReviewScreen extends ConsumerWidget {
               elevation: 0,
             ),
       body: data != null && data.hasEnoughEntries
-          ? _ReviewBody(data: data, isDark: isDark)
-          : _YearTakingShape(year: year, isDark: isDark),
+          ? _ReviewBody(data: data, isDark: isDark, calm: calm)
+          : _YearTakingShape(year: year, isDark: isDark, calm: calm),
     );
   }
 }
@@ -70,8 +73,13 @@ class YearInReviewScreen extends ConsumerWidget {
 class _YearTakingShape extends ConsumerWidget {
   final int year;
   final bool isDark;
+  final bool calm;
 
-  const _YearTakingShape({required this.year, required this.isDark});
+  const _YearTakingShape({
+    required this.year,
+    required this.isDark,
+    required this.calm,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -89,6 +97,10 @@ class _YearTakingShape extends ConsumerWidget {
       body =
           'Nothing planted in $year yet. Whenever you are ready, '
           'your first memory starts the story.';
+    } else if (calm) {
+      body =
+          'Your $year is growing. Your full review blooms once a few '
+          'more memories have taken root.';
     } else {
       final noun = count == 1 ? 'memory' : 'memories';
       body =
@@ -163,8 +175,13 @@ class _YearTakingShape extends ConsumerWidget {
 class _ReviewBody extends StatelessWidget {
   final YearReviewData data;
   final bool isDark;
+  final bool calm;
 
-  const _ReviewBody({required this.data, required this.isDark});
+  const _ReviewBody({
+    required this.data,
+    required this.isDark,
+    required this.calm,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -201,22 +218,26 @@ class _ReviewBody extends StatelessWidget {
         const SizedBox(height: 12),
         Center(
           child: Text(
-            'You planted ${data.totalEntries} memories',
+            calm
+                ? 'The memories you planted'
+                : 'You planted ${data.totalEntries} memories',
             style: theme.textTheme.headlineSmall,
             textAlign: TextAlign.center,
           ),
         ),
-        const SizedBox(height: 4),
-        Center(
-          child: Text(
-            'Your tree grew into a ${data.treeStateLabel}',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: context.palette.textSecondary,
+        if (!calm) ...[
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              'Your tree grew into a ${data.treeStateLabel}',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: context.palette.textSecondary,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
-        ),
-        if (data.connectionCount > 0) ...[
+        ],
+        if (!calm && data.connectionCount > 0) ...[
           const SizedBox(height: 4),
           Center(
             child: Text(
@@ -234,14 +255,18 @@ class _ReviewBody extends StatelessWidget {
         const SizedBox(height: 12),
 
         // ---- 2. Season cards ----
-        _SeasonsGrid(seasons: data.seasons, isDark: isDark),
+        _SeasonsGrid(seasons: data.seasons, isDark: isDark, showCounts: !calm),
 
         const SizedBox(height: 36),
         _sectionTitle(theme, 'Theme garden'),
         const SizedBox(height: 12),
 
         // ---- 3. Theme Garden ----
-        ThemeGarden(distribution: data.themeDistribution, isDark: isDark),
+        ThemeGarden(
+          distribution: data.themeDistribution,
+          isDark: isDark,
+          showCounts: !calm,
+        ),
 
         // ---- 4. Memorable moments ----
         if (data.memorableMoments.isNotEmpty) ...[
@@ -263,7 +288,7 @@ class _ReviewBody extends StatelessWidget {
         const SizedBox(height: 36),
         _sectionTitle(theme, 'Share your year'),
         const SizedBox(height: 12),
-        ShareableCard(reviewData: data, isDark: isDark),
+        ShareableCard(reviewData: data, isDark: isDark, calm: calm),
         const SizedBox(height: 16),
         FilledButton.tonalIcon(
           onPressed: () => context.push('/memories'),
@@ -294,8 +319,13 @@ class _ReviewBody extends StatelessWidget {
 class _SeasonsGrid extends StatelessWidget {
   final Map<String, SeasonData> seasons;
   final bool isDark;
+  final bool showCounts;
 
-  const _SeasonsGrid({required this.seasons, required this.isDark});
+  const _SeasonsGrid({
+    required this.seasons,
+    required this.isDark,
+    required this.showCounts,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -317,6 +347,7 @@ class _SeasonsGrid extends StatelessWidget {
           },
           data: seasons[key] ?? const SeasonData(name: '', entryCount: 0),
           isDark: isDark,
+          showCount: showCounts,
         );
       }).toList(),
     );

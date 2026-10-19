@@ -21,10 +21,14 @@ class ShareableCard extends StatefulWidget {
   final YearReviewData reviewData;
   final bool isDark;
 
+  /// Calm mode: the card shows the year and its theme, not a score.
+  final bool calm;
+
   const ShareableCard({
     super.key,
     required this.reviewData,
     required this.isDark,
+    this.calm = false,
   });
 
   @override
@@ -60,8 +64,9 @@ class _ShareableCardState extends State<ShareableCard> {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        subject:
-            'My ${widget.reviewData.year} in Seedling: ${widget.reviewData.totalEntries} memories planted.',
+        subject: widget.calm
+            ? 'My ${widget.reviewData.year} in Seedling.'
+            : 'My ${widget.reviewData.year} in Seedling: ${widget.reviewData.totalEntries} memories planted.',
       );
     } finally {
       if (mounted) setState(() => _isSharing = false);
@@ -122,20 +127,22 @@ class _ShareableCardState extends State<ShareableCard> {
                 ),
                 const SizedBox(height: 8),
 
-                // Tree state
-                Text(
-                  data.treeStateLabel,
-                  style: theme.textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 12),
-
-                // Entry count
-                Text(
-                  '${data.totalEntries} memories planted',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: context.palette.textSecondary,
+                if (!widget.calm) ...[
+                  // Tree state
+                  Text(
+                    data.treeStateLabel,
+                    style: theme.textTheme.headlineMedium,
                   ),
-                ),
+                  const SizedBox(height: 12),
+
+                  // Entry count
+                  Text(
+                    '${data.totalEntries} memories planted',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: context.palette.textSecondary,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
 
                 // Dominant theme

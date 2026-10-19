@@ -7,11 +7,13 @@ import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/review/presentation/year_in_review_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockDb extends Mock implements ObjectBoxDatabase {}
 
 void main() {
   late _MockDb db;
+  late SharedPreferences prefs;
 
   void stubEntries(List<Entry> entries) {
     when(() => db.watchAllEntries()).thenAnswer((_) => Stream.value(entries));
@@ -35,14 +37,21 @@ void main() {
   }
 
   Widget host() => ProviderScope(
-    overrides: [databaseProvider.overrideWithValue(db)],
+    overrides: [
+      databaseProvider.overrideWithValue(db),
+      sharedPreferencesProvider.overrideWithValue(prefs),
+    ],
     child: MaterialApp(
       theme: SeedlingTheme.dark,
       home: const YearInReviewScreen(year: 2026),
     ),
   );
 
-  setUp(() => db = _MockDb());
+  setUp(() async {
+    db = _MockDb();
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
 
   testWidgets('with a few memories shows what exists, not a locked gate', (
     tester,

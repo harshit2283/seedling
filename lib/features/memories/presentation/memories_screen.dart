@@ -489,6 +489,8 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     final isSelected = filterState.themeFilters.contains(theme);
     final color = context.palette.themeColor(theme.name);
     final ink = context.palette.inkFor(color);
+    // Calm mode keeps the filter but stops counting.
+    final calm = ref.watch(calmModeProvider);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -502,7 +504,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
         child: Semantics(
           button: true,
           selected: isSelected,
-          label: '${theme.displayName} filter, $count memories',
+          label: calm
+              ? '${theme.displayName} filter'
+              : '${theme.displayName} filter, $count memories',
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -527,27 +531,29 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? color.withValues(alpha: 0.2)
-                        : Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: TextStyle(
-                      color: isSelected ? ink : context.palette.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                if (!calm) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? color.withValues(alpha: 0.2)
+                          : Theme.of(context).dividerColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: TextStyle(
+                        color: isSelected ? ink : context.palette.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
