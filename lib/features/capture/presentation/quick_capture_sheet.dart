@@ -112,6 +112,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   bool _showTitle = false;
   bool _isSaving = false;
   bool _wasExplicitlySaved = false;
+
+  /// Set when the person chose Discard: nothing may save after this.
+  bool _discarded = false;
   Future<bool>? _saveFuture;
   bool _didPopDuringSave = false;
   String? _saveError;
@@ -158,9 +161,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   static const _dismissDistance = 100.0;
 
   // Media captured into this draft; files not saved are deleted.
-  late final DraftMediaTracker _draftMedia = DraftMediaTracker(
-    () => ref.read(fileStorageServiceProvider).deleteFile,
-  );
+  late DraftMediaTracker _draftMedia = _newDraftMedia();
+
+  DraftMediaTracker _newDraftMedia() =>
+      DraftMediaTracker(() => ref.read(fileStorageServiceProvider).deleteFile);
 
   @override
   void initState() {
@@ -246,7 +250,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           // Something closed the route without asking (a pop from outside
           // the sheet). Keep whatever can be kept; the save holds its own
           // references, so it finishes even as the sheet goes away.
-          if (!_wasExplicitlySaved && _canSave()) {
+          if (!_wasExplicitlySaved && !_discarded && _canSave()) {
             unawaited(_saveEntry(fromDismiss: true));
           }
           return;
@@ -388,61 +392,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               ),
               const SizedBox(height: 12),
             ],
-            // Save hint and save button row
+            // Discard, save hint and save button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      _canSave() ? _readyLabel() : _getSaveHint(),
-                      style: mutedText,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.fade,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Semantics(
-                    button: true,
-                    enabled: _canSave(),
-                    label: _sealAsCapsule
-                        ? 'Seal and save as capsule'
-                        : 'Save memory',
-                    child: CupertinoButton(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      minimumSize: const Size(44, 44),
-                      color: _canSave()
-                          ? context.palette.primaryFill
-                          : context.palette.surfaceMuted,
-                      borderRadius: SeedlingRadius.button,
-                      onPressed: _canSave()
-                          ? () {
-                              HapticFeedback.selectionClick();
-                              if (_saveError != null) {
-                                setState(() => _saveError = null);
-                              }
-                              _saveEntry();
-                            }
-                          : null,
-                      child: Text(
-                        _sealAsCapsule ? 'Seal capsule' : 'Save memory',
-                        style: TextStyle(
-                          color: _canSave()
-                              ? context.palette.onPrimaryFill
-                              : context.palette.textSecondary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: _buildSaveRow(mutedText),
             ),
             SizedBox(height: 20 + MediaQuery.of(context).padding.bottom),
           ],
@@ -1686,6 +1639,8 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   Future<bool> _performSaveEntry({bool fromDismiss = false}) async {
     // Bulletproof: if already explicitly saved, never save again
     if (_wasExplicitlySaved) return true;
+    // Discarded on purpose: never resurrect it.
+    if (_discarded) return false;
 
     if (!_canSave()) {
       return false;
@@ -1806,6 +1761,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   }
 
   Future<bool> _handleRouteDismiss() async {
+    if (_discarded) return true;
     if (_wasExplicitlySaved || !_hasDraftContent()) {
       return !_wasExplicitlySaved;
     }
@@ -1819,21 +1775,200 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     return await _saveEntry(fromDismiss: true);
   }
 
-  Future<bool> _confirmDiscardDraft() async {
+  Widget _buildSaveButton() {
+    return Semantics(
+      button: true,
+      enabled: _canSave(),
+      label: _sealAsCapsule ? 'Seal and save as capsule' : 'Save memory',
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        minimumSize: const Size(44, 44),
+        color: _canSave()
+            ? context.palette.primaryFill
+            : context.palette.surfaceMuted,
+        borderRadius: SeedlingRadius.button,
+        onPressed: _canSave()
+            ? () {
+                HapticFeedback.selectionClick();
+                if (_saveError != null) {
+                  setState(() => _saveError = null);
+                }
+                _saveEntry();
+              }
+            : null,
+        child: Text(
+          _sealAsCapsule ? 'Seal capsule' : 'Save memory',
+          style: TextStyle(
+            color: _canSave()
+                ? context.palette.onPrimaryFill
+                : context.palette.textSecondary,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Discard (when there is something to discard), the hint, and Save on
+  /// one line; at narrow widths or large text, Discard drops to its own
+  /// line below rather than squeezing Save.
+  Widget _buildSaveRow(TextStyle? mutedText) {
+    final hint = Expanded(
+      child: Text(
+        _canSave() ? _readyLabel() : _getSaveHint(),
+        style: mutedText,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.fade,
+      ),
+    );
+    final showDiscard = _hasDraftContent() && !_isSaving;
+    if (!showDiscard) {
+      return Row(
+        children: [hint, const SizedBox(width: 12), _buildSaveButton()],
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scaler = MediaQuery.textScalerOf(context);
+        double width(String text, FontWeight weight) {
+          final painter = TextPainter(
+            text: TextSpan(
+              text: text,
+              style: TextStyle(fontSize: 15, fontWeight: weight),
+            ),
+            textDirection: Directionality.of(context),
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          final w = painter.width;
+          painter.dispose();
+          return w;
+        }
+
+        final saveLabel = _sealAsCapsule ? 'Seal capsule' : 'Save memory';
+        final needed =
+            width('Discard', FontWeight.w500) +
+            8 +
+            4 +
+            12 +
+            width(saveLabel, FontWeight.w600) +
+            40 +
+            8; // slack for glyph metrics
+        if (needed <= constraints.maxWidth) {
+          return Row(
+            children: [
+              _buildDiscardButton(),
+              const SizedBox(width: 4),
+              hint,
+              const SizedBox(width: 12),
+              _buildSaveButton(),
+            ],
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [hint, const SizedBox(width: 12), _buildSaveButton()],
+            ),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: _buildDiscardButton(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// A quiet way out that does not save: closing the sheet keeps the
+  /// draft, so this is the one place a draft (and its media) is let go.
+  Widget _buildDiscardButton() {
+    return Semantics(
+      button: true,
+      label: 'Discard draft',
+      excludeSemantics: true,
+      child: CupertinoButton(
+        key: const ValueKey('capture-discard'),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        minimumSize: const Size(44, 44),
+        onPressed: _discardDraft,
+        child: Text(
+          'Discard',
+          style: TextStyle(
+            color: context.palette.textSecondary,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Worth a second thought before throwing away: anything with media, a
+  /// title, or more than a few words.
+  bool _isNonTrivialDraft() =>
+      _photoPath != null ||
+      _voicePath != null ||
+      _titleController.text.trim().isNotEmpty ||
+      _textController.text.trim().length >= 20;
+
+  Future<void> _discardDraft() async {
+    if (_isSaving || _wasExplicitlySaved || _discarded) return;
+    HapticFeedback.selectionClick();
+    if (_isNonTrivialDraft()) {
+      final ok = await _confirmDiscardDraft(
+        title: 'Discard this memory?',
+        message: _hasAttachments
+            ? "It won't be saved, and its photo or voice note will be deleted."
+            : "It won't be saved.",
+        keepLabel: 'Keep',
+      );
+      if (!ok || !mounted) return;
+    }
+    _discarded = true;
+    _holdTimer?.cancel();
+    await _draftMedia.discard();
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    final routeIsCurrent = ModalRoute.of(context)?.isCurrent ?? false;
+    if (routeIsCurrent && navigator.canPop()) {
+      navigator.pop();
+    } else {
+      // Not in a route of its own: start over on a clean page.
+      setState(() {
+        _discarded = false;
+        _draftMedia = _newDraftMedia();
+        _textController.clear();
+        _titleController.clear();
+        _photoPath = null;
+        _voicePath = null;
+        _voiceOpen = false;
+      });
+    }
+  }
+
+  Future<bool> _confirmDiscardDraft({
+    String title = 'Discard draft?',
+    String message =
+        'This memory is incomplete and will not be saved if you close it now.',
+    String keepLabel = 'Keep editing',
+  }) async {
     if (!mounted) return false;
 
     if (PlatformUtils.isIOS) {
       final shouldDiscard = await showCupertinoDialog<bool>(
         context: context,
         builder: (dialogContext) => CupertinoAlertDialog(
-          title: const Text('Discard draft?'),
-          content: const Text(
-            'This memory is incomplete and will not be saved if you close it now.',
-          ),
+          title: Text(title),
+          content: Text(message),
           actions: [
             CupertinoDialogAction(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Keep editing'),
+              child: Text(keepLabel),
             ),
             CupertinoDialogAction(
               isDestructiveAction: true,
@@ -1849,14 +1984,12 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     final shouldDiscard = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Discard draft?'),
-        content: const Text(
-          'This memory is incomplete and will not be saved if you close it now.',
-        ),
+        title: Text(title),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep editing'),
+            child: Text(keepLabel),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),

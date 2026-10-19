@@ -224,6 +224,26 @@ void main() {
       expect(deleted, [picked]);
     });
 
+    testWidgets('Discard deletes the draft photo and saves nothing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(harness(asSheet: true));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final picked = await pickPhoto(tester);
+
+      await tester.tap(find.byKey(const ValueKey('capture-discard')));
+      await tester.pumpAndSettle();
+      // A photo is never thrown away without asking.
+      expect(find.text('Discard this memory?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      expect(saved, isEmpty);
+      expect(deleted, [picked]);
+    });
+
     testWidgets('a picked photo plus words saves as a photo and is kept', (
       tester,
     ) async {

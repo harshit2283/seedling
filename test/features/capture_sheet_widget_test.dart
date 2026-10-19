@@ -569,6 +569,77 @@ void main() {
       verifyNever(() => mockDb.saveEntry(any()));
     });
 
+    testWidgets('Discard and Save both fit at 320pt and text scale 1.6', (
+      tester,
+    ) async {
+      await tester.runAsync(_loadRoboto);
+      tester.view.physicalSize = const Size(640, 1136);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 568),
+            textScaler: TextScaler.linear(1.6),
+          ),
+          child: buildTestWidget(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Something to keep');
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      for (final key in ['capture-discard']) {
+        final rect = tester.getRect(find.byKey(ValueKey(key)));
+        expect(rect.right, lessThanOrEqualTo(320));
+      }
+      expect(tester.getRect(find.text('Save memory')).right, lessThan(320));
+    });
+
+    testWidgets('an empty sheet offers no Discard', (tester) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+      expect(find.byKey(const ValueKey('capture-discard')), findsNothing);
+    });
+
+    testWidgets('Discard closes a short draft without saving', (tester) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+      await tester.enterText(find.byKey(const ValueKey('capture-text')), 'nah');
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('capture-discard')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      verifyNever(() => mockDb.saveEntry(any()));
+    });
+
+    testWidgets('Discard asks first for a longer draft', (tester) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'The light on the kitchen floor this morning',
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('capture-discard')));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard this memory?'), findsOneWidget);
+
+      // Keeping returns to the draft, untouched.
+      await tester.tap(find.text('Keep'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuickCaptureSheet), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('capture-discard')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      verifyNever(() => mockDb.saveEntry(any()));
+    });
+
     testWidgets('swiping an empty sheet away saves nothing', (tester) async {
       await openWith(tester, (context) => showQuickCaptureSheet(context));
 
