@@ -104,4 +104,24 @@ void main() {
     expect(store.getEntry(saved.id)!.text, 'first light, edited');
     expect(store.getEntry(saved.id)!.title, 'dawn');
   });
+
+  test('manual links resolve to memories from previous years', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    const oldId = '6f1c2a34-5b6d-4e7f-8a9b-0c1d2e3f4a5b';
+    const newId = '7a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+    await store.saveEntry(
+      Entry.line(text: 'last summer')
+        ..createdAt = DateTime(DateTime.now().year - 1, 7, 1)
+        ..syncUUID = oldId,
+    );
+    await store.saveEntry(Entry.line(text: 'today')..syncUUID = newId);
+
+    final linked = store.getEntriesBySyncUUIDs([oldId, newId]);
+    expect(linked.map((e) => e.text), containsAll(['last summer', 'today']));
+    expect(store.getEntryBySyncUUID(oldId)!.text, 'last summer');
+  });
 }

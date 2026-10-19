@@ -827,12 +827,29 @@ class ObjectBoxDatabase {
 
   // ============ Manual Link Operations ============
 
-  /// Load entries by their syncUUIDs (for manual linking)
+  /// Load entries by their syncUUIDs (for manual linking).
+  ///
+  /// Links can point at memories from any year, so this searches every year
+  /// via the syncUUID index (soft-deleted entries and locked capsules are
+  /// left out, as they are everywhere else in the UI).
   List<Entry> getEntriesBySyncUUIDs(List<String> uuids) {
     if (uuids.isEmpty) return [];
-    // Filter all visible entries by syncUUID match
-    return getVisibleEntries()
-        .where((e) => e.syncUUID != null && uuids.contains(e.syncUUID!))
-        .toList();
+    final now = _trustedNowUtc().millisecondsSinceEpoch;
+    final notLocked = Entry_.capsuleUnlockDate.isNull().or(
+      Entry_.capsuleUnlockDate.lessOrEqual(now),
+    );
+    final query = _entryBox
+        .query(
+          Entry_.syncUUID
+              .oneOf(uuids.toSet().toList())
+              .and(Entry_.isDeleted.equals(false))
+              .and(notLocked),
+        )
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final results = query.find();
+    query.close();
+    _decryptEntries(results);
+    return results;
   }
 }

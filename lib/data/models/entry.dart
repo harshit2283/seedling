@@ -105,11 +105,17 @@ class Entry {
   // Cloud Sync Fields (Phase 5)
   // ============================================================================
 
-  /// UUID for cross-device sync identification
+  /// UUID for cross-device sync identification.
+  ///
+  /// Indexed (not @Unique: legacy stores may hold duplicates, and a unique
+  /// constraint would make those stores fail to open). Sync merge and manual
+  /// link resolution look entries up by this on every record.
+  @Index()
   String? syncUUID;
 
   /// When this entry was last modified (for sync conflict resolution)
   @Property(type: PropertyType.date)
+  @Index()
   DateTime? modifiedAt;
 
   /// Device identifier that last modified this entry
