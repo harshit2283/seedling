@@ -7,16 +7,29 @@ import '../../../app/theme/palette.dart';
 import '../../../core/models/season.dart';
 import '../../../data/models/tree.dart';
 import '../domain/tree_personality.dart';
+import 'painting/tree_art_palette.dart';
+import 'painting/tree_illustration.dart';
+
+export 'painting/tree_illustration.dart' show TreeScene;
 
 /// Get current season based on month
-Season getCurrentSeason() {
-  final month = DateTime.now().month;
+Season getCurrentSeason() => seasonForMonth(DateTime.now().month);
+
+/// Season for a calendar month (1-12), northern hemisphere.
+Season seasonForMonth(int month) {
   return switch (month) {
     3 || 4 || 5 => Season.spring,
     6 || 7 || 8 => Season.summer,
     9 || 10 || 11 => Season.autumn,
     _ => Season.winter,
   };
+}
+
+/// Growth value for a tree state and progress within it (see [TreeScene]).
+double treeGrowthValue(TreeState state, double progress) {
+  final p = progress.isNaN ? 0.0 : progress;
+  final cap = state == TreeState.ancientTree ? 1.0 : 0.999;
+  return state.index + p.clamp(0.0, cap);
 }
 
 /// How many times the tree's static layers have been recorded (test hook).
@@ -27,14 +40,28 @@ int get debugTreeLayerBuilds => _TreePainter._layerBuilds;
 @visibleForTesting
 void debugClearTreeLayerCache() => _TreePainter._clearLayerCache();
 
-/// Animated tree visualization with procedural graphics
-/// Features: idle sway, growth transitions, seasonal colors, celebration particles
+/// Animated tree visualization with procedural graphics.
+///
+/// The tree is an illustration grown from a blueprint seeded by [seed] (the
+/// tree's year by default), so a person's tree keeps its shape across
+/// launches and every new memory adds to it. Features: idle sway, growth
+/// transitions, seasonal palettes, a moonlit night variant, memory lights
+/// and a soft bloom when the tree reaches a new stage.
 class AnimatedTreeVisualization extends StatefulWidget {
   final TreeState state;
   final double progress;
   final VoidCallback? onTap;
   final bool celebrateGrowth;
   final TreePersonality? personality;
+
+  /// Overrides the season (defaults to the current month's).
+  final Season? season;
+
+  /// Shapes the tree; defaults to the current year.
+  final int? seed;
+
+  /// Recent memories drawn as small glowing lights in the tree (capped).
+  final int memoryLights;
 
   const AnimatedTreeVisualization({
     super.key,
@@ -43,6 +70,9 @@ class AnimatedTreeVisualization extends StatefulWidget {
     this.onTap,
     this.celebrateGrowth = false,
     this.personality,
+    this.season,
+    this.seed,
+    this.memoryLights = 0,
   });
 
   @override
@@ -59,32 +89,34 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   // Growth transition animation
   late AnimationController _growthController;
   late Animation<double> _growthAnimation;
-  TreeState? _previousState;
-  double _displayedStateValue = 0;
+  double _fromGrowth = 0;
 
-  // Celebration particles
+  // Celebration bloom
   late AnimationController _celebrationController;
-  final List<_Particle> _particles = [];
+  final List<_Mote> _motes = [];
   final _random = math.Random();
 
-  // Season
   late Season _currentSeason;
+  late int _defaultSeed;
 
-  // Ambient seasonal particle layer
-  final List<_AmbientParticle> _ambientParticles = [];
+  // Ambient layer: petals, pollen, fireflies, leaves or snow.
+  List<_AmbientParticle> _ambientParticles = const [];
+  Object? _ambientKey;
 
   // Honours the system Reduce Motion / Remove Animations setting: the tree
-  // stands still, growth swaps in place and no celebration burst plays.
+  // stands still, growth swaps in place and no celebration plays.
   bool? _motionReduced;
   bool get _reduceMotion => _motionReduced ?? false;
+
+  Season get _season => widget.season ?? _currentSeason;
+  double get _targetGrowth => treeGrowthValue(widget.state, widget.progress);
 
   @override
   void initState() {
     super.initState();
     _currentSeason = getCurrentSeason();
-    _displayedStateValue = widget.state.index.toDouble();
-    _previousState = widget.state;
-    _seedAmbientParticles();
+    _defaultSeed = DateTime.now().year;
+    _fromGrowth = _targetGrowth;
 
     // Idle sway - continuous gentle movement
     _swayController = AnimationController(
@@ -107,14 +139,13 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
       curve: Curves.easeOutBack,
     );
 
-    // Celebration particles
     _celebrationController =
         AnimationController(
           vsync: this,
-          duration: const Duration(milliseconds: 2000),
+          duration: const Duration(milliseconds: 2400),
         )..addStatusListener((status) {
           if (status == AnimationStatus.completed) {
-            _particles.clear();
+            _motes.clear();
           }
         });
   }
@@ -122,6 +153,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncAmbient();
     final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     if (reduce == _motionReduced) return;
     _motionReduced = reduce;
@@ -130,7 +162,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
       _swayController.stop();
       _swayController.value = 0.5;
       _celebrationController.stop();
-      _particles.clear();
+      _motes.clear();
     } else {
       _swayController.repeat(reverse: true);
     }
@@ -148,136 +180,156 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   void didUpdateWidget(AnimatedTreeVisualization oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Detect growth
     if (oldWidget.state != widget.state) {
-      _animateGrowth(oldWidget.state, widget.state);
+      _animateGrowth(treeGrowthValue(oldWidget.state, oldWidget.progress));
+    } else if (!_growthController.isAnimating) {
+      _fromGrowth = _targetGrowth;
+    }
+    if (oldWidget.season != widget.season || oldWidget.state != widget.state) {
+      _syncAmbient();
     }
 
-    // Trigger celebration
     if (widget.celebrateGrowth && !oldWidget.celebrateGrowth) {
       _triggerCelebration();
     }
   }
 
-  void _seedAmbientParticles() {
-    _ambientParticles.clear();
-    final config = switch (_currentSeason) {
-      Season.spring => _AmbientConfig(
-        count: 6,
-        color: const Color(0xFFE8B4C8),
-        baseSize: 3.5,
-        shape: _AmbientShape.petal,
-      ),
-      Season.summer => _AmbientConfig(
-        count: 8,
-        color: const Color(0xFFFFE39A),
-        baseSize: 2.5,
-        shape: _AmbientShape.firefly,
-      ),
-      Season.autumn => _AmbientConfig(
-        count: 10,
-        color: const Color(0xFFCC7A3A),
-        baseSize: 4.0,
-        shape: _AmbientShape.leaf,
-      ),
-      Season.winter => _AmbientConfig(
-        count: 12,
-        color: Colors.white,
-        baseSize: 2.5,
-        shape: _AmbientShape.snow,
-      ),
-    };
+  bool get _night => context.palette.isDark;
 
-    for (int i = 0; i < config.count; i++) {
-      _ambientParticles.add(
-        _AmbientParticle(
-          x: _random.nextDouble(),
-          y: _random.nextDouble(),
-          vx: (_random.nextDouble() - 0.5) * 0.0009,
-          vy: 0.0008 + _random.nextDouble() * 0.0014,
-          phase: _random.nextDouble() * math.pi * 2,
-          size: config.baseSize + _random.nextDouble() * 1.5,
-          color: config.color,
-          shape: config.shape,
-        ),
-      );
+  void _syncAmbient() {
+    final stage = widget.state.index;
+    final key = (_season, _night, stage);
+    if (key == _ambientKey) return;
+    _ambientKey = key;
+    _ambientParticles = _seedAmbient(_season, _night, stage);
+  }
+
+  List<_AmbientParticle> _seedAmbient(Season season, bool night, int stage) {
+    final out = <_AmbientParticle>[];
+    // Seeded so the scene (and its golden tests) is the same every launch.
+    final rnd = math.Random(
+      (widget.seed ?? _defaultSeed) * 31 +
+          season.index * 7 +
+          stage * 3 +
+          (night ? 1 : 0),
+    );
+    final art = TreeArtPalette.resolve(season: season, night: night);
+    void add(int count, List<Color> colors, double size, _AmbientShape shape) {
+      for (var i = 0; i < count; i++) {
+        final drifts = shape == _AmbientShape.firefly;
+        out.add(
+          _AmbientParticle(
+            x: 0.08 + rnd.nextDouble() * 0.84,
+            y: drifts ? 0.15 + rnd.nextDouble() * 0.6 : rnd.nextDouble(),
+            vx: (rnd.nextDouble() - 0.5) * 0.0009,
+            vy: drifts ? 0 : 0.0007 + rnd.nextDouble() * 0.0012,
+            phase: rnd.nextDouble() * math.pi * 2,
+            size: size + rnd.nextDouble() * size * 0.5,
+            color: colors[rnd.nextInt(colors.length)],
+            shape: shape,
+          ),
+        );
+      }
     }
+
+    switch (season) {
+      case Season.spring:
+        add(
+          stage >= 2 ? 6 : 3,
+          [art.blossom, const Color(0xFFFFF1F4)],
+          3.0,
+          _AmbientShape.petal,
+        );
+      case Season.summer:
+        if (!night) add(4, [const Color(0xFFFFF3C4)], 1.4, _AmbientShape.mote);
+      case Season.autumn:
+        add(stage >= 3 ? 7 : 3, art.fallenLeaves, 3.6, _AmbientShape.leaf);
+      case Season.winter:
+        add(12, [art.snow], 1.8, _AmbientShape.snow);
+    }
+    if (night && season != Season.winter) {
+      final flies = stage >= 4 ? 7 : (season == Season.summer ? 4 : 0);
+      add(flies, [const Color(0xFFFFE39A)], 1.5, _AmbientShape.firefly);
+    }
+    return out;
   }
 
   void _advanceAmbientParticles() {
     if (_ambientParticles.isEmpty) return;
     final swayInfluence = _swayAnimation.value * 0.0006;
     for (final p in _ambientParticles) {
+      if (p.shape == _AmbientShape.firefly) {
+        p.phase += 0.03;
+        p.x += math.sin(p.phase * 0.7) * 0.0009 + p.vx * 0.3;
+        p.y += math.cos(p.phase * 0.55) * 0.0007;
+        if (p.x > 0.95 || p.x < 0.05) p.vx = -p.vx;
+        p.x = p.x.clamp(0.04, 0.96);
+        p.y = p.y.clamp(0.08, 0.85);
+        continue;
+      }
       p.x += p.vx + swayInfluence;
       p.y += p.vy;
       p.phase += 0.04;
-      // Wrap modular position
       if (p.y > 1.05) p.y = -0.05;
       if (p.x > 1.05) p.x = -0.05;
       if (p.x < -0.05) p.x = 1.05;
     }
   }
 
-  void _animateGrowth(TreeState from, TreeState to) {
-    _previousState = from;
+  void _animateGrowth(double from) {
+    HapticFeedback.mediumImpact();
     if (_reduceMotion) {
       _growthController.value = 1;
-      _displayedStateValue = to.index.toDouble();
-      _previousState = to;
-      HapticFeedback.mediumImpact();
+      _fromGrowth = _targetGrowth;
       return;
     }
+    _fromGrowth = from;
     _growthController.forward(from: 0).then((_) {
-      _displayedStateValue = to.index.toDouble();
-      _previousState = to;
+      if (mounted) _fromGrowth = _targetGrowth;
     });
-
-    // Haptic feedback for growth
-    HapticFeedback.mediumImpact();
   }
 
   void _triggerCelebration() {
-    _particles.clear();
+    _motes.clear();
     if (_reduceMotion) {
       HapticFeedback.lightImpact();
       return;
     }
-
-    // Generate celebration particles
-    for (int i = 0; i < 30; i++) {
-      _particles.add(
-        _Particle(
-          x: 0.5 + (_random.nextDouble() - 0.5) * 0.3,
-          y: 0.3 + (_random.nextDouble() - 0.5) * 0.2,
-          vx: (_random.nextDouble() - 0.5) * 0.02,
-          vy: -_random.nextDouble() * 0.015 - 0.005,
-          size: _random.nextDouble() * 4 + 2,
-          color: _getParticleColor(),
-          rotationSpeed: (_random.nextDouble() - 0.5) * 0.1,
+    final art = TreeArtPalette.resolve(
+      season: _season,
+      night: _night,
+      personality: widget.personality,
+    );
+    final colors = [
+      art.memoryCore,
+      art.memoryLight,
+      widget.personality?.blossomColor ?? art.blossom,
+      art.leafTones.first.highlight,
+    ];
+    for (var i = 0; i < 18; i++) {
+      final a = _random.nextDouble() * math.pi * 2;
+      final d = math.sqrt(_random.nextDouble()) * 0.75;
+      _motes.add(
+        _Mote(
+          x: math.cos(a) * d,
+          y: math.sin(a) * d * 0.8,
+          rise: 0.5 + _random.nextDouble() * 0.7,
+          drift: (_random.nextDouble() - 0.5) * 0.5,
+          delay: _random.nextDouble() * 0.35,
+          size: 1.4 + _random.nextDouble() * 2.0,
+          color: colors[_random.nextInt(colors.length)],
         ),
       );
     }
-
     _celebrationController.forward(from: 0);
     HapticFeedback.lightImpact();
   }
 
-  Color _getParticleColor() {
-    final personality = widget.personality;
-    final colors = [
-      SeedlingColors.freshSprout,
-      context.palette.primary,
-      SeedlingColors.paleGreen,
-      Colors.amber.shade300,
-      Colors.white,
-      if (personality != null) personality.blossomColor,
-      if (personality != null) personality.accentColor,
-    ];
-    return colors[_random.nextInt(colors.length)];
-  }
-
   @override
   Widget build(BuildContext context) {
+    final night = _night;
+    final seed = widget.seed ?? _defaultSeed;
+    final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
     return Semantics(
       button: widget.onTap != null,
       label: 'Your tree is a ${_getStateName()}. Tap to open memories.',
@@ -290,7 +342,6 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Animated tree
               SizedBox(
                 width: _getSize(),
                 height: _getSize(),
@@ -301,28 +352,33 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
                     _celebrationController,
                   ]),
                   builder: (context, child) {
-                    // Interpolate state during growth animation
-                    double stateValue = _displayedStateValue;
-                    if (_growthController.isAnimating &&
-                        _previousState != null) {
-                      stateValue =
-                          _previousState!.index +
-                          (_displayedStateValue - _previousState!.index) *
-                              _growthAnimation.value;
-                    }
-
+                    final animating = _growthController.isAnimating;
+                    final target = _targetGrowth;
+                    final growth = animating
+                        ? (_fromGrowth +
+                                  (target - _fromGrowth) *
+                                      _growthAnimation.value)
+                              .clamp(0.0, 6.0)
+                        : target;
                     return CustomPaint(
                       painter: _TreePainter(
-                        stateValue: stateValue,
+                        scene: TreeScene(
+                          growth: growth,
+                          season: _season,
+                          night: night,
+                          seed: seed,
+                          personality: widget.personality,
+                          memoryLights: widget.memoryLights,
+                        ),
+                        settled: !animating,
+                        pixelRatio: pixelRatio,
                         swayValue: _swayAnimation.value,
-                        season: _currentSeason,
-                        particles: _particles,
-                        particleProgress: _celebrationController.value,
+                        motes: _motes,
+                        moteProgress: _celebrationController.value,
                         ambientParticles: _ambientParticles,
-                        growthScale: _growthController.isAnimating
+                        growthScale: animating
                             ? 0.9 + 0.1 * _growthAnimation.value
                             : 1.0,
-                        personality: widget.personality,
                       ),
                       size: Size.infinite,
                     );
@@ -330,7 +386,6 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
                 ),
               ),
               const SizedBox(height: 16),
-              // State label
               Text(
                 _getStateName(),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -339,7 +394,6 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
                 ),
               ),
               const SizedBox(height: 8),
-              // Progress indicator
               _buildProgressIndicator(context),
             ],
           ),
@@ -387,6 +441,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   }
 
   Color _getStateColor() {
+    if (context.palette.isDark) return context.palette.primary;
     return switch (widget.state) {
       TreeState.seed => SeedlingColors.seed,
       TreeState.sprout => SeedlingColors.sprout,
@@ -409,100 +464,62 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   }
 }
 
-/// Particle data for celebration effect
-class _Particle {
-  double x, y, vx, vy, size;
-  double rotation = 0;
-  final double rotationSpeed;
-  final Color color;
-
-  _Particle({
+/// A mote of light in the growth bloom, relative to the crown.
+class _Mote {
+  _Mote({
     required this.x,
     required this.y,
-    required this.vx,
-    required this.vy,
+    required this.rise,
+    required this.drift,
+    required this.delay,
     required this.size,
     required this.color,
-    required this.rotationSpeed,
   });
+
+  final double x, y, rise, drift, delay, size;
+  final Color color;
 }
 
 /// Custom painter for the animated tree
 class _TreePainter extends CustomPainter {
-  final double stateValue;
+  _TreePainter({
+    required this.scene,
+    required this.settled,
+    required this.pixelRatio,
+    required this.swayValue,
+    required this.motes,
+    required this.moteProgress,
+    required this.ambientParticles,
+    required this.growthScale,
+  });
+
+  final TreeScene scene;
+
+  /// Not mid-transition: the tree can be replayed from the cache.
+  final bool settled;
+  final double pixelRatio;
   final double swayValue;
-  final Season season;
-  final List<_Particle> particles;
-  final double particleProgress;
+  final List<_Mote> motes;
+  final double moteProgress;
   final List<_AmbientParticle> ambientParticles;
   final double growthScale;
-  final TreePersonality? personality;
 
-  // Static paints to avoid allocation in render loop
-  static final _groundPaint = Paint()
-    ..color = SeedlingColors.warmBrown.withValues(alpha: 0.25)
-    ..strokeWidth = 2
-    ..style = PaintingStyle.stroke;
-
-  static final _seedGroundPaint = Paint()
-    ..color = SeedlingColors.warmBrown.withValues(alpha: 0.3)
-    ..strokeWidth = 2
-    ..style = PaintingStyle.stroke;
-
-  static final _seedPaint = Paint()
-    ..color = SeedlingColors.seed
-    ..style = PaintingStyle.fill;
-
-  static final _seedHighlightPaint = Paint()
-    ..color = Colors.white.withValues(alpha: 0.3)
-    ..style = PaintingStyle.fill;
-
-  static final _glowPaint = Paint()
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
-
-  static final _stemPaint = Paint()
-    ..strokeWidth = 3
-    ..strokeCap = StrokeCap.round
-    ..style = PaintingStyle.stroke;
-
-  static final _trunkPaint = Paint()
-    ..color = SeedlingColors.barkBrown
-    ..style = PaintingStyle.fill;
-
-  static final _texturePaint = Paint()
-    ..color = SeedlingColors.warmBrown.withValues(alpha: 0.3)
-    ..strokeWidth = 1
-    ..style = PaintingStyle.stroke;
-
-  static final _rootPaint = Paint()
-    ..color = SeedlingColors.barkBrown.withValues(alpha: 0.7)
-    ..strokeWidth = 3
-    ..strokeCap = StrokeCap.round
-    ..style = PaintingStyle.stroke;
-
-  static final _branchPaint = Paint()
-    ..color = SeedlingColors.warmBrown
-    ..strokeCap = StrokeCap.round
-    ..style = PaintingStyle.stroke;
-
-  static final _leafPaint = Paint()..style = PaintingStyle.fill;
-
-  static final _canopyPaint = Paint()..style = PaintingStyle.fill;
-
-  static final _canopyHighlightPaint = Paint()
-    ..color = Colors.white.withValues(alpha: 0.15)
-    ..style = PaintingStyle.fill;
-
-  static final _particlePaint = Paint()..style = PaintingStyle.fill;
-
-  static final _ambientPaint = Paint()..style = PaintingStyle.fill;
-
-  static final _layerImagePaint = Paint()..filterQuality = FilterQuality.low;
+  static final _fill = Paint();
+  static final _layerImagePaint = Paint()..filterQuality = FilterQuality.medium;
+  static final Path _leafPath = Path()
+    ..moveTo(-1, 0)
+    ..quadraticBezierTo(0, -0.85, 1, 0)
+    ..quadraticBezierTo(0, 0.85, -1, 0)
+    ..close();
 
   /// Horizontal skew per unit of sway. The sway is applied as one transform
   /// over the cached tree: points on the ground line stay put and the crown
-  /// moves ~3px, like the old per-element sway but without re-tessellating.
+  /// moves ~3px, without re-tessellating anything.
   static const double _swaySkew = 0.02;
+
+  /// Margin around the canvas kept in the cached image, so foliage that
+  /// leans past the edge is not clipped.
+  static const double _margin = 10;
 
   /// Cached static layers, most recently used last. Small because only the
   /// home tree (and a growth transition's endpoints) are ever on screen.
@@ -521,21 +538,6 @@ class _TreePainter extends CustomPainter {
     _layerCache.clear();
   }
 
-  /// When true the painter records the static layer: no glow (rasterised
-  /// separately) and no falling leaves (animated per frame).
-  bool _recordingStatic = false;
-
-  _TreePainter({
-    required this.stateValue,
-    required this.swayValue,
-    required this.season,
-    required this.particles,
-    required this.particleProgress,
-    required this.ambientParticles,
-    required this.growthScale,
-    this.personality,
-  });
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height);
@@ -545,68 +547,45 @@ class _TreePainter extends CustomPainter {
     canvas.scale(growthScale);
     canvas.translate(-center.dx, -center.dy);
 
-    // Settled state: replay cached layers. During a growth transition the
-    // state value changes every frame, so draw directly instead of caching.
-    final settled =
-        growthScale == 1.0 && stateValue == stateValue.roundToDouble();
-    final groundY = size.height * _groundFraction();
-
+    final TreeLayout layout;
     if (settled) {
       final layers = _layersFor(size);
+      layout = layers.layout;
       if (layers.glow != null) {
         _layerImagePaint.color = Color.fromRGBO(0, 0, 0, _glowOpacity());
         canvas.drawImage(layers.glow!, layers.glowOrigin, _layerImagePaint);
       }
-      _withSway(canvas, groundY, () => canvas.drawPicture(layers.body));
+      _layerImagePaint.color = const Color(0xFF000000);
+      _withSway(canvas, layout.groundY, () {
+        final image = layers.body;
+        canvas.drawImageRect(
+          image,
+          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+          Rect.fromLTWH(
+            -_margin,
+            -_margin,
+            image.width / pixelRatio,
+            image.height / pixelRatio,
+          ),
+          _layerImagePaint,
+        );
+      });
     } else {
-      final still = _restingCopy();
-      still._drawGlow(canvas, size, opacity: _glowOpacity());
-      still._recordingStatic = true;
-      _withSway(canvas, groundY, () => still._drawStatic(canvas, size));
+      // Mid-transition: the growth value changes every frame, draw live.
+      final art = TreeIllustration(scene);
+      layout = art.layout(size);
+      _drawGlow(canvas, layout, opacity: _glowOpacity());
+      _withSway(canvas, layout.groundY, () => art.paint(canvas, size));
     }
-    _drawAnimatedDetails(canvas, size);
 
     canvas.restore();
 
-    // Draw ambient seasonal layer (behind/around the tree, no interaction with celebration)
-    if (ambientParticles.isNotEmpty) {
-      _drawAmbient(canvas, size);
-    }
+    if (ambientParticles.isNotEmpty) _drawAmbient(canvas, size);
 
-    // Draw celebration particles
-    if (particleProgress > 0 && particleProgress < 1) {
-      _drawParticles(canvas, size);
+    if (moteProgress > 0 && moteProgress < 1 && motes.isNotEmpty) {
+      _drawBloom(canvas, layout);
     }
   }
-
-  /// Draw the tree for the current state (sway-free when recording).
-  void _drawStatic(Canvas canvas, Size size) {
-    if (stateValue < 0.5) {
-      _drawSeed(canvas, size, stateValue * 2);
-    } else if (stateValue < 1.5) {
-      _drawSprout(canvas, size, (stateValue - 0.5) / 1.0);
-    } else if (stateValue < 2.5) {
-      _drawSapling(canvas, size, (stateValue - 1.5) / 1.0);
-    } else if (stateValue < 3.5) {
-      _drawYoungTree(canvas, size, (stateValue - 2.5) / 1.0);
-    } else if (stateValue < 4.5) {
-      _drawMatureTree(canvas, size, (stateValue - 3.5) / 1.0);
-    } else {
-      _drawAncientTree(canvas, size, math.min(1.0, stateValue - 4.5));
-    }
-  }
-
-  /// Same tree at rest (sway 0): the geometry the static layer is built from.
-  _TreePainter _restingCopy() => _TreePainter(
-    stateValue: stateValue,
-    swayValue: 0,
-    season: season,
-    particles: const [],
-    particleProgress: 0,
-    ambientParticles: const [],
-    growthScale: 1,
-    personality: personality,
-  );
 
   void _withSway(Canvas canvas, double groundY, VoidCallback draw) {
     canvas.save();
@@ -618,14 +597,8 @@ class _TreePainter extends CustomPainter {
     canvas.restore();
   }
 
-  double _groundFraction() {
-    if (stateValue < 3.5) return 0.85;
-    if (stateValue < 4.5) return 0.88;
-    return 0.9;
-  }
-
   _TreeLayers _layersFor(Size size) {
-    final key = _TreeLayerKey(size, stateValue, season, personality);
+    final key = _TreeLayerKey(size, scene, pixelRatio);
     final cached = _layerCache.remove(key);
     if (cached != null) {
       _layerCache[key] = cached; // mark most recently used
@@ -633,14 +606,31 @@ class _TreePainter extends CustomPainter {
     }
 
     _layerBuilds++;
-    final still = _restingCopy().._recordingStatic = true;
+    final art = TreeIllustration(scene);
+    final layout = art.layout(size);
 
+    final width = ((size.width + _margin * 2) * pixelRatio).ceil();
+    final height = ((size.height + _margin * 2) * pixelRatio).ceil();
     final recorder = ui.PictureRecorder();
-    still._drawStatic(Canvas(recorder), size);
-    final body = recorder.endRecording();
+    final canvas = Canvas(recorder)
+      ..scale(pixelRatio)
+      ..translate(_margin, _margin);
+    art.paint(canvas, size);
+    final picture = recorder.endRecording();
+    final ui.Image body;
+    try {
+      body = picture.toImageSync(width, height);
+    } finally {
+      picture.dispose();
+    }
 
-    final glow = still._rasteriseGlow(size);
-    final layers = _TreeLayers(body, glow?.image, glow?.origin ?? Offset.zero);
+    final glow = _rasteriseGlow(layout);
+    final layers = _TreeLayers(
+      body,
+      glow?.image,
+      glow?.origin ?? Offset.zero,
+      layout,
+    );
 
     _layerCache[key] = layers;
     while (_layerCache.length > _maxCachedLayers) {
@@ -650,24 +640,30 @@ class _TreePainter extends CustomPainter {
     return layers;
   }
 
-  /// Where and how big the soft glow is for this state, or null.
-  ({Offset center, double radius, double sigma})? _glowSpec(Size size) {
-    if (stateValue < 0.5) {
-      final groundY = size.height * 0.85;
-      final seedSize = 12.0 + stateValue * 2 * 4;
-      final seedY = groundY - seedSize / 2 - 2;
+  /// Where and how big the soft glow is for this scene, or null.
+  ({Offset center, double radius, double sigma, Color color})? _glowSpec(
+    TreeLayout layout,
+  ) {
+    final g = scene.growth;
+    final art = TreeArtPalette.resolve(
+      season: scene.season,
+      night: scene.night,
+    );
+    if (g < 1) {
+      final seedY = layout.groundY - 6 * kSeedScale;
       return (
-        center: Offset(size.width / 2, seedY),
-        radius: seedSize + 10,
-        sigma: 15.0,
+        center: Offset(layout.crownCenter.dx, seedY),
+        radius: 22.0 + g * 6,
+        sigma: 14.0,
+        color: art.glow,
       );
     }
-    if (stateValue >= 4.5) {
-      final groundY = size.height * 0.9;
+    if (g >= 5 || (scene.night && g >= 3)) {
       return (
-        center: Offset(size.width / 2, groundY - 95.0 * 0.65),
-        radius: 80.0,
-        sigma: 30.0,
+        center: layout.crownCenter,
+        radius: layout.crownRadius * 0.7,
+        sigma: 18.0,
+        color: art.glow,
       );
     }
     return null;
@@ -675,34 +671,37 @@ class _TreePainter extends CustomPainter {
 
   /// Glow opacity this frame: the seed's glow breathes with the sway.
   double _glowOpacity() {
-    if (stateValue < 0.5) {
-      return (0.2 + 0.1 * math.sin(swayValue * math.pi)).clamp(0.0, 1.0);
+    final g = scene.growth;
+    if (g < 1) {
+      return (0.26 + 0.12 * math.sin(swayValue * math.pi)).clamp(0.0, 1.0);
     }
-    return 0.15;
+    if (scene.night) return g >= 5 ? 0.2 : 0.13;
+    return 0.16;
   }
 
-  /// The blurred glow at full alpha, drawn directly (growth transitions).
-  void _drawGlow(Canvas canvas, Size size, {required double opacity}) {
-    final spec = _glowSpec(size);
+  void _drawGlow(Canvas canvas, TreeLayout layout, {required double opacity}) {
+    final spec = _glowSpec(layout);
     if (spec == null) return;
-    _glowPaint
-      ..color = SeedlingColors.paleGreen.withValues(alpha: opacity)
+    _fill
+      ..shader = null
+      ..color = spec.color.withValues(alpha: opacity)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, spec.sigma);
-    canvas.drawCircle(spec.center, spec.radius, _glowPaint);
+    canvas.drawCircle(spec.center, spec.radius, _fill);
+    _fill.maskFilter = null;
   }
 
   /// Rasterise the blur once: MaskFilter.blur is re-rasterised on every
   /// frame it is drawn, an image is just sampled. Opacity is applied when
   /// the image is drawn, so the seed's breathing glow still works.
-  ({ui.Image image, Offset origin})? _rasteriseGlow(Size size) {
-    final spec = _glowSpec(size);
+  ({ui.Image image, Offset origin})? _rasteriseGlow(TreeLayout layout) {
+    final spec = _glowSpec(layout);
     if (spec == null) return null;
     final extent = spec.radius + spec.sigma * 3;
     final origin = spec.center - Offset(extent, extent);
     final side = (extent * 2).ceil();
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder)..translate(-origin.dx, -origin.dy);
-    _drawGlow(canvas, size, opacity: 1);
+    _drawGlow(canvas, layout, opacity: 1);
     final picture = recorder.endRecording();
     try {
       return (image: picture.toImageSync(side, side), origin: origin);
@@ -711,787 +710,127 @@ class _TreePainter extends CustomPainter {
     }
   }
 
-  /// Per-frame details that move independently of the tree.
-  void _drawAnimatedDetails(Canvas canvas, Size size) {
-    if (season != Season.autumn || stateValue < 3.5) return;
-    final Offset canopyCenter;
-    if (stateValue < 4.5) {
-      final groundY = size.height * 0.88;
-      final trunkHeight = 85.0 + (stateValue - 3.5) * 10;
-      canopyCenter = Offset(size.width / 2, groundY - trunkHeight * 0.7);
-    } else {
-      final groundY = size.height * 0.9;
-      canopyCenter = Offset(size.width / 2, groundY - 95.0 * 0.65);
-    }
-    _drawFallingLeaves(canvas, size, canopyCenter);
-  }
-
   void _drawAmbient(Canvas canvas, Size size) {
-    final paint = _ambientPaint;
+    final paint = _fill
+      ..shader = null
+      ..maskFilter = null;
     for (final p in ambientParticles) {
       final x = p.x * size.width;
       final y = p.y * size.height;
       final pulse = (math.sin(p.phase) + 1) / 2;
-      final alpha = switch (p.shape) {
-        _AmbientShape.firefly => 0.35 + pulse * 0.45,
-        _AmbientShape.snow => 0.45 + pulse * 0.25,
-        _AmbientShape.petal => 0.55 + pulse * 0.15,
-        _AmbientShape.leaf => 0.55 + pulse * 0.15,
-      };
-      paint.color = p.color.withValues(alpha: alpha.clamp(0.0, 1.0));
       switch (p.shape) {
         case _AmbientShape.firefly:
-          canvas.drawCircle(Offset(x, y), p.size * (0.7 + pulse * 0.5), paint);
-          break;
-        case _AmbientShape.snow:
+          final glow = 0.35 + pulse * 0.65;
+          paint.color = p.color.withValues(alpha: 0.18 * glow);
+          canvas.drawCircle(Offset(x, y), p.size * 3.6, paint);
+          paint.color = p.color.withValues(alpha: 0.3 * glow);
+          canvas.drawCircle(Offset(x, y), p.size * 1.8, paint);
+          paint.color = const Color(0xFFFFFBE8).withValues(alpha: glow);
+          canvas.drawCircle(Offset(x, y), p.size * 0.6, paint);
+        case _AmbientShape.mote:
+          paint.color = p.color.withValues(alpha: 0.35 + pulse * 0.3);
           canvas.drawCircle(Offset(x, y), p.size, paint);
-          break;
+        case _AmbientShape.snow:
+          paint.color = p.color.withValues(alpha: 0.55 + pulse * 0.3);
+          canvas.drawCircle(Offset(x, y), p.size, paint);
         case _AmbientShape.petal:
-          canvas.save();
-          canvas.translate(x, y);
-          canvas.rotate(p.phase * 0.3);
-          final rect = RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: Offset.zero,
-              width: p.size * 1.6,
-              height: p.size * 0.8,
-            ),
-            Radius.circular(p.size),
-          );
-          canvas.drawRRect(rect, paint);
-          canvas.restore();
-          break;
         case _AmbientShape.leaf:
+          paint.color = p.color.withValues(alpha: 0.75 + pulse * 0.15);
           canvas.save();
           canvas.translate(x, y);
-          canvas.rotate(p.phase * 0.4);
-          final path = Path()
-            ..moveTo(0, -p.size)
-            ..quadraticBezierTo(p.size, 0, 0, p.size)
-            ..quadraticBezierTo(-p.size, 0, 0, -p.size)
-            ..close();
-          canvas.drawPath(path, paint);
+          canvas.rotate(p.phase * (p.shape == _AmbientShape.leaf ? 0.4 : 0.3));
+          // Tumbling: the leaf narrows as it turns edge-on.
+          final turn = 0.35 + 0.65 * (math.cos(p.phase * 0.9).abs());
+          canvas.scale(p.size, p.size * turn);
+          canvas.drawPath(_leafPath, paint);
           canvas.restore();
-          break;
       }
     }
   }
 
-  void _drawSeed(Canvas canvas, Size size, double progress) {
-    final centerX = size.width / 2;
-    final groundY = size.height * 0.85;
-
-    // Ground line
-    canvas.drawLine(
-      Offset(centerX - 30, groundY),
-      Offset(centerX + 30, groundY),
-      _seedGroundPaint,
+  /// Growth bloom: a soft light opening in the crown and motes of light
+  /// drifting up out of it.
+  void _drawBloom(Canvas canvas, TreeLayout layout) {
+    final t = moteProgress;
+    final c = layout.crownCenter;
+    final r = math.max(layout.crownRadius, 24.0);
+    final ease = Curves.easeOutCubic.transform(t);
+    final ringAlpha = math.sin(math.pi * t) * (scene.night ? 0.32 : 0.26);
+    final art = TreeArtPalette.resolve(
+      season: scene.season,
+      night: scene.night,
     );
-
-    // Seed
-    final seedSize = 12.0 + progress * 4;
-    final seedY = groundY - seedSize / 2 - 2;
-
-    // Seed body (oval)
-    canvas.save();
-    canvas.translate(centerX, seedY);
-    canvas.rotate(swayValue * 0.05);
-
-    final seedRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset.zero,
-        width: seedSize,
-        height: seedSize * 1.3,
-      ),
-      Radius.circular(seedSize / 2),
-    );
-    canvas.drawRRect(seedRect, _seedPaint);
-
-    // Seed highlight
-    canvas.drawCircle(
-      Offset(-seedSize * 0.2, -seedSize * 0.3),
-      seedSize * 0.2,
-      _seedHighlightPaint,
-    );
-
-    canvas.restore();
-
-    // Subtle glow: drawn as its own cached layer (see _rasteriseGlow).
-    if (!_recordingStatic) _drawGlow(canvas, size, opacity: _glowOpacity());
-  }
-
-  void _drawSprout(Canvas canvas, Size size, double progress) {
-    final centerX = size.width / 2;
-    final groundY = size.height * 0.85;
-
-    // Ground
-    _drawGround(canvas, size, groundY);
-
-    // Stem
-    final stemHeight = 30.0 + progress * 20;
-    _stemPaint.color = _getStemColor();
-
-    final stemPath = Path();
-    stemPath.moveTo(centerX, groundY);
-
-    // Curved stem with sway
-    final swayOffset = swayValue * 3;
-    stemPath.quadraticBezierTo(
-      centerX + swayOffset,
-      groundY - stemHeight / 2,
-      centerX + swayOffset * 0.5,
-      groundY - stemHeight,
-    );
-
-    canvas.drawPath(stemPath, _stemPaint);
-
-    // Two leaves
-    _drawLeaf(
-      canvas,
-      Offset(centerX + swayOffset * 0.5, groundY - stemHeight),
-      12 + progress * 5,
-      -0.4 + swayValue * 0.1,
-      _getLeafColor(),
-    );
-
-    _drawLeaf(
-      canvas,
-      Offset(centerX + swayOffset * 0.5, groundY - stemHeight),
-      12 + progress * 5,
-      0.4 + swayValue * 0.1,
-      _getLeafColor(),
-    );
-  }
-
-  void _drawSapling(Canvas canvas, Size size, double progress) {
-    final centerX = size.width / 2;
-    final groundY = size.height * 0.85;
-
-    _drawGround(canvas, size, groundY);
-
-    // Trunk
-    final trunkHeight = 50.0 + progress * 20;
-    final trunkWidth = 4.0 + progress * 2;
-
-    _drawTrunk(canvas, centerX, groundY, trunkHeight, trunkWidth);
-
-    // Small branches with leaves
-    final branchY = groundY - trunkHeight * 0.6;
-    final topY = groundY - trunkHeight;
-
-    // Left branch
-    _drawBranch(canvas, centerX, branchY, -25, -15, 2, swayValue);
-    _drawLeafCluster(
-      canvas,
-      Offset(centerX - 25, branchY - 15),
-      3,
-      10,
-      swayValue,
-    );
-
-    // Right branch
-    _drawBranch(canvas, centerX, branchY, 25, -15, 2, swayValue);
-    _drawLeafCluster(
-      canvas,
-      Offset(centerX + 25, branchY - 15),
-      3,
-      10,
-      swayValue,
-    );
-
-    // Top leaves
-    _drawLeafCluster(canvas, Offset(centerX, topY), 5, 14, swayValue);
-  }
-
-  void _drawYoungTree(Canvas canvas, Size size, double progress) {
-    final centerX = size.width / 2;
-    final groundY = size.height * 0.85;
-
-    _drawGround(canvas, size, groundY);
-
-    final trunkHeight = 70.0 + progress * 15;
-    final trunkWidth = 6.0 + progress * 2;
-
-    _drawTrunk(canvas, centerX, groundY, trunkHeight, trunkWidth);
-
-    // Multiple branch levels
-    for (int i = 0; i < 3; i++) {
-      final levelY = groundY - trunkHeight * (0.4 + i * 0.2);
-      final spread = 20.0 + i * 10;
-      final leafCount = 4 + i;
-      final leafSize = 12.0 - i * 1.5;
-
-      _drawBranch(
-        canvas,
-        centerX,
-        levelY,
-        -spread,
-        -10 - i * 5,
-        2.5 - i * 0.3,
-        swayValue,
+    final glowRadius = r * (0.5 + 0.8 * ease);
+    _fill
+      ..maskFilter = null
+      ..shader = ui.Gradient.radial(
+        c,
+        glowRadius,
+        [
+          art.memoryCore.withValues(alpha: ringAlpha),
+          art.memoryLight.withValues(alpha: ringAlpha * 0.4),
+          art.memoryLight.withValues(alpha: 0),
+        ],
+        const [0, 0.55, 1],
       );
-      _drawBranch(
-        canvas,
-        centerX,
-        levelY,
-        spread,
-        -10 - i * 5,
-        2.5 - i * 0.3,
-        swayValue,
-      );
+    canvas.drawCircle(c, glowRadius, _fill);
+    _fill.shader = null;
 
-      _drawLeafCluster(
-        canvas,
-        Offset(centerX - spread, levelY - 10 - i * 5),
-        leafCount,
-        leafSize,
-        swayValue,
-      );
-      _drawLeafCluster(
-        canvas,
-        Offset(centerX + spread, levelY - 10 - i * 5),
-        leafCount,
-        leafSize,
-        swayValue,
-      );
+    for (final m in motes) {
+      final local = ((t - m.delay) / (1 - m.delay)).clamp(0.0, 1.0);
+      if (local <= 0) continue;
+      final alpha = math.sin(math.pi * local);
+      final rise = Curves.easeOutSine.transform(local) * m.rise * r;
+      final x = c.dx + m.x * r + math.sin(local * math.pi * 1.5) * m.drift * r;
+      final y = c.dy + m.y * r - rise;
+      _fill.color = m.color.withValues(alpha: alpha * 0.25);
+      canvas.drawCircle(Offset(x, y), m.size * 2.6, _fill);
+      _fill.color = m.color.withValues(alpha: alpha * 0.9);
+      canvas.drawCircle(Offset(x, y), m.size, _fill);
     }
-
-    // Crown
-    final topY = groundY - trunkHeight;
-    _drawLeafCluster(canvas, Offset(centerX, topY), 8, 16, swayValue);
-  }
-
-  void _drawMatureTree(Canvas canvas, Size size, double progress) {
-    final centerX = size.width / 2;
-    final groundY = size.height * 0.88;
-
-    _drawGround(canvas, size, groundY);
-
-    final trunkHeight = 85.0 + progress * 10;
-    final trunkWidth = 10.0 + progress * 2;
-
-    // Roots
-    _drawRoots(canvas, centerX, groundY, trunkWidth);
-
-    _drawTrunk(canvas, centerX, groundY, trunkHeight, trunkWidth);
-
-    // Full canopy
-    final canopyCenter = Offset(centerX, groundY - trunkHeight * 0.7);
-    _drawCanopy(canvas, canopyCenter, 55 + progress * 10, 0.8 + progress * 0.2);
-
-    // Decorative elements based on season
-    if (season == Season.spring) {
-      _drawBlossoms(canvas, canopyCenter, 50);
-    } else if (season == Season.autumn && !_recordingStatic) {
-      _drawFallingLeaves(canvas, size, canopyCenter);
-    }
-
-    // Personality-driven decorations
-    if (personality?.showFruit == true) {
-      _drawFruit(canvas, canopyCenter, 50);
-    }
-    if (personality?.showBirds == true) {
-      _drawBirds(canvas, canopyCenter, 50);
-    }
-  }
-
-  void _drawAncientTree(Canvas canvas, Size size, double progress) {
-    final centerX = size.width / 2;
-    final groundY = size.height * 0.9;
-
-    _drawGround(canvas, size, groundY);
-
-    final trunkHeight = 95.0;
-    final trunkWidth = 14.0;
-
-    // Elaborate roots
-    _drawRoots(canvas, centerX, groundY, trunkWidth * 1.5);
-
-    // Gnarled trunk
-    _drawGnarledTrunk(canvas, centerX, groundY, trunkHeight, trunkWidth);
-
-    // Massive canopy
-    final canopyCenter = Offset(centerX, groundY - trunkHeight * 0.65);
-    _drawCanopy(canvas, canopyCenter, 70, 1.0);
-
-    // Extra foliage layers
-    _drawCanopy(canvas, canopyCenter + const Offset(-15, 10), 40, 0.7);
-    _drawCanopy(canvas, canopyCenter + const Offset(15, 10), 40, 0.7);
-
-    if (season == Season.spring) {
-      _drawBlossoms(canvas, canopyCenter, 65);
-    } else if (season == Season.autumn && !_recordingStatic) {
-      _drawFallingLeaves(canvas, size, canopyCenter);
-    }
-
-    // Personality-driven decorations
-    if (personality?.showFruit == true) {
-      _drawFruit(canvas, canopyCenter, 65);
-    }
-    if (personality?.showBirds == true) {
-      _drawBirds(canvas, canopyCenter, 65);
-    }
-
-    // Wisdom glow: drawn as its own cached layer (see _rasteriseGlow).
-    if (!_recordingStatic) _drawGlow(canvas, size, opacity: _glowOpacity());
-  }
-
-  void _drawGround(Canvas canvas, Size size, double groundY) {
-    final path = Path();
-    path.moveTo(size.width * 0.2, groundY);
-    path.quadraticBezierTo(
-      size.width / 2,
-      groundY + 3,
-      size.width * 0.8,
-      groundY,
-    );
-    canvas.drawPath(path, _groundPaint);
-  }
-
-  void _drawTrunk(
-    Canvas canvas,
-    double x,
-    double groundY,
-    double height,
-    double width,
-  ) {
-    final path = Path();
-    path.moveTo(x - width / 2, groundY);
-    path.lineTo(x - width / 3, groundY - height);
-    path.lineTo(x + width / 3, groundY - height);
-    path.lineTo(x + width / 2, groundY);
-    path.close();
-
-    canvas.drawPath(path, _trunkPaint);
-
-    // Bark texture
-    for (int i = 1; i < 4; i++) {
-      final y = groundY - height * i / 4;
-      canvas.drawLine(
-        Offset(x - width / 3, y),
-        Offset(x + width / 3, y),
-        _texturePaint,
-      );
-    }
-  }
-
-  void _drawGnarledTrunk(
-    Canvas canvas,
-    double x,
-    double groundY,
-    double height,
-    double width,
-  ) {
-    final path = Path();
-    path.moveTo(x - width / 2, groundY);
-
-    // Gnarled left edge
-    path.quadraticBezierTo(
-      x - width / 2 - 5 + swayValue,
-      groundY - height * 0.3,
-      x - width / 3,
-      groundY - height * 0.5,
-    );
-    path.quadraticBezierTo(
-      x - width / 3 + 3,
-      groundY - height * 0.7,
-      x - width / 4,
-      groundY - height,
-    );
-
-    // Top
-    path.lineTo(x + width / 4, groundY - height);
-
-    // Gnarled right edge
-    path.quadraticBezierTo(
-      x + width / 3 - 3,
-      groundY - height * 0.7,
-      x + width / 3,
-      groundY - height * 0.5,
-    );
-    path.quadraticBezierTo(
-      x + width / 2 + 5 + swayValue,
-      groundY - height * 0.3,
-      x + width / 2,
-      groundY,
-    );
-
-    path.close();
-    canvas.drawPath(path, _trunkPaint);
-  }
-
-  void _drawRoots(Canvas canvas, double x, double groundY, double width) {
-    // Left roots
-    canvas.drawLine(
-      Offset(x - width / 2, groundY),
-      Offset(x - width - 10, groundY + 5),
-      _rootPaint,
-    );
-    canvas.drawLine(
-      Offset(x - width / 3, groundY),
-      Offset(x - width - 5, groundY + 8),
-      _rootPaint,
-    );
-
-    // Right roots
-    canvas.drawLine(
-      Offset(x + width / 2, groundY),
-      Offset(x + width + 10, groundY + 5),
-      _rootPaint,
-    );
-    canvas.drawLine(
-      Offset(x + width / 3, groundY),
-      Offset(x + width + 5, groundY + 8),
-      _rootPaint,
-    );
-  }
-
-  void _drawBranch(
-    Canvas canvas,
-    double trunkX,
-    double startY,
-    double endXOffset,
-    double endYOffset,
-    double width,
-    double sway,
-  ) {
-    _branchPaint.strokeWidth = width;
-
-    final swayOffset = sway * 2 * (endXOffset > 0 ? 1 : -1);
-
-    final path = Path();
-    path.moveTo(trunkX, startY);
-    path.quadraticBezierTo(
-      trunkX + endXOffset / 2 + swayOffset,
-      startY + endYOffset / 2,
-      trunkX + endXOffset + swayOffset,
-      startY + endYOffset,
-    );
-
-    canvas.drawPath(path, _branchPaint);
-  }
-
-  void _drawLeaf(
-    Canvas canvas,
-    Offset position,
-    double size,
-    double angle,
-    Color color,
-  ) {
-    _leafPaint.color = color;
-
-    canvas.save();
-    canvas.translate(position.dx, position.dy);
-    canvas.rotate(angle + swayValue * 0.1);
-
-    final path = Path();
-    path.moveTo(0, 0);
-    path.quadraticBezierTo(size * 0.5, -size * 0.3, size, 0);
-    path.quadraticBezierTo(size * 0.5, size * 0.3, 0, 0);
-
-    canvas.drawPath(path, _leafPaint);
-    canvas.restore();
-  }
-
-  void _drawLeafCluster(
-    Canvas canvas,
-    Offset center,
-    int count,
-    double size,
-    double sway,
-  ) {
-    final leafColor = _getLeafColor();
-    final adjustedCount = (count * (personality?.foliageDensity ?? 1.0))
-        .round();
-
-    for (int i = 0; i < adjustedCount; i++) {
-      final angle = (i / adjustedCount) * math.pi * 2 - math.pi / 2;
-      final offset = Offset(
-        math.cos(angle) * size * 0.5,
-        math.sin(angle) * size * 0.3,
-      );
-
-      _drawLeaf(
-        canvas,
-        center + offset,
-        size,
-        angle + sway * 0.15,
-        leafColor.withValues(alpha: 0.7 + (i % 3) * 0.1),
-      );
-    }
-  }
-
-  void _drawCanopy(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    double density,
-  ) {
-    final baseColor = _getLeafColor();
-
-    // Multiple overlapping circles for organic look
-    final layers = [
-      (offset: const Offset(0, 0), radiusMult: 1.0, alpha: 0.9),
-      (
-        offset: Offset(-radius * 0.3, radius * 0.1),
-        radiusMult: 0.7,
-        alpha: 0.8,
-      ),
-      (offset: Offset(radius * 0.3, radius * 0.1), radiusMult: 0.7, alpha: 0.8),
-      (offset: Offset(0, -radius * 0.2), radiusMult: 0.6, alpha: 0.85),
-    ];
-
-    for (final layer in layers) {
-      _canopyPaint.color = baseColor.withValues(alpha: layer.alpha * density);
-
-      final swayOffset = Offset(swayValue * 3, swayValue * 1.5);
-      final layerCenter = center + layer.offset + swayOffset;
-      final layerRadius = radius * layer.radiusMult;
-
-      // Organic blob shape
-      final path = Path();
-      const points = 12;
-      for (int i = 0; i <= points; i++) {
-        final angle = (i / points) * math.pi * 2;
-        final wobble = math.sin(angle * 3 + swayValue) * layerRadius * 0.1;
-        final r = layerRadius + wobble;
-        final x = layerCenter.dx + math.cos(angle) * r;
-        final y = layerCenter.dy + math.sin(angle) * r * 0.8;
-
-        if (i == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-      path.close();
-
-      canvas.drawPath(path, _canopyPaint);
-    }
-
-    // Highlight
-    canvas.drawCircle(
-      center + Offset(-radius * 0.2 + swayValue, -radius * 0.2),
-      radius * 0.3,
-      _canopyHighlightPaint,
-    );
-  }
-
-  void _drawBlossoms(Canvas canvas, Offset center, double radius) {
-    final random = math.Random(42); // Fixed seed for consistent positions
-
-    // Use personality blossom color if available
-    final blossomColor =
-        personality?.blossomColor ??
-        Colors.pink.shade200.withValues(alpha: 0.8);
-    final personalizedBlossomPaint = Paint()
-      ..color = blossomColor.withValues(alpha: 0.8)
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < 15; i++) {
-      final angle = random.nextDouble() * math.pi * 2;
-      final r = random.nextDouble() * radius * 0.9;
-      final x = center.dx + math.cos(angle) * r + swayValue * 2;
-      final y = center.dy + math.sin(angle) * r * 0.7;
-      final size = 3.0 + random.nextDouble() * 3;
-
-      canvas.drawCircle(Offset(x, y), size, personalizedBlossomPaint);
-    }
-  }
-
-  void _drawFallingLeaves(Canvas canvas, Size size, Offset treeCenter) {
-    final random = math.Random(42);
-    final leafColors = [
-      Colors.orange.shade400,
-      Colors.red.shade300,
-      Colors.amber.shade600,
-    ];
-
-    for (int i = 0; i < 5; i++) {
-      final progress = (swayValue + i * 0.3) % 2 - 1; // -1 to 1
-      final x =
-          treeCenter.dx + (random.nextDouble() - 0.5) * 80 + progress * 20;
-      final y = treeCenter.dy + 30 + (progress + 1) * 40;
-
-      if (y < size.height * 0.9) {
-        _leafPaint.color = leafColors[i % leafColors.length].withValues(
-          alpha: 0.7,
-        );
-
-        canvas.save();
-        canvas.translate(x, y);
-        canvas.rotate(progress * math.pi);
-        canvas.drawCircle(Offset.zero, 4, _leafPaint);
-        canvas.restore();
-      }
-    }
-  }
-
-  void _drawFruit(Canvas canvas, Offset center, double radius) {
-    final random = math.Random(77); // Fixed seed for consistent positions
-    final fruitPaint = Paint()
-      ..color =
-          const Color(0xFFD4A76A) // warm gold
-      ..style = PaintingStyle.fill;
-    final highlightPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.4)
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < 5; i++) {
-      final angle = random.nextDouble() * math.pi * 2;
-      final r = radius * 0.4 + random.nextDouble() * radius * 0.4;
-      final x = center.dx + math.cos(angle) * r + swayValue * 1.5;
-      final y = center.dy + math.sin(angle) * r * 0.6 + radius * 0.1;
-      final size = 3.5 + random.nextDouble() * 2;
-
-      canvas.drawCircle(Offset(x, y), size, fruitPaint);
-      // Small highlight on each fruit
-      canvas.drawCircle(
-        Offset(x - size * 0.25, y - size * 0.25),
-        size * 0.35,
-        highlightPaint,
-      );
-    }
-  }
-
-  void _drawBirds(Canvas canvas, Offset center, double radius) {
-    final birdPaint = Paint()
-      ..color = SeedlingColors.barkBrown.withValues(alpha: 0.5)
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    // Two small bird silhouettes (simple V shapes) near canopy top
-    for (int i = 0; i < 2; i++) {
-      final bx =
-          center.dx + (i == 0 ? -radius * 0.5 : radius * 0.4) + swayValue * 2;
-      final by = center.dy - radius * (0.6 + i * 0.2) + swayValue * 1;
-      final wingSpan = 5.0 + i * 2;
-
-      final path = Path();
-      path.moveTo(bx - wingSpan, by + 2);
-      path.quadraticBezierTo(bx - wingSpan * 0.3, by - 1, bx, by);
-      path.quadraticBezierTo(
-        bx + wingSpan * 0.3,
-        by - 1,
-        bx + wingSpan,
-        by + 2,
-      );
-
-      canvas.drawPath(path, birdPaint);
-    }
-  }
-
-  void _drawParticles(Canvas canvas, Size size) {
-    if (particles.isEmpty || particleProgress < 0.01) return;
-    for (final particle in particles) {
-      // Update position based on progress
-      final x = (particle.x + particle.vx * particleProgress * 60) * size.width;
-      final y =
-          (particle.y +
-              particle.vy * particleProgress * 60 +
-              particleProgress * particleProgress * 0.02) *
-          size.height;
-      final alpha = (1 - particleProgress).clamp(0.0, 1.0);
-
-      _particlePaint.color = particle.color.withValues(alpha: alpha);
-
-      canvas.save();
-      canvas.translate(x, y);
-      canvas.rotate(
-        particle.rotation + particle.rotationSpeed * particleProgress * 20,
-      );
-
-      // Star shape for sparkle
-      final path = Path();
-      for (int i = 0; i < 4; i++) {
-        final angle = i * math.pi / 2;
-        final outerX = math.cos(angle) * particle.size;
-        final outerY = math.sin(angle) * particle.size;
-        final innerAngle = angle + math.pi / 4;
-        final innerX = math.cos(innerAngle) * particle.size * 0.4;
-        final innerY = math.sin(innerAngle) * particle.size * 0.4;
-
-        if (i == 0) {
-          path.moveTo(outerX, outerY);
-        } else {
-          path.lineTo(outerX, outerY);
-        }
-        path.lineTo(innerX, innerY);
-      }
-      path.close();
-
-      canvas.drawPath(path, _particlePaint);
-      canvas.restore();
-    }
-  }
-
-  Color _getStemColor() {
-    return SeedlingColors.leafGreen;
-  }
-
-  Color _getLeafColor() {
-    final seasonalColor = switch (season) {
-      Season.spring => SeedlingColors.freshSprout,
-      Season.summer => SeedlingColors.leafGreen,
-      Season.autumn => Colors.orange.shade400,
-      Season.winter => SeedlingColors.paleGreen.withValues(alpha: 0.6),
-    };
-
-    // Blend with personality accent (30%) if available
-    if (personality != null) {
-      return Color.lerp(seasonalColor, personality!.accentColor, 0.3)!;
-    }
-    return seasonalColor;
   }
 
   @override
   bool shouldRepaint(_TreePainter oldDelegate) {
-    return oldDelegate.stateValue != stateValue ||
+    return oldDelegate.scene != scene ||
+        oldDelegate.settled != settled ||
         oldDelegate.swayValue != swayValue ||
-        oldDelegate.particleProgress != particleProgress ||
+        oldDelegate.moteProgress != moteProgress ||
         oldDelegate.growthScale != growthScale ||
-        oldDelegate.season != season ||
-        oldDelegate.personality != personality ||
-        oldDelegate.particles.length != particles.length ||
+        oldDelegate.pixelRatio != pixelRatio ||
+        oldDelegate.motes.length != motes.length ||
         !identical(oldDelegate.ambientParticles, ambientParticles);
   }
 }
 
 /// Identity of a cached static tree: anything that changes its pixels.
 class _TreeLayerKey {
-  const _TreeLayerKey(
-    this.size,
-    this.stateValue,
-    this.season,
-    this.personality,
-  );
+  const _TreeLayerKey(this.size, this.scene, this.pixelRatio);
 
   final Size size;
-  final double stateValue;
-  final Season season;
-  final TreePersonality? personality;
+  final TreeScene scene;
+  final double pixelRatio;
 
   @override
   bool operator ==(Object other) =>
       other is _TreeLayerKey &&
       other.size == size &&
-      other.stateValue == stateValue &&
-      other.season == season &&
-      other.personality == personality;
+      other.scene == scene &&
+      other.pixelRatio == pixelRatio;
 
   @override
-  int get hashCode => Object.hash(size, stateValue, season, personality);
+  int get hashCode => Object.hash(size, scene, pixelRatio);
 }
 
-/// Recorded tree (ground, trunk, foliage, decorations) plus the rasterised
-/// glow, replayed every frame under the sway transform.
+/// The tree rasterised once (ground, roots, bark, foliage, decorations)
+/// plus its glow, replayed every frame under the sway transform.
 class _TreeLayers {
-  _TreeLayers(this.body, this.glow, this.glowOrigin);
+  _TreeLayers(this.body, this.glow, this.glowOrigin, this.layout);
 
-  final ui.Picture body;
+  final ui.Image body;
   final ui.Image? glow;
   final Offset glowOrigin;
+  final TreeLayout layout;
 
   void dispose() {
     body.dispose();
@@ -1499,20 +838,7 @@ class _TreeLayers {
   }
 }
 
-enum _AmbientShape { petal, firefly, leaf, snow }
-
-class _AmbientConfig {
-  final int count;
-  final Color color;
-  final double baseSize;
-  final _AmbientShape shape;
-  const _AmbientConfig({
-    required this.count,
-    required this.color,
-    required this.baseSize,
-    required this.shape,
-  });
-}
+enum _AmbientShape { petal, firefly, mote, leaf, snow }
 
 class _AmbientParticle {
   double x;
