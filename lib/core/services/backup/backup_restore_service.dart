@@ -296,7 +296,7 @@ class BackupRestoreService {
     if (bytes != null) {
       await File(targetPath).writeAsBytes(bytes, flush: true);
     } else {
-      await staged!.copy(targetPath);
+      await FileStorageService.copyAsNewFile(staged!, targetPath);
     }
     return targetPath;
   }

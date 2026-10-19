@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -170,11 +171,27 @@ class FileStorageService {
     return '${dir.path}/$filename';
   }
 
+  /// Copies [source] to [destPath] and stamps it with the current time.
+  ///
+  /// On iOS File.copy preserves the source's modification time, so a photo
+  /// picked from the library (or restored from an old backup) would look
+  /// days old and the orphan sweep's 24h grace period would not protect an
+  /// unsaved draft. Every copy into the media directory goes through here.
+  static Future<File> copyAsNewFile(File source, String destPath) async {
+    final copied = await source.copy(destPath);
+    try {
+      await copied.setLastModified(DateTime.now());
+    } catch (e) {
+      debugPrint('copyAsNewFile could not stamp "$destPath": $e');
+    }
+    return copied;
+  }
+
   /// Copy a file to the photos directory
   Future<String> savePhoto(File sourceFile) async {
     final extension = _extensionFromPath(sourceFile.path);
     final destPath = await generatePhotoPath(extension: extension);
-    await sourceFile.copy(destPath);
+    await copyAsNewFile(sourceFile, destPath);
     await _protectFile(destPath);
     return destPath;
   }
@@ -183,7 +200,7 @@ class FileStorageService {
   Future<String> saveObjectPhoto(File sourceFile) async {
     final extension = _extensionFromPath(sourceFile.path);
     final destPath = await generateObjectPhotoPath(extension: extension);
-    await sourceFile.copy(destPath);
+    await copyAsNewFile(sourceFile, destPath);
     await _protectFile(destPath);
     return destPath;
   }
@@ -193,7 +210,7 @@ class FileStorageService {
     final sourceFile = File(sourcePath);
     final extension = _extensionFromPath(sourcePath);
     final destPath = await generateVoicePath(extension: extension);
-    await sourceFile.copy(destPath);
+    await copyAsNewFile(sourceFile, destPath);
     await _protectFile(destPath);
     // Delete the original temp file
     await sourceFile.delete();

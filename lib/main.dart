@@ -12,6 +12,7 @@ import 'core/services/ai/theme_backfill_service.dart';
 import 'core/services/diagnostics_log.dart';
 import 'core/services/error_reporter.dart';
 import 'core/services/export/export_cleanup.dart';
+import 'core/services/media/draft_media_tracker.dart';
 import 'core/services/media/file_storage_service.dart';
 import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
@@ -181,6 +182,7 @@ Future<void> _sweepOrphanMedia(
     final deleted = await const MediaOrphanSweeper().sweep(
       mediaDirectory: Directory(fileStorage.basePath),
       referencedPaths: entries.map((e) => e.mediaPath),
+      protectedPaths: DraftMediaTracker.liveDraftPaths,
     );
     if (deleted > 0) debugPrint('Removed $deleted orphaned media files');
   } catch (e, st) {
