@@ -26,6 +26,10 @@ class AnimatedTreeVisualization extends StatefulWidget {
   final bool celebrateGrowth;
   final TreePersonality? personality;
 
+  /// Whether to show the stage name and progress-to-next-stage bar under
+  /// the tree. Calm mode turns this off; the tree itself still grows.
+  final bool showGrowthDetails;
+
   const AnimatedTreeVisualization({
     super.key,
     required this.state,
@@ -33,6 +37,7 @@ class AnimatedTreeVisualization extends StatefulWidget {
     this.onTap,
     this.celebrateGrowth = false,
     this.personality,
+    this.showGrowthDetails = true,
   });
 
   @override
@@ -240,7 +245,9 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   Widget build(BuildContext context) {
     return Semantics(
       button: widget.onTap != null,
-      label: 'Your tree is a ${_getStateName()}. Tap to open memories.',
+      label: widget.showGrowthDetails
+          ? 'Your tree is a ${_getStateName()}. Tap to open memories.'
+          : 'Your tree. Tap to open memories.',
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -289,18 +296,20 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
                   },
                 ),
               ),
-              const SizedBox(height: 16),
-              // State label
-              Text(
-                _getStateName(),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: _getStateColor(),
-                  fontWeight: FontWeight.w500,
+              if (widget.showGrowthDetails) ...[
+                const SizedBox(height: 16),
+                // State label
+                Text(
+                  _getStateName(),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: _getStateColor(),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // Progress indicator
-              _buildProgressIndicator(context),
+                const SizedBox(height: 8),
+                // Progress indicator
+                _buildProgressIndicator(context),
+              ],
             ],
           ),
         ),

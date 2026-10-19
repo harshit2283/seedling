@@ -54,6 +54,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     final shouldCelebrate = ref.watch(treeGrowthEventProvider);
     final prompt = ref.watch(currentPromptProvider);
     final personality = ref.watch(treePersonalityProvider);
+    final calm = ref.watch(calmModeProvider);
 
     // Activate growth detector (must be watched to work)
     ref.watch(treeGrowthDetectorProvider);
@@ -69,6 +70,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
         shouldCelebrate: shouldCelebrate,
         prompt: prompt,
         personality: personality,
+        calm: calm,
       );
     }
     return _buildAndroidLayout(
@@ -81,6 +83,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       shouldCelebrate: shouldCelebrate,
       prompt: prompt,
       personality: personality,
+      calm: calm,
     );
   }
 
@@ -94,6 +97,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required bool shouldCelebrate,
     required GentlePrompt? prompt,
     required TreePersonality personality,
+    required bool calm,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return CupertinoPageScaffold(
@@ -112,6 +116,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               shouldCelebrate: shouldCelebrate,
               prompt: prompt,
               personality: personality,
+              calm: calm,
             ),
             Positioned(
               left: 0,
@@ -135,6 +140,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required bool shouldCelebrate,
     required GentlePrompt? prompt,
     required TreePersonality personality,
+    required bool calm,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return Scaffold(
@@ -152,6 +158,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               shouldCelebrate: shouldCelebrate,
               prompt: prompt,
               personality: personality,
+              calm: calm,
             ),
             Positioned(
               left: 0,
@@ -175,6 +182,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required bool shouldCelebrate,
     required GentlePrompt? prompt,
     required TreePersonality personality,
+    required bool calm,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -221,13 +229,14 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              Text(
-                'This year: ${_treeStageLabel(treeState)}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.warmBrown,
-                  fontStyle: FontStyle.italic,
+              if (!calm)
+                Text(
+                  'This year: ${_treeStageLabel(treeState)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: SeedlingColors.warmBrown,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
-              ),
               const SizedBox(height: 14),
               Container(
                 width: double.infinity,
@@ -254,6 +263,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                       celebrateGrowth: shouldCelebrate,
                       onTap: () => context.push(AppRoutes.memories),
                       personality: personality,
+                      showGrowthDetails: !calm,
                     ),
                   ),
                 ),
@@ -270,7 +280,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              if (entryCount > 0) ...[
+              if (entryCount > 0 && !calm) ...[
                 const SizedBox(height: 6),
                 Text(
                   '$entryCount ${entryCount == 1 ? 'memory' : 'memories'}',

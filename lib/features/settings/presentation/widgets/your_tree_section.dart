@@ -15,6 +15,9 @@ class YourTreeSection extends ConsumerWidget {
     final entryCount = ref.watch(entryCountProvider);
     final tree = ref.watch(currentTreeProvider);
     final homeFeedScope = ref.watch(homeFeedScopeProvider);
+    final calm = ref.watch(calmModeProvider);
+    const calmTitle = 'Calm mode';
+    const calmSubtitle = 'Hide counts and stages. Your tree still grows.';
 
     if (PlatformUtils.isIOS) {
       return CupertinoListSection.insetGrouped(
@@ -26,17 +29,33 @@ class YourTreeSection extends ConsumerWidget {
               AdaptiveIcons.tree,
               SeedlingColors.forestGreen,
             ),
-            title: Text(tree?.stateName ?? 'Seed'),
+            title: Text(calm ? 'Your tree' : (tree?.stateName ?? 'Seed')),
             subtitle: Text(tree?.stateDescription ?? 'Plant your first memory'),
           ),
+          if (!calm)
+            CupertinoListTile(
+              leading: buildSettingsIconBox(
+                context,
+                AdaptiveIcons.list,
+                SeedlingColors.forestGreen,
+              ),
+              title: Text('$entryCount memories'),
+              subtitle: const Text('This year'),
+            ),
           CupertinoListTile(
             leading: buildSettingsIconBox(
               context,
-              AdaptiveIcons.list,
+              AdaptiveIcons.leaf,
               SeedlingColors.forestGreen,
             ),
-            title: Text('$entryCount memories'),
-            subtitle: const Text('This year'),
+            title: const Text(calmTitle),
+            subtitle: const Text(calmSubtitle),
+            trailing: CupertinoSwitch(
+              value: calm,
+              activeTrackColor: SeedlingColors.forestGreen,
+              onChanged: (value) =>
+                  ref.read(calmModeProvider.notifier).setEnabled(value),
+            ),
           ),
           CupertinoListTile(
             leading: buildSettingsIconBox(
@@ -75,14 +94,24 @@ class YourTreeSection extends ConsumerWidget {
         buildMaterialInfoTile(
           context,
           icon: AdaptiveIcons.tree,
-          title: tree?.stateName ?? 'Seed',
+          title: calm ? 'Your tree' : (tree?.stateName ?? 'Seed'),
           subtitle: tree?.stateDescription ?? 'Plant your first memory',
         ),
-        buildMaterialInfoTile(
+        if (!calm)
+          buildMaterialInfoTile(
+            context,
+            icon: AdaptiveIcons.list,
+            title: '$entryCount memories',
+            subtitle: 'This year',
+          ),
+        buildMaterialSwitchTile(
           context,
-          icon: AdaptiveIcons.list,
-          title: '$entryCount memories',
-          subtitle: 'This year',
+          icon: AdaptiveIcons.leaf,
+          title: calmTitle,
+          subtitle: calmSubtitle,
+          value: calm,
+          onChanged: (value) =>
+              ref.read(calmModeProvider.notifier).setEnabled(value),
         ),
         buildMaterialSwitchTile(
           context,

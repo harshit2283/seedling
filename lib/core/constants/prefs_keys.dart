@@ -21,6 +21,9 @@ class PrefsKeys {
   // Home feed
   static const String homeFeedScope = 'home_feed_scope';
 
+  // Calm mode: hide counts, stages and progress (the tree still grows).
+  static const String calmModeEnabled = 'calm_mode_enabled';
+
   // Sync provider (iOS)
   static const String syncProviderIOS = 'sync_provider_ios';
 

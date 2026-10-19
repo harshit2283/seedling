@@ -162,6 +162,31 @@ final effectiveWidgetMemoryPreviewsProvider = Provider<bool>((ref) {
   return previewsEnabled && !appLockEnabled;
 });
 
+// ============================================================================
+// Calm mode
+// ============================================================================
+
+/// Calm mode hides entry counts, the progress-to-next-stage bar and stage
+/// labels on the tree screen and home widgets. The tree still grows; it just
+/// stops keeping score. Off by default.
+class CalmModeNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final prefs = ref.watch(sharedPreferencesProvider);
+    return prefs.getBool(PrefsKeys.calmModeEnabled) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(PrefsKeys.calmModeEnabled, enabled);
+  }
+}
+
+final calmModeProvider = NotifierProvider<CalmModeNotifier, bool>(
+  CalmModeNotifier.new,
+);
+
 /// Provider for the widget data service (must be overridden at startup)
 final widgetDataServiceProvider = Provider<WidgetDataService>((ref) {
   throw UnimplementedError(
@@ -175,6 +200,7 @@ final widgetAutoUpdateProvider = Provider<void>((ref) {
   final entries = ref.watch(entriesProvider);
   final widgetService = ref.watch(widgetDataServiceProvider);
   final showMemoryPreviews = ref.watch(effectiveWidgetMemoryPreviewsProvider);
+  final calmMode = ref.watch(calmModeProvider);
 
   // Update widget data whenever tree or entries change
   unawaited(
@@ -182,6 +208,7 @@ final widgetAutoUpdateProvider = Provider<void>((ref) {
       tree: tree,
       recentEntries: entries.take(3).toList(),
       showMemoryPreviews: showMemoryPreviews,
+      calmMode: calmMode,
     ),
   );
 });

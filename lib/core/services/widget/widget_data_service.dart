@@ -27,10 +27,12 @@ class WidgetDataService {
   /// Update widget data with current tree and recent entries
   ///
   /// Call this whenever entries are added/deleted or tree state changes.
+  /// With [calmMode] the widgets hide counts, stage names and progress.
   Future<void> updateWidgetData({
     required Tree? tree,
     required List<Entry> recentEntries,
     required bool showMemoryPreviews,
+    bool calmMode = false,
   }) async {
     // Tree data
     final treeState = tree?.state.name ?? 'seed';
@@ -69,6 +71,7 @@ class WidgetDataService {
       HomeWidget.saveWidgetData('stateName', stateName),
       HomeWidget.saveWidgetData('stateDescription', stateDescription),
       HomeWidget.saveWidgetData('recentEntries', recentEntriesJson),
+      HomeWidget.saveWidgetData('calmMode', calmMode),
       HomeWidget.saveWidgetData(
         'lastUpdated',
         DateTime.now().toIso8601String(),

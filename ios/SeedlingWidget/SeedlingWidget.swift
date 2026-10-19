@@ -12,6 +12,8 @@ struct WidgetData: Codable {
     let stateDescription: String
     let recentEntries: [WidgetEntry]
     let lastUpdated: String
+    /// Calm mode: the tree still grows, but no counts, stages or progress.
+    var calmMode: Bool = false
 
     struct WidgetEntry: Codable {
         let id: Int
@@ -72,6 +74,7 @@ struct Provider: TimelineProvider {
         let stateName = userDefaults.string(forKey: "stateName") ?? "Seed"
         let stateDescription = userDefaults.string(forKey: "stateDescription") ?? "Every memory starts as a seed"
         let lastUpdated = userDefaults.string(forKey: "lastUpdated") ?? ""
+        let calmMode = userDefaults.bool(forKey: "calmMode")
 
         // Parse recent entries JSON
         var recentEntries: [WidgetData.WidgetEntry] = []
@@ -88,7 +91,8 @@ struct Provider: TimelineProvider {
             stateName: stateName,
             stateDescription: stateDescription,
             recentEntries: recentEntries,
-            lastUpdated: lastUpdated
+            lastUpdated: lastUpdated,
+            calmMode: calmMode
         )
     }
 }
@@ -119,14 +123,20 @@ struct SmallWidgetView: View {
                 Text(entry.widgetData.treeEmoji)
                     .font(.system(size: 44))
 
-                // Entry count
-                Text("\(entry.widgetData.entryCount)")
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    .foregroundColor(Color(hex: "2D5A3D"))
+                if entry.widgetData.calmMode {
+                    Text("Your tree")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(hex: "6B8E6B"))
+                } else {
+                    // Entry count
+                    Text("\(entry.widgetData.entryCount)")
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(hex: "2D5A3D"))
 
-                Text("memories")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color(hex: "6B8E6B"))
+                    Text("memories")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(hex: "6B8E6B"))
+                }
             }
         }
         .widgetURL(URL(string: "seedling://home"))
@@ -151,13 +161,15 @@ struct MediumWidgetView: View {
                     Text(entry.widgetData.treeEmoji)
                         .font(.system(size: 48))
 
-                    Text("\(entry.widgetData.entryCount)")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(hex: "2D5A3D"))
+                    if !entry.widgetData.calmMode {
+                        Text("\(entry.widgetData.entryCount)")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(Color(hex: "2D5A3D"))
 
-                    Text(entry.widgetData.stateName)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(hex: "6B8E6B"))
+                        Text(entry.widgetData.stateName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: "6B8E6B"))
+                    }
                 }
                 .frame(width: 80)
 
@@ -168,7 +180,8 @@ struct MediumWidgetView: View {
 
                 // Right side: Progress and recent entry
                 VStack(alignment: .leading, spacing: 8) {
-                    // Progress bar
+                    // Progress bar (hidden in calm mode)
+                    if !entry.widgetData.calmMode {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Growth Progress")
                             .font(.system(size: 10, weight: .medium))
@@ -185,6 +198,7 @@ struct MediumWidgetView: View {
                             }
                         }
                         .frame(height: 8)
+                    }
                     }
 
                     // Recent entry preview
@@ -237,13 +251,15 @@ struct LargeWidgetView: View {
                         .font(.system(size: 40))
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.widgetData.stateName)
+                        Text(entry.widgetData.calmMode ? "Your tree" : entry.widgetData.stateName)
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(Color(hex: "2D5A3D"))
 
-                        Text("\(entry.widgetData.entryCount) memories")
-                            .font(.system(size: 13))
-                            .foregroundColor(Color(hex: "6B8E6B"))
+                        if !entry.widgetData.calmMode {
+                            Text("\(entry.widgetData.entryCount) memories")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(hex: "6B8E6B"))
+                        }
                     }
 
                     Spacer()
@@ -256,8 +272,9 @@ struct LargeWidgetView: View {
                     }
                 }
 
-                // Progress bar
+                // Progress bar (hidden in calm mode; the description stays)
                 VStack(alignment: .leading, spacing: 4) {
+                    if !entry.widgetData.calmMode {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 6)
@@ -275,6 +292,7 @@ struct LargeWidgetView: View {
                         }
                     }
                     .frame(height: 10)
+                    }
 
                     Text(entry.widgetData.stateDescription)
                         .font(.system(size: 11))
