@@ -293,6 +293,7 @@ final backupReminderServiceProvider = Provider<BackupReminderService>((ref) {
 /// Provider that checks whether the backup reminder should be shown.
 final shouldShowBackupReminderProvider = Provider<bool>((ref) {
   final service = ref.watch(backupReminderServiceProvider);
-  final entryCount = ref.watch(entryCountProvider);
+  // Every memory counts, across all years (the yearly tree resets).
+  final entryCount = ref.watch(allEntriesProvider).length;
   return service.shouldShowReminder(entryCount: entryCount);
 });

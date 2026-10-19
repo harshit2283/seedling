@@ -79,6 +79,10 @@ class PrefsKeys {
   static const String backupReminderDismissedAt =
       'backup_reminder_dismissed_at';
 
+  /// When Seedling first saw a saved memory; the backup suggestion waits
+  /// two weeks from here so a new tree is never nagged on day one.
+  static const String firstMemorySeenAt = 'first_memory_seen_at';
+
   // Memories screen
   static const String memoriesGridView = 'memories_grid_view';
 

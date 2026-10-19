@@ -8,8 +8,9 @@ import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 
-/// A quiet line at the very end of the home page when the last backup is
-/// more than a month old. No card, no button colour: one muted sentence
+/// A quiet line at the very end of the home page suggesting a backup, once
+/// the tree is a couple of weeks and ten memories old (see
+/// [BackupReminderService]). No card, no button colour: one muted sentence
 /// with a link to the backup settings and a way to hush it for 30 days.
 class BackupReminderCard extends ConsumerWidget {
   const BackupReminderCard({super.key});
@@ -51,7 +52,9 @@ class BackupReminderCard extends ConsumerWidget {
                   child: Text.rich(
                     TextSpan(
                       children: [
-                        const TextSpan(text: 'No backup in a while. '),
+                        const TextSpan(
+                          text: 'Keep a copy of your memories somewhere safe. ',
+                        ),
                         TextSpan(
                           text: 'Back up',
                           style: TextStyle(

@@ -1,90 +1,96 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seedling/core/constants/prefs_keys.dart';
 import 'package:seedling/core/services/backup/backup_reminder_service.dart';
+import 'package:seedling/core/services/providers.dart';
+import 'package:seedling/features/tree/presentation/widgets/backup_reminder_card.dart';
 
 void main() {
   group('BackupReminderService', () {
     late SharedPreferences prefs;
+    late DateTime now;
     late BackupReminderService service;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       prefs = await SharedPreferences.getInstance();
-      service = BackupReminderService(prefs);
+      now = DateTime(2026, 10, 19, 9);
+      service = BackupReminderService(prefs, clock: () => now);
     });
+
+    /// A tree that has been growing for [days] days.
+    Future<void> firstMemory(int days) => prefs.setString(
+      PrefsKeys.firstMemorySeenAt,
+      now.subtract(Duration(days: days)).toIso8601String(),
+    );
 
     test('no reminder when no entries exist', () {
       expect(service.shouldShowReminder(entryCount: 0), false);
     });
 
-    test('reminder shows when user has entries but never backed up', () {
-      expect(service.shouldShowReminder(entryCount: 5), true);
+    test('never on day one, even with many memories', () {
+      // Old behaviour: no backup date => reminder right away.
+      expect(service.shouldShowReminder(entryCount: 5), false);
+      expect(service.shouldShowReminder(entryCount: 40), false);
     });
 
-    test('no reminder when backup was recent (< 30 days)', () async {
-      // Record a backup right now
-      await service.recordBackup();
-
-      expect(service.shouldShowReminder(entryCount: 10), false);
+    test('first memory is remembered the first time it is seen', () {
+      expect(service.getFirstMemorySeenAt(), isNull);
+      service.shouldShowReminder(entryCount: 1);
+      expect(service.getFirstMemorySeenAt(), now);
+      // Later calls keep the original date.
+      now = now.add(const Duration(days: 3));
+      service.shouldShowReminder(entryCount: 2);
+      expect(service.getFirstMemorySeenAt(), DateTime(2026, 10, 19, 9));
     });
 
-    test('reminder shows after 30 days since last backup', () async {
-      // Simulate a backup that happened 31 days ago
-      final oldDate = DateTime.now().subtract(const Duration(days: 31));
-      await prefs.setString(
-        PrefsKeys.lastBackupDate,
-        oldDate.toIso8601String(),
-      );
+    test('waits for 14 days since the first memory', () async {
+      await firstMemory(13);
+      expect(service.shouldShowReminder(entryCount: 20), false);
+      await firstMemory(14);
+      expect(service.shouldShowReminder(entryCount: 20), true);
+    });
 
+    test('waits for 10 memories', () async {
+      await firstMemory(60);
+      expect(service.shouldShowReminder(entryCount: 9), false);
       expect(service.shouldShowReminder(entryCount: 10), true);
     });
 
-    test('no reminder at exactly 29 days since backup', () async {
-      final date = DateTime.now().subtract(const Duration(days: 29));
-      await prefs.setString(PrefsKeys.lastBackupDate, date.toIso8601String());
+    test('day-one tree grows into a suggestion two weeks later', () {
+      expect(service.shouldShowReminder(entryCount: 12), false);
+      now = now.add(const Duration(days: 14));
+      expect(service.shouldShowReminder(entryCount: 12), true);
+    });
 
+    test('no reminder when backup was recent (< 30 days)', () async {
+      await firstMemory(90);
+      await service.recordBackup();
+      now = now.add(const Duration(days: 29));
       expect(service.shouldShowReminder(entryCount: 10), false);
+      now = now.add(const Duration(days: 1));
+      expect(service.shouldShowReminder(entryCount: 10), true);
     });
 
     test('dismiss silences reminder for 30 days', () async {
-      // User has never backed up and has entries — reminder would show.
-      expect(service.shouldShowReminder(entryCount: 5), true);
-
-      // Dismiss the reminder.
+      await firstMemory(90);
+      expect(service.shouldShowReminder(entryCount: 15), true);
       await service.dismissReminder();
-
-      // Now it should not show.
-      expect(service.shouldShowReminder(entryCount: 5), false);
-    });
-
-    test('reminder reappears after dismiss expires (30+ days)', () async {
-      // Simulate a dismissal that happened 31 days ago.
-      final oldDismiss = DateTime.now().subtract(const Duration(days: 31));
-      await prefs.setString(
-        PrefsKeys.backupReminderDismissedAt,
-        oldDismiss.toIso8601String(),
-      );
-
-      // Never backed up, has entries — should show again.
-      expect(service.shouldShowReminder(entryCount: 5), true);
+      expect(service.shouldShowReminder(entryCount: 15), false);
+      now = now.add(const Duration(days: 29));
+      expect(service.shouldShowReminder(entryCount: 15), false);
+      now = now.add(const Duration(days: 1));
+      expect(service.shouldShowReminder(entryCount: 15), true);
     });
 
     test('recordBackup resets the timer and clears dismissal', () async {
-      // Dismiss first
+      await firstMemory(90);
       await service.dismissReminder();
-      expect(service.shouldShowReminder(entryCount: 5), false);
-
-      // Record a backup — this should clear the dismissal.
       await service.recordBackup();
-
-      // Backup just happened, so no reminder.
-      expect(service.shouldShowReminder(entryCount: 5), false);
-
-      // Verify the backup date is set.
-      expect(service.getLastBackupDate(), isNotNull);
-
-      // Verify dismissal was cleared.
+      expect(service.shouldShowReminder(entryCount: 15), false);
+      expect(service.getLastBackupDate(), now);
       expect(prefs.getString(PrefsKeys.backupReminderDismissedAt), isNull);
     });
 
@@ -92,69 +98,28 @@ void main() {
       expect(service.getLastBackupDate(), isNull);
     });
 
-    test('getLastBackupDate returns date after recordBackup', () async {
-      final before = DateTime.now();
-      await service.recordBackup();
-      final after = DateTime.now();
-
-      final lastBackup = service.getLastBackupDate();
-      expect(lastBackup, isNotNull);
-      expect(
-        lastBackup!.isAfter(before.subtract(const Duration(seconds: 1))),
-        true,
-      );
-      expect(lastBackup.isBefore(after.add(const Duration(seconds: 1))), true);
-    });
-
-    test('reminder shows at exactly 30 days (boundary)', () async {
-      final date = DateTime.now().subtract(const Duration(days: 30));
-      await prefs.setString(PrefsKeys.lastBackupDate, date.toIso8601String());
-
-      // >= 30 days triggers the reminder
-      expect(service.shouldShowReminder(entryCount: 10), true);
-    });
-
-    test('multiple recordBackup calls keep latest date', () async {
-      await service.recordBackup();
-      final first = service.getLastBackupDate();
-
-      // Small delay to ensure different timestamps
-      await Future.delayed(const Duration(milliseconds: 10));
-      await service.recordBackup();
-      final second = service.getLastBackupDate();
-
-      expect(second, isNotNull);
-      expect(first, isNotNull);
-      expect(second!.isAfter(first!) || second.isAtSameMomentAs(first), true);
-    });
-
-    test('dismiss after backup still silences reminder', () async {
-      await service.recordBackup();
-      // Simulate backup being old
-      final oldDate = DateTime.now().subtract(const Duration(days: 31));
-      await prefs.setString(
-        PrefsKeys.lastBackupDate,
-        oldDate.toIso8601String(),
-      );
-
-      // Would normally show
-      expect(service.shouldShowReminder(entryCount: 5), true);
-
-      // Dismiss
-      await service.dismissReminder();
-      expect(service.shouldShowReminder(entryCount: 5), false);
-    });
-
-    test('entry count of 1 is sufficient to trigger reminder', () {
-      expect(service.shouldShowReminder(entryCount: 1), true);
-    });
-
-    test('handles corrupted date string in prefs gracefully', () async {
+    test('handles corrupted date strings gracefully', () async {
       await prefs.setString(PrefsKeys.lastBackupDate, 'not-a-date');
-
-      // Should not crash — treats as never backed up
-      final lastBackup = service.getLastBackupDate();
-      expect(lastBackup, isNull);
+      expect(service.getLastBackupDate(), isNull);
     });
+  });
+
+  testWidgets('home line uses the warm copy', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          shouldShowBackupReminderProvider.overrideWithValue(true),
+        ],
+        child: const MaterialApp(home: Scaffold(body: BackupReminderCard())),
+      ),
+    );
+    expect(
+      find.textContaining('Keep a copy of your memories somewhere safe'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('No backup in a while'), findsNothing);
   });
 }
