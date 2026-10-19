@@ -67,7 +67,6 @@ class PrefsKeys {
   static const String gentleRemindersQuietStart =
       'gentle_reminders_quiet_start';
   static const String gentleRemindersQuietEnd = 'gentle_reminders_quiet_end';
-  static const String ritualLastNotificationMs = 'ritual_last_notification_ms';
 
   // Entry type usage
   static const String entryTypeUsageData = 'entry_type_usage_data';

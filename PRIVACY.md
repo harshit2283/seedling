@@ -14,7 +14,7 @@ source, so every statement here can be checked against the code at
 - **Your memories stay on your device** unless you choose to move them.
 - **Cloud sync is off by default.** If you turn it on, your memories go to
   *your own* iCloud or Google Drive, not to us.
-- **Analysis happens on your device.** Themes, connections, and voice
+- **Analysis happens on your device.** Themes, related memories, and voice
   transcription are computed locally.
 
 ## What Seedling stores, and where
@@ -33,7 +33,15 @@ capsules, rituals) is stored in the app's private storage on your device.
   preferences on the device.
 
 Deleted memories go to "Recently Deleted" for 30 days, then are removed.
+When you let go of a "Let go" memory and choose "Let it go completely", it is
+deleted at once, with its media, without passing through Recently Deleted.
 Deleting the app removes its local data.
+
+**Device backups don't include your memories.** On iOS the database and
+media folders are excluded from iCloud and computer backups, and the key that
+decrypts the database is stored "this device only", so it is never in a
+backup. On Android, app backup is turned off. To keep a copy, use Export or
+cloud sync.
 
 ## What the developer receives
 
@@ -43,19 +51,16 @@ it never has any.
 
 ## On-device processing
 
-- **Themes, connections, and suggestions** use keyword matching and the
-  platform's on-device language tools (Apple NaturalLanguage on iOS, Google
-  ML Kit on Android). Your text is not sent anywhere for analysis.
+- **Themes and related memories** are computed by Seedling's own code on
+  your device (a weighted word list and text similarity over your own
+  memories). No platform ML service or model download is involved, and your
+  text is not sent anywhere for analysis. Seedling does not score how your
+  memories feel.
 - **Voice transcription (iOS only)** uses Apple's speech recognizer with
   on-device recognition required. If your device or language can't
   transcribe on-device, Seedling simply doesn't transcribe; it never falls
   back to a server. Transcription is not offered on Android, because the
   Android system recognizer may send audio to a cloud service.
-
-> **Note for Android:** the first time it runs, Google ML Kit downloads its
-> language model from Google's servers. No memory content is included in
-> that download request, but it is a network connection to Google that
-> happens without a separate prompt. See "Known limitations" below.
 
 ## Optional cloud sync
 
@@ -96,7 +101,9 @@ Files larger than 50 MB are not synced.
 What sync does **not** encrypt end-to-end:
 
 - **Record metadata** such as memory type, creation and modification
-  dates, capsule unlock dates, deletion state and date, a sentiment score,
+  dates, capsule unlock dates, deletion state and date, a legacy sentiment
+  score (only on memories from older versions; Seedling no longer computes
+  one),
   the local media file name, a random media file id, and a random device
   ID are stored unencrypted alongside the encrypted fields, so sync can
   work. They are authenticated (tampering is detected) but readable by the
@@ -112,8 +119,14 @@ own privacy policies.
 
 These happen only when you ask:
 
-- **Export** (JSON or ZIP) and **encrypted backup** create files that you
-  save or send wherever you choose using the system share sheet.
+- **Export** (JSON, ZIP, or Markdown) and **encrypted backup** create files
+  that you save or send wherever you choose using the system share sheet.
+  The temporary file is deleted once the share sheet closes. JSON, ZIP and
+  Markdown exports are not encrypted; the encrypted backup is protected by a
+  password you choose.
+- **Import** (an encrypted backup, a Seedling ZIP or Markdown export, or a
+  Day One JSON export) reads only the file you pick, on your device, and
+  shows what it will add before adding anything.
 - **Sharing** a memory or a Year in Review card goes through the system
   share sheet to the app you pick.
 - **Receiving shares** from other apps creates a memory only after you
@@ -121,17 +134,25 @@ These happen only when you ask:
 
 ## Notifications and widgets
 
-- **Gentle reminders** are opt-in and off by default. They are scheduled
-  locally; no push service is involved.
-- **Home screen widgets** show your tree and counts. Showing memory text in
-  widgets is off by default. Widget data is shared only between Seedling
-  and its own widget on your device.
+- **Gentle reminders** and the weekly **"From your tree"** nudge are opt-in
+  and off by default. They are scheduled locally; no push service is
+  involved. Their text is generic ("A memory is waiting for you") and never
+  includes memory text, titles, or dates; on Android they are marked
+  private, so a secure lock screen shows only "Contents hidden".
+- **Home screen widgets** show your tree and counts (calm mode hides the
+  counts). Showing memory text in widgets is off by default, is turned off
+  while app lock is on, and on iOS is redacted while the device is locked.
+  Widget data is shared only between Seedling and its own widget on your
+  device.
 
 ## Diagnostics
 
-Seedling does not collect crash reports or diagnostics. Error details are
-only printed to the developer console in debug builds. If you report a
-bug, you decide what to include.
+Seedling does not collect crash reports or diagnostics. It keeps a small
+error log **on your device** (the last 200 errors), redacted before it is
+written: quoted text, file paths, links, and email addresses are removed and
+messages are shortened, so memory content doesn't end up in it. Nothing is
+sent anywhere. If you choose Settings > About > Share diagnostics, Seedling
+asks first and then opens the share sheet; you decide where it goes.
 
 ## Permissions
 
@@ -152,8 +173,6 @@ Being honest about where the code doesn't yet match the ideal:
    id) is not encrypted, and encrypted media sizes are visible to the
    storage provider.
 2. Media files over 50 MB are not synced.
-3. On Android, ML Kit may contact Google to download its language model
-   on first launch, before any opt-in.
 
 These are tracked as open work.
 

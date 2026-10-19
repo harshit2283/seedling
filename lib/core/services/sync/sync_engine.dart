@@ -119,6 +119,9 @@ class SyncEngine {
     }
 
     try {
+      // Load the set-aside records (local file) so Settings can show their
+      // count right away, before any network work.
+      await _quarantine.records();
       final available = await _backend.isAvailable().timeout(callTimeout);
       if (!available) {
         _setState(SyncState.error);
@@ -513,14 +516,9 @@ class SyncEngine {
       }
       await _quarantine.replace(quarantined);
       await _metadata.setLastSyncTime(DateTime.now());
-      await _metadata.setLastError(
-        quarantined.isEmpty
-            ? null
-            : '${quarantined.length} synced memor'
-                  '${quarantined.length == 1 ? 'y' : 'ies'} couldn\'t be '
-                  'decrypted and were set aside. If you changed your sync '
-                  'passphrase, re-enter it in Settings > Privacy.',
-      );
+      // Set-aside records are not an error: Settings shows their count
+      // (syncQuarantineCountProvider) with a calm explanation.
+      await _metadata.setLastError(null);
       _lastPullFailed = false;
 
       _setState(SyncState.idle);

@@ -7,11 +7,15 @@
 - no tracked secrets or signing assets
 - README and public docs are current
 - privacy copy matches current behavior
+- [device verification](device-verification.md) items for every area this
+  release touches pass on real iOS and Android devices
 
 ## iOS
 
 - signing works for Runner and widget extension
 - App Group and CloudKit capabilities match entitlements
+- CloudKit Production schema has `SeedlingFile {name: String, data: Asset}`
+  (see [device verification](device-verification.md#11-production-schema-is-deployed))
 - signed `.ipa` produced
 - TestFlight/App Store metadata is ready
 

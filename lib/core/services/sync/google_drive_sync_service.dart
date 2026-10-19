@@ -449,22 +449,6 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   // ---------------------------------------------------------------------------
-  // Quarantine helpers (records an older version set aside in the v1 doc)
-  // ---------------------------------------------------------------------------
-
-  Future<void> clearQuarantine() async {
-    if (!await _ensureReady()) return;
-    await (await _logs()).clearLegacyQuarantine();
-  }
-
-  Future<int> get quarantineCount async {
-    if (!await _ensureReady()) return 0;
-    final doc = await (await _logs()).readLegacyDocument();
-    final quarantine = doc?['quarantine'];
-    return quarantine is Map ? quarantine.length : 0;
-  }
-
-  // ---------------------------------------------------------------------------
   // Internal helpers
   // ---------------------------------------------------------------------------
 

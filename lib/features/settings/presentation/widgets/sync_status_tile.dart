@@ -19,16 +19,6 @@ final _lockedAccountProvider = FutureProvider<String?>((ref) async {
   return backend.lockedAccount;
 });
 
-/// Resolves how many records are currently in quarantine (Android only).
-///
-/// Reading quarantine requires a Drive session, so this is gated on the
-/// master cloud-sync opt-in and never authenticates before it.
-final _quarantineCountProvider = FutureProvider<int>((ref) async {
-  if (!ref.watch(cloudSyncEnabledProvider)) return 0;
-  final backend = ref.watch(googleDriveSyncServiceProvider);
-  return backend.quarantineCount;
-});
-
 // ---------------------------------------------------------------------------
 
 /// Settings tile showing cloud sync status with enable/disable toggle.
@@ -70,12 +60,12 @@ class SyncStatusTile extends ConsumerWidget {
           _buildStatusRow(context, syncState, isDark),
           const SizedBox(height: 4),
           _buildLastSyncRow(context, ref, isDark),
+          const SyncQuarantineNotice(),
         ],
         // Android-only hardening UI
         if (Platform.isAndroid) ...[
           _buildLockedAccountRow(context, ref, isDark),
           _buildLastErrorRow(context, ref, isDark),
-          _buildQuarantineRow(context, ref, isDark),
         ],
       ],
     );
@@ -342,47 +332,6 @@ class SyncStatusTile extends ConsumerWidget {
     );
   }
 
-  /// Shows quarantine count badge and a Clear button if there are bad records.
-  Widget _buildQuarantineRow(BuildContext context, WidgetRef ref, bool isDark) {
-    final quarantineAsync = ref.watch(_quarantineCountProvider);
-    final count = quarantineAsync.asData?.value ?? 0;
-    if (count == 0) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(left: 32, top: 6),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-            ),
-            child: Text(
-              '$count quarantined record${count == 1 ? '' : 's'}',
-              style: const TextStyle(
-                fontSize: 11,
-                color: Colors.orange,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.orange,
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(0, 32),
-            ),
-            onPressed: () => _clearQuarantine(context, ref),
-            child: const Text('Clear', style: TextStyle(fontSize: 12)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildStatusRow(BuildContext context, SyncState state, bool isDark) {
     final (icon, label, color) = switch (state) {
       SyncState.idle => (
@@ -624,12 +573,6 @@ class SyncStatusTile extends ConsumerWidget {
     ref.invalidate(syncAccountStatusProvider);
   }
 
-  Future<void> _clearQuarantine(BuildContext context, WidgetRef ref) async {
-    final driveService = ref.read(googleDriveSyncServiceProvider);
-    await driveService.clearQuarantine();
-    ref.invalidate(_quarantineCountProvider);
-  }
-
   String _formatTime(DateTime time) {
     final diff = DateTime.now().difference(time);
     if (diff.inMinutes < 1) return 'just now';
@@ -644,5 +587,74 @@ class SyncStatusTile extends ConsumerWidget {
     bool isError = false,
   }) {
     showSeedlingMessage(context, message, isError: isError);
+  }
+}
+
+/// Copy for [SyncQuarantineNotice]; public for tests.
+String syncQuarantineMessage(int count) => count == 1
+    ? "1 change from another device couldn't be read — re-enter your "
+          'passphrase on that device.'
+    : "$count changes from another device couldn't be read — re-enter your "
+          'passphrase on that device.';
+
+const String syncQuarantineDetail =
+    "Nothing is lost. They're kept aside on this device and Seedling tries "
+    'them again every time it syncs.';
+
+/// A calm note about synced changes this device couldn't read, shown only
+/// when the sync engine has set some aside. Not an error: the rest of sync
+/// keeps working and those changes are retried on every pull.
+class SyncQuarantineNotice extends ConsumerWidget {
+  const SyncQuarantineNotice({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(syncQuarantineCountProvider);
+    if (count <= 0) return const SizedBox.shrink();
+    final palette = context.palette;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 32, top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            Platform.isIOS ? CupertinoIcons.info : Icons.info_outline,
+            size: 14,
+            color: palette.textMuted,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              syncQuarantineMessage(count),
+              style: TextStyle(fontSize: 12, color: palette.textSecondary),
+            ),
+          ),
+          Semantics(
+            button: true,
+            label: "Why some changes couldn't be read",
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => showSeedlingMessage(context, syncQuarantineDetail),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: Text(
+                    'Why?',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: palette.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

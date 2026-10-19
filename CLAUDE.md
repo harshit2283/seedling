@@ -5,14 +5,15 @@
 Seedling is a memory-keeping app that feels like breathing, not documenting. It uses the "Seeds → Trees → Forest" metaphor where memories grow into a visual tree over time.
 
 **Core Philosophy:**
-- No gamification (no streaks, badges, or scores)
-- Gentle reminders exist but are opt-in and off by default; nothing nags
+- No gamification (no streaks, badges, or scores); calm mode hides even counts
+- Gentle reminders and nudges exist but are opt-in and off by default; nothing nags
 - No social features (private to the user)
 - Local-first; optional cloud sync, off by default and gated behind explicit opt-in
 - Offline-first (must work without internet)
 - No required fields (every field optional except timestamp)
+- Two-second capture: open, type or attach, swipe down. Never ask what kind of memory it is
 - Haptic feedback on interactions
-- Soft, organic animations
+- Soft, organic animations that honour Reduce Motion
 - Open source (MIT) and free; nothing is ever locked behind payment (see "Open Source & Support")
 
 ## Quick Commands
@@ -24,166 +25,119 @@ flutter run -d iphone
 # Run on Android emulator
 flutter run -d android
 
-# Run tests
+# Run tests (real-store tests need libobjectbox on LD_LIBRARY_PATH, else they skip)
 flutter test
 
 # Analyze code
 flutter analyze
 
+# No hard-coded light-only colors in lib/features (also enforced by a test)
+bash scripts/check_palette.sh
+
 # Regenerate ObjectBox models after changes
 dart run build_runner build --delete-conflicting-outputs
+
+# Regenerate tree goldens (Linux only, pinned Flutter 3.47.7)
+flutter test --update-goldens test/features/tree_illustration_golden_test.dart
 ```
+
+CI (`.github/workflows/quality.yml`) runs format, analyze, the palette check
+and tests on Flutter 3.47.7. Native code and OS integration are checked by hand
+with `docs/release/device-verification.md`.
 
 ## Architecture
 
 ### Directory Structure
 ```
 lib/
-├── main.dart                 # App entry point, database + media + prefs + reminders init
+├── main.dart                 # Opens DB, media, prefs, diagnostics log; hardens iOS dirs; runs app
 ├── app/
-│   ├── app.dart              # Root MaterialApp/CupertinoApp shell, lifecycle, app lock
-│   ├── app_lock_gate.dart    # AppLockGate: keeps app Offstage while locked
+│   ├── app.dart              # Root MaterialApp/CupertinoApp shell, lifecycle, widget-URI allowlist
+│   ├── app_lock_gate.dart    # AppLockGate: app stays mounted but Offstage + ExcludeFocus while locked
 │   ├── router.dart           # GoRouter configuration (/entry/:id, /settings/*, /review/:year, ...)
 │   └── theme/
-│       ├── colors.dart       # SeedlingColors palette
-│       ├── typography.dart   # SeedlingTypography
-│       └── seedling_theme.dart # Complete ThemeData
+│       ├── palette.dart      # SeedlingPalette ThemeExtension (light/dark) + context.palette
+│       ├── radius.dart       # SeedlingRadius (20 iOS / 12 Android)
+│       ├── colors.dart       # SeedlingColors raw constants (feed the palette; don't use in features)
+│       ├── typography.dart   # SeedlingTypography (system font iOS; Georgia headlines Android)
+│       ├── seedling_theme.dart / cupertino_theme.dart
 ├── features/
-│   ├── tree/presentation/    # Home screen with tree + prompts
-│   │   ├── tree_screen.dart              # Main home screen
-│   │   └── animated_tree_visualization.dart  # Procedural animated tree (Phase 5)
-│   ├── capture/presentation/ # Quick capture bottom sheet
-│   │   ├── quick_capture_sheet.dart  # Main capture UI with CaptureMode
-│   │   └── widgets/
-│   │       ├── entry_type_button.dart
-│   │       ├── photo_capture_content.dart   # Camera/gallery capture
-│   │       ├── voice_capture_content.dart   # Hold-to-record UI
-│   │       └── object_capture_content.dart  # Photo + title + story
-│   ├── memories/presentation/
-│   │   ├── memories_screen.dart       # List with search, filter, sort
-│   │   ├── memories_filter_state.dart # Filter/sort state provider
-│   │   ├── memory_card.dart           # Cards with media thumbnails
-│   │   ├── entry_detail_screen.dart   # Full detail view with edit mode
-│   │   └── widgets/
-│   │       ├── photo_viewer.dart      # Full-screen pinch-to-zoom
-│   │       └── voice_player.dart      # Audio playback UI
-│   ├── prompts/                       # Gentle prompt system (Phase 3)
-│   │   ├── data/
-│   │   │   ├── prompt_repository.dart     # Curated prompts by time/season
-│   │   │   └── prompt_preferences.dart    # SharedPreferences storage
-│   │   ├── domain/
-│   │   │   └── prompt_selector.dart       # Selection logic with cooldown
-│   │   └── presentation/
-│   │       └── prompt_card.dart           # Glass card UI
-│   ├── settings/presentation/
-│   │   ├── settings_screen.dart           # Composes widgets/*_section.dart
-│   │   ├── deleted_entries_screen.dart    # Soft-delete recovery
-│   │   ├── rituals_screen.dart            # Detected/confirmed rituals
-│   │   ├── theme_insights_screen.dart     # Theme distribution visualization
-│   │   └── widgets/                       # One file per settings section
-│   ├── onboarding/                        # First-run flow + preferences
-│   ├── review/                            # Year in Review (domain generator + screen)
-│   ├── support/                           # Support Seedling page + one-time invitation
-│   └── capsules/presentation/             # Memory Capsules (Phase 4.5)
-│       ├── capsules_screen.dart           # List locked/unlocked capsules
-│       └── widgets/
-│           ├── capsule_card.dart          # Locked/unlocked capsule display
-│           └── capsule_unlock_animation.dart
+│   ├── tree/
+│   │   ├── domain/           # resurfacing.dart ("From your tree" pick), tree_personality.dart
+│   │   └── presentation/     # tree_screen, forest_screen, animated_tree_visualization,
+│   │       ├── painting/     #   tree_blueprint (per-year seed), tree_illustration, tree_art_palette
+│   │       └── widgets/      #   from_your_tree_card, backup_reminder_card, empty_state, ...
+│   ├── capture/
+│   │   ├── domain/           # capture_inference.dart (infers type), capture_intent.dart
+│   │   └── presentation/     # quick_capture_sheet, shared_content_sheet,
+│   │       └── widgets/      #   voice_capture_content, capsule_capture_content, release_ceremony
+│   ├── memories/presentation/ # memories_screen, memory_card, entry_detail_screen,
+│   │                          # memory_reader_screen, object_gallery_screen, widgets/
+│   ├── prompts/              # Gentle prompts: data/, domain/prompt_selector, presentation/prompt_card
+│   ├── onboarding/           # First-run flow + optional capture intention
+│   ├── review/               # Year in Review (domain generator + screen)
+│   ├── capsules/presentation/ # Memory Capsules list, card, unlock animation
+│   ├── settings/presentation/ # settings_screen composes widgets/*_section.dart;
+│   │                          # deleted_entries, rituals, theme_insights screens
+│   └── support/              # Support Seedling page + one-time invitation
 ├── data/
-│   ├── models/
-│   │   ├── entry.dart        # Memory entry model (ObjectBox) + soft delete fields
-│   │   ├── ritual.dart       # Ritual model (ObjectBox)
-│   │   └── tree.dart         # Tree growth model (ObjectBox)
-│   └── datasources/local/
-│       └── objectbox_database.dart  # CRUD + soft delete/restore
+│   ├── models/               # entry.dart, ritual.dart, tree.dart (ObjectBox), sync_id.dart
+│   └── datasources/local/objectbox_database.dart  # CRUD, batch save, soft/hard delete, capsules
 └── core/
-    ├── constants/
-    │   ├── prefs_keys.dart       # All SharedPreferences keys
-    │   └── support_links.dart    # Support page links (null = hidden)
-    ├── platform/
-    │   ├── platform_utils.dart   # isIOS, platform helpers
-    │   └── adaptive_icons.dart   # Platform-specific icons
-    ├── widgets/
-    │   ├── glass/glass_container.dart     # iOS blur effects
-    │   └── feedback/seedling_toast.dart   # showSeedlingMessage
+    ├── constants/            # prefs_keys.dart (every prefs key), support_links.dart
+    ├── platform/             # platform_utils.dart, adaptive_icons.dart
+    ├── widgets/              # glass/glass_container.dart, feedback/seedling_toast.dart (showSeedlingMessage)
     └── services/
-        ├── providers.dart        # Barrel: re-exports providers/*.dart
-        ├── providers/            # Riverpod providers by domain: database, sync, ai,
-        │                         #   media, capture, settings
-        ├── error_reporter.dart   # Debug-only error sink (no remote reporting)
-        ├── media/
-        │   ├── permission_service.dart       # Runtime permissions
-        │   ├── file_storage_service.dart     # UUID file storage
-        │   ├── photo_capture_service.dart    # Camera/gallery
-        │   ├── voice_recording_service.dart  # Hold-to-record
-        │   ├── media_compression_service.dart # Image compression
-        │   └── audio_playback_service.dart   # Voice playback
-        ├── export/
-        │   └── export_service.dart           # JSON/ZIP/encrypted backup export
-        ├── backup/
-        │   ├── backup_restore_service.dart   # Applies a decrypted backup (merge/replace)
-        │   └── backup_reminder_service.dart  # Quiet backup nudges in settings
-        ├── sync/                             # Opt-in cloud sync
-        │   ├── sync_engine.dart              # Push/pull, conflict resolution
-        │   ├── sync_crypto_service.dart      # Passphrase (PBKDF2) + AES-GCM field encryption
-        │   ├── cloudkit_sync_service.dart    # iOS backend (CloudKitSyncPlugin)
-        │   └── google_drive_sync_service.dart # Drive appDataFolder backend
-        ├── security/
-        │   ├── at_rest_encryption_service.dart # Field encryption in ObjectBox
-        │   ├── app_lock_service.dart         # local_auth biometrics/passcode
-        │   └── clock_guard_service.dart      # Capsule unlock vs clock tampering
-        ├── notifications/
-        │   └── gentle_reminder_service.dart  # Opt-in local reminders, off by default
-        ├── ritual/ritual_service.dart        # Ritual tracking
-        ├── transcription/
-        │   └── speech_transcription_service.dart # On-device only (iOS)
-        ├── search/semantic_search_service.dart
-        ├── storage/
-        │   └── storage_usage_service.dart    # Calculate storage breakdown (Phase 3)
-        ├── ai/                               # On-device AI services (Phase 4)
-        │   ├── theme_detector_service.dart   # Keyword-based theme detection
-        │   ├── connection_finder_service.dart # Jaccard similarity + temporal
-        │   ├── suggestion_engine.dart        # Smart prompts based on patterns
-        │   ├── ml_text_analyzer.dart         # Platform ML channel interface
-        │   └── models/
-        │       ├── memory_theme.dart         # 11 theme categories
-        │       ├── memory_connection.dart    # Connection with factors
-        │       ├── smart_suggestion.dart     # Suggestion types
-        │       └── analysis_result.dart      # Collection stats
-        ├── share/                            # Share Extension (Phase 4.5)
-        │   └── share_receiver_service.dart   # Handle shared content from other apps
-        ├── widget/                           # Home Widgets (Phase 4.5)
-        │   └── widget_data_service.dart      # Sync data to iOS/Android widgets
-        ├── haptic_service.dart               # Theme-based haptic patterns (Phase 4.5)
-        └── entry_type_usage_service.dart    # Smart button ordering by usage (Phase 5)
+        ├── providers.dart    # Barrel: re-exports providers/*.dart
+        ├── providers/        # database, sync, ai, media, capture, settings, resurfacing
+        ├── error_reporter.dart  # Single error sink: debugPrint in debug, DiagnosticsLog always
+        ├── diagnostics_log.dart # On-device, redacted, rotating JSONL log (Settings > About > Share)
+        ├── ai/               # theme_detector_service + theme_lexicon, connection_finder_service,
+        │                     #   theme_backfill_service, ritual_detection_service, models/
+        ├── sync/             # sync_engine, sync_crypto_service, sync_media_crypto, sync_metadata,
+        │                     #   drive_sync_log (per-device log protocol), cloudkit/google_drive backends
+        ├── export/           # export_service, markdown_export/format, journal_import (Day One,
+        │                     #   Markdown), safe_zip (SafeZipReader), backup_codec, export_cleanup
+        ├── backup/           # backup_restore_service (merge/replace + sync queue), backup_reminder_service
+        ├── security/         # at_rest_encryption, app_lock, clock_guard, secure_storage, ios_data_protection
+        ├── media/            # capture, compression, file storage, playback, draft_media_tracker
+        ├── storage/          # storage_usage_service, media_orphan_sweeper
+        ├── notifications/    # gentle_reminder_service (reminders + weekly resurfacing nudge)
+        ├── transcription/    # speech_transcription_service (on-device only, iOS)
+        ├── ritual/ share/ widget/   # rituals, share intake, home widget data (debounced)
+        ├── haptic_service.dart
+        └── entry_type_usage_service.dart
 ```
 
 ### Tech Stack
 - **Database:** ObjectBox 5.1 (local, reactive)
 - **State Management:** Riverpod 3.2
-- **Routing:** GoRouter 17
+- **Routing:** GoRouter 17 (Flutter deep linking disabled; see Key Patterns)
 - **Media:** image_picker, record, audioplayers, flutter_image_compress
-- **Export:** share_plus, archive (Phase 3)
-- **Preferences:** shared_preferences (Phase 3)
-- **AI/ML:** Apple NaturalLanguage (iOS), Google ML Kit (Android) - Phase 4
-- **Share Extension:** receive_sharing_intent (Phase 4.5)
-- **Home Widgets:** home_widget, WidgetKit (iOS), AppWidgetProvider (Android) - Phase 4.5
-- **Security:** local_auth, flutter_secure_storage, cryptography (AES-GCM, PBKDF2)
+- **Export/Import:** share_plus, archive (writing), `SafeZipReader` (all reading), file_picker
+- **Preferences:** shared_preferences
+- **On-device analysis:** pure Dart (weighted-lexicon themes, TF-IDF related memories). No ML frameworks, no model downloads
+- **Share Extension:** receive_sharing_intent (vendored and patched in `third_party/`)
+- **Home Widgets:** home_widget, WidgetKit (iOS), AppWidgetProvider (Android)
+- **Security:** local_auth, flutter_secure_storage, cryptography (AES-GCM, PBKDF2, HKDF, HMAC)
 - **Sync (opt-in):** CloudKit (iOS, native plugin), google_sign_in + googleapis (Drive appDataFolder)
-- **Notifications:** flutter_local_notifications (opt-in gentle reminders, off by default)
+- **Notifications:** flutter_local_notifications (opt-in, off by default)
 - **Platforms:** iOS 15+, Android
 
 ### Native Plugins
 | Platform | File | Purpose |
 |----------|------|---------|
-| iOS | `ios/Runner/CloudKitSyncPlugin.swift` | Private-database CloudKit sync, CKAsset media |
+| iOS | `ios/Runner/CloudKitSyncPlugin.swift` | CloudKit as a file store: `SeedlingFile {name, data: CKAsset}` records in private zone `SeedlingSync`; reads legacy `SeedlingEntry` once |
 | iOS | `ios/Runner/SpeechTranscriptionPlugin.swift` | Voice memo transcription; `requiresOnDeviceRecognition = true` |
-| iOS | `ios/Runner/MLTextAnalyzerPlugin.swift` | NaturalLanguage sentiment, keywords, similarity |
-| iOS | `ios/Runner/MediaFileProtectionPlugin.swift` | File protection class for media files |
+| iOS | `ios/Runner/MediaFileProtectionPlugin.swift` | File protection class + backup exclusion for DB and media |
 | iOS | `ios/Runner/AppIntentsPlugin.swift` | Siri / Shortcuts App Intents |
-| Android | `android/app/src/main/kotlin/com/seedling/seedling/MLTextAnalyzerPlugin.kt` | ML Kit entity extraction (downloads model on first run) |
+| iOS | `ios/SeedlingWidget/SeedlingWidget.swift` | WidgetKit widget (`privacySensitive` memory text, calm mode) |
 | Android | `.../SpeechTranscriptionPlugin.kt` | Reports unavailable: no on-device file transcription on Android |
-| Android | `.../SeedlingWidgetProvider.kt` | Home screen widget |
+| Android | `.../SeedlingWidgetProvider.kt` | Home screen widget (calm mode hides counts) |
+| Android | `.../MainActivity.kt` | Screen-protection (`FLAG_SECURE`) channel |
+
+None of the Swift/Kotlin is compiled in CI. Anything touching it goes through
+`docs/release/device-verification.md`.
 
 ### Key Patterns
 
@@ -200,42 +154,46 @@ await db.saveEntry(entry);
 Entry.line(text: "A thought")
 Entry.fragment(text: null)  // Empty is valid
 Entry.release(text: "Letting go")
-
-// Media entries (Phase 2)
 Entry.photo(mediaPath: "/path/to/photo.jpg", text: "Optional note")
 Entry.voice(mediaPath: "/path/to/voice.m4a", text: "Optional note")
 Entry.object(title: "Grandma's ring", mediaPath: "/path/to/object.jpg", text: "Story")
+Entry.capsule(text: "Message", unlockDate: futureDate)
 ```
 
-**Soft Delete (Phase 3):**
-```dart
-// Soft delete (recoverable for 30 days)
-await db.softDeleteEntry(entryId);
+**Capture (two-second capture):** the quick capture sheet opens on a focused
+text field and never asks for a type. `inferCaptureType()`
+(`lib/features/capture/domain/capture_inference.dart`) decides on save:
+explicit Let go / Ritual → voice recording → title (Object) → photo → text
+(Fragment when under 15 characters, else Line). Fragment is merged into Line in
+the UI (one "Line" filter covers both) but kept in the data. A memory holds
+**one** photo or **one** voice memo: adding the other kind asks first, and the
+old file goes only once its replacement exists. Swipe down saves (same path as
+back/barrier, guarded by `_wasExplicitlySaved`). Post-save side effects are
+best-effort; once the entry is written, the memory counts as saved.
 
-// Restore from trash
+**Colors and shape:** feature widgets read `context.palette`
+(`SeedlingPalette`, light and dark) and `SeedlingRadius`, never
+`SeedlingColors.text*`, `forestGreen`, `Colors.white/black`.
+`scripts/check_palette.sh` and `test/app/palette_usage_test.dart` fail on
+violations (allowlist: tree painter, photo viewer, or `// palette: allow`). Use
+`palette.inkFor(accent)` for AA text on accent fills.
+
+**Soft delete and letting go:**
+```dart
+await db.softDeleteEntry(entryId);   // Recently Deleted, 30 days
 await db.restoreEntry(entryId);
-
-// Get deleted entries for recovery screen
 final deleted = db.getDeletedEntries();
-
-// Purge expired entries (30+ days old)
-await db.purgeExpiredEntries();
+await db.purgeExpiredEntries();      // also queues remote deletes for sync
 ```
+The only hard delete without the trash is the release ceremony's explicit
+"Let it go completely" (after a Let go entry is saved; "Keep it in the tree" is
+the default and what closing does). It deletes the entry and media, says so
+plainly, and is skipped for sealed release capsules.
 
-**Media Capture:**
-```dart
-// Photo capture via service
-final photoService = ref.read(photoCaptureServiceProvider);
-final result = await photoService.captureFromCamera();
-if (result.isSuccess) {
-  await creator.createPhotoEntry(result.path!, text: optionalText);
-}
-
-// Voice recording (hold-to-record)
-final voiceService = ref.read(voiceRecordingServiceProvider);
-await voiceService.startRecording();  // On press
-final result = await voiceService.stopRecording();  // On release
-```
+**Deep links:** Flutter deep linking is off (`FlutterDeepLinkingEnabled` /
+`flutter_deeplinking_enabled` = false). Only `seedling://capture`, `home` and
+`today` are handled, by the allowlist in `lib/app/app.dart`; capture waits for
+app unlock.
 
 **Tree Growth Thresholds:**
 - Seed: 0-10 entries
@@ -254,15 +212,23 @@ final result = await voiceService.stopRecording();  // On release
 | PHOTO | Image capture | mediaPath |
 | VOICE | Voice memo | mediaPath |
 | OBJECT | Physical object | title |
-| FRAGMENT | Incomplete thought | None |
+| FRAGMENT | Incomplete thought (short line; inferred, not chosen) | None |
 | RITUAL | Recurring moment | title |
 | RELEASE | Letting go | None |
 
-### Entry Soft Delete Fields (Phase 3)
-| Field | Type | Purpose |
-|-------|------|---------|
-| isDeleted | bool | Whether entry is in trash |
-| deletedAt | DateTime? | When entry was deleted (for 30-day expiry) |
+### Entry fields worth knowing
+| Field | Purpose |
+|-------|---------|
+| isDeleted, deletedAt | Soft delete (30-day trash) |
+| capsuleUnlockDate | Capsule; `isCapsule`, `isLocked`, `isUnlocked` getters |
+| detectedTheme | Persisted at save; backfilled once by `ThemeBackfillService` |
+| connectionIds / manualLinkIds | Detected vs user-made links (manual links sync) |
+| syncUUID, modifiedAt | Sync identity and last-write-wins clock |
+| mediaAssetId, mediaKey | Remote encrypted media blob and its per-file key (key encrypted at rest) |
+| sentimentScore | Legacy only: round-trips for old stores/backups/sync, never computed or shown |
+
+Written fields (text, title, context, mood, tags, transcription, theme, links,
+mediaKey) and ritual names are encrypted at rest with a Keychain/Keystore key.
 
 ### Media Storage Structure
 ```
@@ -271,6 +237,9 @@ final result = await voiceService.stopRecording();  // On release
 ├── voices/       # Voice memos (UUID.m4a)
 └── objects/      # Object photos (UUID.jpg)
 ```
+`DraftMediaTracker` deletes media a draft drops; `MediaOrphanSweeper` removes
+unreferenced files older than 24h once per launch (never an open draft's).
+On iOS, `objectbox/` and `media/` are excluded from device backups.
 
 ### Tree States
 Trees represent a calendar year. Growth is based on **count**, not frequency (no pressure for daily entries).
@@ -288,20 +257,19 @@ The app should feel native on each platform. **iOS should use glass/translucent 
 - Large title navigation style
 - Translucent tab bars and toolbars
 - iOS-style sliding page transitions
+- Avoid a `BackdropFilter` per list item (it re-blurs every scroll frame); use near-opaque palette fills
 
 ```dart
 // Glass effect container for iOS
 ClipRRect(
-  borderRadius: BorderRadius.circular(20),
+  borderRadius: SeedlingRadius.card,
   child: BackdropFilter(
     filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
     child: Container(
       decoration: BoxDecoration(
-        color: CupertinoColors.systemBackground.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: CupertinoColors.separator.withOpacity(0.2),
-        ),
+        color: context.palette.glassTint,
+        borderRadius: SeedlingRadius.card,
+        border: Border.all(color: context.palette.border),
       ),
       child: content,
     ),
@@ -334,39 +302,15 @@ if (Platform.isIOS) {
 | `ListTile` | `CupertinoListTile` |
 | `SearchBar` | `CupertinoSearchTextField` |
 
-#### Glass Sheet Pattern (iOS)
-```dart
-showCupertinoModalPopup(
-  context: context,
-  builder: (context) => BackdropFilter(
-    filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-    child: CupertinoPopupSurface(
-      isSurfacePainted: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: CupertinoColors.systemBackground.darkColor.withOpacity(0.6),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: sheetContent,
-      ),
-    ),
-  ),
-);
-```
+### Colors (SeedlingPalette)
+- Read semantic colors from `context.palette`: `textPrimary/Secondary/Muted`, `primary`, `primaryFill`/`onPrimaryFill`, `surface`, `card`, `border`, `divider`, `glassTint`, `error`, `success`, `warning`, `accentLine/Photo/Voice/Object/Fragment/Ritual/Release`, theme colors
+- `SeedlingColors` holds the raw brand constants (forestGreen #2D5A3D, creamPaper #FAF8F5, accents) that the palette is built from
+- Dark mode is a warm "forest twilight", not a cold grey; contrast is tested (WCAG AA) in `test/app/palette_contrast_test.dart`
 
-### Colors (SeedlingColors)
-- **Primary:** forestGreen (#2D5A3D), leafGreen, freshSprout, paleGreen
-- **Secondary:** barkBrown, warmBrown, lightBark
-- **Background:** creamPaper (#FAF8F5), warmWhite, softCream
-- **Text:** textPrimary, textSecondary, textMuted
-- **Accents:** accentPhoto (#6B8E9F), accentVoice (#9F8B6B), accentObject (#8B6B9F)
-- **Theme Colors (Phase 4):** themeFamily, themeFriends, themeWork, themeNature, themeGratitude, themeReflection, themeTravel, themeCreativity, themeHealth, themeFood, themeMoments
-- **iOS Glass:** Use colors with 0.6-0.8 opacity over blur
-
-### Typography
-- **iOS:** SF Pro (system default) - clean, modern
-- **Android:** Georgia (serif) for headlines, system sans for body
-- **Border radius:** 20px on iOS (matches system), 12px on Android
+### Typography and shape
+- **iOS:** system font (SF Pro). **Android:** Georgia headlines, system sans body
+- Minimum 12pt for secondary text; touch targets ≥ 44pt with a semantics label
+- **Border radius:** `SeedlingRadius` (20 iOS / 12 Android; `small` for chips)
 
 ### Interactions
 - Light haptic on save: `HapticFeedback.lightImpact()`
@@ -374,41 +318,46 @@ showCupertinoModalPopup(
 - Medium haptic on recording start: `HapticFeedback.mediumImpact()`
 - Heavy haptic on max duration reached: `HapticFeedback.heavyImpact()`
 - Soft transitions: `Curves.easeOutCubic`, 200-800ms duration
-- iOS: Use spring animations where appropriate
+- Under Reduce Motion (`MediaQuery.disableAnimations`): no sway, slides or bursts; crossfade or jump instead
+- Feedback via `showSeedlingMessage` with a light tap; no modal "Done/OK" for successes
 
 ## Development Guidelines
 
 ### Do
-- Keep capture friction-free (swipe down to save)
+- Keep capture friction-free (swipe down to save; infer the type)
 - Use factory constructors for Entry creation
 - Watch streams for reactive UI updates
 - Test tree state boundaries (10, 30, 100, 250, 500)
 - **Use platform-adaptive widgets** (Cupertino on iOS, Material on Android)
-- **Apply glass/blur effects on iOS** for sheets, cards, and overlays
-- Check `Platform.isIOS` for platform-specific UI decisions
-- Use `CupertinoTheme` colors on iOS for system integration
+- **Apply glass/blur effects on iOS** for sheets and overlays
+- Use `context.palette` and `SeedlingRadius` for every color and radius in features
 - Compress images before saving (1920x1920 max, 85% quality)
 - Use UUID for media filenames to prevent collisions
 - Use soft delete for user data (30-day recovery window)
-- Show user messages with `showSeedlingMessage(context, ...)` (`lib/core/widgets/feedback/seedling_toast.dart`), not `ScaffoldMessenger.of(context)`: the iOS shell is a `CupertinoApp` with no `Scaffold`, so a snackbar call fails there
-- Keep the lock screen in `AppLockGate` (`lib/app/app_lock_gate.dart`): the app stays mounted but `Offstage`, so it is neither painted nor exposed to screen readers while locked
-- Put restore logic in `BackupRestoreService` (`lib/core/services/backup/`), not in settings widgets, so merge/replace paths stay unit-tested
-- Test database behaviour against a real store with `ObjectBoxDatabase.openForTesting(directory:, encryptionService:)`; it needs the native `libobjectbox` on the loader path (e.g. `LD_LIBRARY_PATH`) and those tests skip themselves when it is missing
+- Show user messages with `showSeedlingMessage(context, ...)` (`lib/core/widgets/feedback/seedling_toast.dart`), not `ScaffoldMessenger.of(context)`: the iOS shell is a `CupertinoApp` with no `Scaffold`
+- Keep the lock screen in `AppLockGate` (`lib/app/app_lock_gate.dart`)
+- Put restore/import logic in `BackupRestoreService`, and queue what it creates/deletes for sync (`queueForSync`)
+- Read every archive through `SafeZipReader` (`lib/core/services/export/safe_zip.dart`): counts and declared sizes are checked before inflating, zip-slip/symlinks refused
+- Report errors through `ErrorReporter.report` (never `debugPrint` in release paths); it feeds the redacted `DiagnosticsLog`
+- Test database behaviour against a real store with `ObjectBoxDatabase.openForTesting(directory:, encryptionService:)`; it needs `libobjectbox` on the loader path and skips itself otherwise
 - Keep voice transcription strictly on-device: iOS requires on-device recognition and Android reports unavailable. Never fall back to a server recognizer
-- Add every SharedPreferences key to `PrefsKeys`
+- Keep notification copy generic (no memory text, titles or dates) and Android `NotificationVisibility.private`
+- Add every SharedPreferences key to `PrefsKeys`, and every secure-storage key to `SecureStorageAccessibilityMigration.knownKeys`
+- Update `PRIVACY.md` whenever what leaves the device changes
 
 ### Don't
 - Add gamification features
-- Require explanations for memories
+- Require explanations for memories, or ask people to pick a memory type up front
 - Call setState() during deactivate/dispose
 - Use mechanical animations (prefer organic curves)
 - **Use Material widgets on iOS** (looks out of place)
-- Hard-code colors that don't adapt to iOS dark/light mode
+- Hard-code colors (`check_palette.sh` will fail)
 - Auto-play voice memos (manual playback only)
 - Record for more than 2 minutes (auto-stop with haptic)
-- Hard delete user data without recovery option
+- Hard delete user data without recovery option (the explicit "Let it go completely" is the one exception)
 - Auto-save in deactivate without bulletproof double-save guards (use `_wasExplicitlySaved` flag checked at top of save function)
 - Cache provider values in local state when reactivity is needed (use `ref.watch()` in build instead)
+- Score or judge memories (no sentiment, no mood arcs)
 - Nag. No launch popups, counters, streak-style guilt, or repeated asks. Reminders are opt-in and off by default
 - Lock any feature behind payment, or show supporters anything non-supporters can't see
 - Add analytics, crash reporting, ads, or any network call that isn't an explicit, opt-in user action
@@ -416,10 +365,9 @@ showCupertinoModalPopup(
 ### Open Source & Support
 Seedling is MIT-licensed and free. People may choose to pay; nothing is ever locked.
 - The Support Seedling page lives at `/settings/support` (`lib/features/support/`), reached only from Settings > About or the one-time invitation
+- **Never nag; one invitation, ever.** The only invitation is `SupportInvitationCard` at the end of Year in Review. It claims its single showing in SharedPreferences (`PrefsKeys.supportInvitationShown`) the first time it mounts and never appears again, whether dismissed, followed, or ignored. Don't add a second placement or a "remind me later"
 - All links live in `lib/core/constants/support_links.dart`. Donation/sponsor links stay `null` until a real account exists, and `null` rows are hidden. Never invent an account
-- The **only** invitation is `SupportInvitationCard` at the end of Year in Review. It claims its single showing in SharedPreferences (`PrefsKeys.supportInvitationShown`) the first time it mounts and never appears again, whether dismissed, followed, or ignored. Don't add a second placement or a "remind me later"
 - In-app tip jar is a documented hook only (`SupportLinks.inAppTipProductId`); a tip must never change the app
-- Privacy claims live in `PRIVACY.md`; update it whenever what leaves the device changes
 
 #### Dispose discipline
 Every long-lived object created by a `State` must be released in `dispose()`. Failing to do so leaks memory and can fire callbacks on disposed widgets.
@@ -437,303 +385,93 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 - **Phase 1.5 (Complete):** Platform-Adaptive UI - iOS glass effects, Cupertino components
 - **Phase 2 (Complete):** Media - Photo, voice, object capture with full UI
 - **Phase 3 (Complete):** Polish - Edit/delete, filters, export, gentle prompts
-- **Phase 4 (Complete):** AI - Memory connections, themes, smart suggestions, on-device ML
+- **Phase 4 (Complete):** On-device themes and related memories, rituals (suggest-only)
 - **Phase 4.5 (Complete):** Widgets & Capsules - Home widgets, share extension, dark mode, haptics, memory capsules
-- **Phase 5 (Implemented):** Data & Animation - Procedural animated tree, encrypted backup, opt-in cloud sync, Year in Review
+- **Phase 5 (Implemented):** Illustrated tree, two-second capture, resurfacing, release ceremony, calm mode, encrypted backup and import, E2E-encrypted sync (v4) incl. media, Year in Review, diagnostics
 - **Open source:** MIT, free, nothing locked; Support Seedling page
 
-## Phase 3 Features (Complete)
+## Feature notes
 
-### 1. Edit & Soft Delete
-- **Edit mode** in entry detail screen (pencil icon in nav bar)
-- Edit text and title fields (CupertinoTextField on iOS)
-- **Soft delete** moves entries to trash (recoverable for 30 days)
-- **Recovery screen** at Settings > Recently Deleted
-- Restore or permanently delete from recovery screen
-- Tree count updates on delete/restore
+### Memories list and detail (Phase 3)
+- Search (`CupertinoSearchTextField` on iOS), type and theme filter chips (44pt), newest/oldest sort
+- Detail view with edit mode, related and linked memories, transcription (iOS), soft delete
+- Memory reader (`/memories/reader`): swipe through memories on both platforms; chrome stays up for screen readers
+- Recently Deleted at Settings > Recently Deleted (restore or delete permanently)
 
-### 2. Entry List Improvements
-- **Search bar** at top of memories screen (CupertinoSearchTextField on iOS)
-- **Filter chips** for entry types (horizontally scrollable)
-- **Sort toggle** in nav bar (newest/oldest)
-- Clear all filters button when filters active
-- Empty state when no results match
+### Gentle prompts
+- Time-of-day and seasonal prompts on the tree screen, 8-hour cooldown, auto-dismissed once anything is saved today
+- Optional **capture intention** from onboarding ("When do small moments find you?", `PrefsKeys.captureIntention`): shown softly as the capture hint, editable under Settings > Prompts > Your moment
+- Fully optional: Settings > Prompts
 
-### 3. Settings Enhancements
-- **Export as JSON** - entries without media via share sheet
-- **Export as ZIP** - full backup with all media files
-- **Storage usage** - breakdown by database, photos, voices, objects
-- **Prompts toggle** - enable/disable gentle prompts
-- **Danger Zone** - recently deleted, clear all data (with double confirmation)
+### Resurfacing ("From your tree")
+- `resurfacedMemoryProvider` picks one memory a day (`lib/features/tree/domain/resurfacing.dart`): this day in an earlier year first, else one at least 30 days old, deterministic per date, rolling over at midnight
+- Never sealed capsules, trashed or released memories. Card hides until tomorrow on dismiss
+- Opt-in (off by default) weekly local notification, Sunday 10:00, generic lock-screen-safe copy ("A memory is waiting for you"), scheduled only when something can be resurfaced. Toggle: Settings > Prompts
 
-### 4. Gentle Prompts
-- **Time-aware prompts** - morning, afternoon, evening suggestions
-- **Seasonal prompts** - spring, summer, autumn, winter context
-- **8-hour cooldown** - prevents prompt fatigue
-- **Glass card UI** on tree screen with fade-in animation
-- Tap prompt to open capture, X to dismiss
-- **Fully optional** - disable in Settings > Prompts
+### Calm mode
+- `calmModeProvider` (Settings > Your tree, off by default): the tree still grows, but entry counts, stage labels and progress bars disappear from the tree screen, forest, Year in Review, theme chips and home widgets (incl. semantics labels)
 
-## Phase 4 Features (Complete)
+### Themes and related memories (on-device, pure Dart)
+- Full write-up and evaluation: `docs/engineering/themes.md`
+- **Themes:** 11 categories (family, friends, work, nature, gratitude, reflection, travel, creativity, health, food, moments). `ThemeDetectorService.analyze()` is a weighted-lexicon classifier (`theme_lexicon.dart`: inflections, spelling/accent folding, typos, phrases, blockers, negation, field weights) returning primary, secondary and confidence; `moments` only when nothing reaches enough evidence
+- Detected at save and persisted; `ThemeBackfillService` re-themes older entries once (versioned)
+- `test/services/ai/theme_eval_test.dart` enforces held-out macro-F1 and accuracy ≥ 0.78 on `test/fixtures/theme_eval.json`. Never tune on the held-out split
+- **Related memories:** `ConnectionFinderService` ranks by TF-IDF cosine over the user's own collection plus shared people/places; theme and time only re-rank. Evaluated by `connection_eval_test.dart`
+- Theme Insights (Settings) shows distribution; no sentiment anywhere
 
-### 1. Memory Connections
-- **Jaccard similarity** for text-based connection finding
-- **Temporal proximity bonus** for entries within 7 days
-- **Theme bonus** for entries sharing themes (full or partial match)
-- **"Related Memories" section** in entry detail view
-- Horizontal scrollable cards with tap-to-navigate
+### Rituals
+- Detection only suggests (`ritualCandidatesProvider`); a ritual exists only after the person confirms it. No ritual reminders are scheduled
 
-### 2. Theme Detection
-- **11 theme categories:** family, friends, work, nature, gratitude, reflection, travel, creativity, health, food, moments
-- **Keyword-based detection** with comprehensive word lists
-- **Theme badges** on memory cards (colored emoji chips)
-- **Theme filter chips** in memories list (alongside type filters)
-- **Theme Insights screen** at Settings > Theme Insights
-  - Distribution bar chart by theme
-  - Dominant theme highlight
-  - Underrepresented theme suggestions
+### Capsules (Phase 4.5)
+- `Entry.capsule(...)`; sealed content stays out of the memories feed, the link picker and Year in Review until it opens. `ClockGuardService` resists clock rollback
+- Queries: `getLockedCapsules()`, `getUnlockedCapsules()`, `getCapsulesToUnlockToday()`
 
-### 3. Smart Suggestions
-- **Time-aware:** "It's been a while since you captured a [theme] moment"
-- **Pattern-based:** "You often reflect on [day] [time of day]"
-- **Gap-filling:** Suggests underrepresented themes
-- **Anniversary:** "A year ago today..." (when enabled)
-- 24-hour cooldown between suggestions
+### Home widgets and share extension (Phase 4.5)
+- Widget data via `home_widget`, debounced (1s) and deduped. Memory text is off by default, forced off while app lock is on, and `privacySensitive` on iOS
+- iOS App Groups need manual setup: add `group.com.seedling.seedling` to both Runner and SeedlingWidgetExtension (Signing & Capabilities)
+- Share intake: text/URL → Line, image → Photo, only after the person confirms. Android copies shared files to `cache/shared_intake/` under random names (never the sender's display name)
 
-### 4. On-Device ML Integration
-- **iOS:** Apple NaturalLanguage framework (NLTagger, NLEmbedding)
-  - Native Swift plugin at `ios/Runner/MLTextAnalyzerPlugin.swift`
-  - Sentiment analysis, keyword extraction, semantic similarity
-- **Android:** Google ML Kit Entity Extraction
-  - Native Kotlin plugin at `android/app/.../MLTextAnalyzerPlugin.kt`
-- **Hybrid analyzer:** Uses native ML when available, falls back to keyword-based
+### Cloud sync (opt-in, format v4)
+- Off by default; requires `cloudSyncEnabledProvider` and a passphrase. Nothing touches the network before the opt-in (`networkAllowed`)
+- **Keys:** PBKDF2 with a random per-user salt kept in a **keyring** file in the user's sync space, plus an encrypted **key check** so a wrong passphrase is rejected before anything is stored. Concurrent keyrings settle on the smallest salt. Only a derived key is stored (Keychain, device-only)
+- **Records:** written fields AES-256-GCM with AAD binding `syncUUID|field|version`; each record carries an HMAC-SHA256 over all keys, metadata included
+- **Transport:** each device appends to its own change log (`seedling_sync_log_v2_<deviceId>.json`) with sequence numbers; deletes are log tombstones. Same protocol on Drive (appDataFolder) and CloudKit (custom zone `SeedlingSync`, `SeedlingFile` records)
+- **Media:** end-to-end encrypted per file (random key, 64 KiB authenticated chunks), uploaded as `seedling_media_v1_<uuid>.bin`, downloaded in the background after the record arrives; files > 50 MB are skipped
+- **Quarantine:** records that fail decryption/authentication are set aside in `SyncMetadata`, retried on every pull, and shown in Settings as a calm notice (`syncQuarantineCountProvider`, `SyncQuarantineNotice`), not as an error
+- Last-write-wins on `modifiedAt` (local wins ties); push/pull serialized; every backend call has a timeout; `init()` never throws
 
-### Entry AI Fields
-| Field | Type | Purpose |
-|-------|------|---------|
-| detectedTheme | String? | Primary theme category |
-| connectionIds | String? | Comma-separated related entry IDs |
-| sentimentScore | double? | -1.0 to 1.0 sentiment |
-| lastAnalyzedAt | DateTime? | When AI last processed entry |
+### Export, backup and import
+- Export as JSON, ZIP, Markdown (open format, Obsidian-friendly, sealed capsules filed separately) or encrypted backup (600k PBKDF2); temp files are deleted after sharing. Sizes are checked against what restore accepts before reading media
+- Import: encrypted backup, Seedling ZIP, Day One JSON export, Seedling Markdown. Parsed off the UI isolate, previewed (new / already here / media), merged without overwriting or duplicating
+- Device backups don't include memories; Settings > Privacy says so ("Keeping a copy")
 
-### AI Service Patterns
-```dart
-// Theme detection
-final detector = ref.read(themeDetectorProvider);
-final theme = detector.detectTheme(entry.searchableContent);
+### Diagnostics
+- `DiagnosticsLog`: last 200 errors, redacted before storage (quoted values, paths, URIs, emails removed; 5 frames). Shared only when the person taps Settings > About > Share diagnostics
 
-// Find connections
-final finder = ref.read(connectionFinderProvider);
-final connections = finder.findConnections(entry, allEntries);
+### Tree (Phase 5)
+- `AnimatedTreeVisualization(state:, progress:, season:, seed:, memoryLights:, showGrowthDetails:, celebrateGrowth:, onTap:)`
+- Hand-illustrated procedural tree grown from a per-year `TreeBlueprint` (growth only adds limbs and leaves), seasonal art palette with a moonlit dark variant, memory lights for the last two weeks
+- The settled tree is rasterised once; idle sway is a single transform. Reduce Motion: no sway or bursts
+- Season by month: spring Mar-May, summer Jun-Aug, autumn Sep-Nov, winter Dec-Feb
 
-// Collection statistics
-final stats = ref.watch(collectionStatsProvider);
-print(stats.dominantTheme);
-print(stats.underrepresentedThemes);
-
-// Native ML (when available)
-final mlAnalyzer = ref.read(mlTextAnalyzerProvider);
-if (await mlAnalyzer.isAvailable()) {
-  final sentiment = await mlAnalyzer.analyzeSentiment(text);
-  final keywords = await mlAnalyzer.extractKeywords(text);
-}
-```
-
-## Phase 4.5 Features (Complete)
-
-### 1. Dark Mode
-- **System theme detection** - automatically follows iOS/Android dark mode
-- **Warm "forest twilight" aesthetic** - not cold/clinical dark theme
-- Dark variants for all colors in `SeedlingColors`
-- Both `SeedlingTheme.dark` and `SeedlingCupertinoTheme.dark` available
-
-### 2. Theme-Based Haptics
-- **11 unique haptic patterns** for different memory themes
-- Located in `lib/core/services/haptic_service.dart`
-- Special patterns for capsule creation and unlock
-- Example: gratitude = double tap, nature = gentle roll, creativity = playful triple
-
-### 3. Memory Capsules
-- **Time capsule entries** that unlock on a future date
-- Entry fields: `capsuleUnlockDate`, `isCapsule`, `isLocked`, `isUnlocked`
-- Factory: `Entry.capsule(text: "Message", unlockDate: futureDate)`
-- Locked capsules show blurred preview with countdown
-- Capsules screen at `/capsules` route
-- Database queries: `getLockedCapsules()`, `getUnlockedCapsules()`, `getCapsulesToUnlockToday()`
-
-### 4. Share Extension
-- **Receive shared content** from other apps
-- Package: `receive_sharing_intent`
-- Service: `lib/core/services/share/share_receiver_service.dart`
-- Supports: text → LINE, URL → LINE, image → PHOTO
-- Android: Intent filters in AndroidManifest.xml
-- iOS: URL scheme `seedling://` in Info.plist
-
-### 5. Home Screen Widgets
-- **iOS:** WidgetKit extension with small/medium/large sizes
-- **Android:** AppWidgetProvider with small/medium sizes
-- Display: tree emoji, entry count, progress bar, recent entries
-- Service: `lib/core/services/widget/widget_data_service.dart`
-- Package: `home_widget` for cross-platform data sync
-- Deep links: `seedling://home`, `seedling://capture`
-
-#### iOS Widget Manual Setup Required
-The widget extension target is configured, but App Groups need manual setup:
-1. Open `ios/Runner.xcworkspace` in Xcode
-2. Select **Runner** target → Signing & Capabilities → Add "App Groups"
-3. Add: `group.com.seedling.seedling`
-4. Select **SeedlingWidgetExtension** target → Signing & Capabilities → Add "App Groups"
-5. Add: `group.com.seedling.seedling`
-
-### Entry Capsule Fields
-| Field | Type | Purpose |
-|-------|------|---------|
-| capsuleUnlockDate | DateTime? | When capsule becomes visible |
-| isCapsule | bool (getter) | Whether entry is a time capsule |
-| isLocked | bool (getter) | Capsule exists and unlock date is future |
-| isUnlocked | bool (getter) | Capsule exists and unlock date has passed |
-
-### Capsule Patterns
-```dart
-// Create a capsule
-final entry = Entry.capsule(
-  text: "Message to future self",
-  unlockDate: DateTime.now().add(Duration(days: 365)),
-);
-await db.saveEntry(entry);
-
-// Query capsules
-final locked = db.getLockedCapsules();
-final unlocked = db.getUnlockedCapsules();
-final today = db.getCapsulesToUnlockToday();
-
-// Check capsule state
-if (entry.isLocked) {
-  debugPrint("Unlocks in ${entry.daysUntilUnlock} days");
-}
-```
-
-## Phase 5 Features (Implemented)
-
-### 1. Animated Tree Visualization (Complete)
-
-**Implementation Status:** Fully functional procedural animated tree using CustomPainter
-
-**Files:**
-- `lib/features/tree/presentation/animated_tree_visualization.dart` - Main animated tree widget
-- `lib/core/services/providers.dart` - Added `treeGrowthEventProvider`, `treeGrowthDetectorProvider`
-
-**Features:**
-- **6 distinct tree states** - Seed, sprout, sapling, young tree, mature tree, ancient tree
-- **Idle animation** - Continuous gentle sway (3-second cycle)
-- **Growth transitions** - Smooth animated morphing between states with scale bounce
-- **Seasonal colors** - Spring (fresh green + blossoms), Summer (full green), Autumn (orange + falling leaves), Winter (muted)
-- **Celebration particles** - Sparkle burst when tree grows to new state
-- **Haptic feedback** - Medium impact on growth, light impact on celebration
-- **Organic visuals** - Procedural trunk, branches, leaves, canopy with natural wobble
-
-**Tree Elements by State:**
-| State | Visual |
-|-------|--------|
-| Seed | Glowing oval with ground line |
-| Sprout | Curved stem with two leaves |
-| Sapling | Small trunk with branch levels and leaf clusters |
-| Young Tree | Multiple branch tiers with fuller canopy |
-| Mature Tree | Thick trunk, roots, large organic canopy |
-| Ancient Tree | Gnarled trunk, elaborate roots, massive layered canopy with glow |
-
-**Usage:**
-```dart
-AnimatedTreeVisualization(
-  state: treeState,           // TreeState enum
-  progress: treeProgress,     // 0.0-1.0 progress to next state
-  celebrateGrowth: shouldCelebrate, // Triggers particle celebration
-  onTap: () => navigateToMemories(),
-)
-```
-
-**Season Detection:**
-```dart
-// Automatically determined by current month
-Season.spring  // March, April, May
-Season.summer  // June, July, August
-Season.autumn  // September, October, November
-Season.winter  // December, January, February
-```
-
-### 2. UX Polish Pass (Implemented)
-
-**Goal:** Make the app feel warm, comfortable, aligned with "breathing, not documenting"
-
-**Files changed:**
-- `lib/features/settings/presentation/settings_screen.dart`
-- `lib/features/capture/presentation/quick_capture_sheet.dart`
-- `lib/features/capture/presentation/widgets/entry_type_button.dart`
-- `lib/features/tree/presentation/tree_screen.dart`
-- `lib/core/services/providers.dart`
-- `lib/core/services/entry_type_usage_service.dart` (new)
-
-**Completed:**
-- **Settings headers** — ALL CAPS → sentence case ("Your tree" not "YOUR TREE")
-- **Privacy section** — 3 inline tiles (On your device, optional cloud sync, No tracking), dialog removed
-- **Entry type button restyle** — Unselected: 0.5 opacity + muted color. Selected: full opacity + color bg. AnimatedOpacity for smooth transitions. Release/Capsule use same visual system.
-- **Smart button ordering** — `EntryTypeUsageService` records usage on successful save, orders by frequency in rolling 7-day window (capped at 3 uses), stable fallback order for ties
-- **"Plant" save button** — Text-only secondary action, appears when `_canSave()` is true, calls `_saveEntry()` directly
-- **Prompt auto-dismiss provider** — `currentPromptProvider` returns null if any entry exists today
-- **Prompt clipping fix** — Changed `SafeArea(top: false)` → `SafeArea(top: true)`, removed hardcoded padding
-- **UI centering fix** — Added `crossAxisAlignment: CrossAxisAlignment.center` to main Column in tree screen
-- **Reactive prompt** — Removed local state caching, now uses `ref.watch(currentPromptProvider)` directly in build for reactive updates
-- **Double-save protection** — Added `if (_wasExplicitlySaved) return;` guard at top of `_saveEntry()` for bulletproof protection
-
-**Known bugs to fix:**
-(None remaining)
-
-**Smart Ordering Patterns:**
-```dart
-// Record usage (call on successful save only)
-final usageService = ref.read(entryTypeUsageServiceProvider);
-await usageService.recordUsage(entryType, isCapsule: isCapsule);
-
-// Get ordered types (call on sheet open)
-final orderedTypes = ref.watch(orderedEntryTypesProvider);
-// Returns: ['line', 'photo', 'voice', ...] ordered by recent usage
-```
-
-### 3. Cloud Backup & Sync (Implemented)
-- Off by default; gated by `cloudSyncEnabledProvider` and a user passphrase
-- Cross-device sync (iCloud/CloudKit or Google Drive on iOS, Google Drive on Android)
-- Text fields are AES-GCM encrypted with a PBKDF2 passphrase key before upload; media files and record metadata are not (see `PRIVACY.md` Known limitations)
-- Conflict resolution for offline edits
-- Encrypted local backup export/import via `ExportService` + `BackupRestoreService`
-
-### 4. Year-in-Review (Implemented)
-- Annual summary generation
-- Theme trends over time
-- Memory timeline visualization
-- Shareable (optional) summary cards
+### Year in Review
+- Annual summary, theme garden, seasons and timeline; under 10 memories it shows "still taking shape" instead of a gate. Shareable cards are optional
 
 ## Testing
 
-Run `flutter test` for the current count (about 400 tests). Each test file runs on its own; there is no aggregator file, so don't add one (it double-counts).
+Run `flutter test` (about 710 tests). Each test file runs on its own; there is no aggregator file, so don't add one (it double-counts).
 
-Coverage includes:
-- Entry factory constructors, properties, AI and capsule fields
-- Tree state transitions at all boundaries, progress, seasons, growth notifier
-- Media service result types, recording/playback states, compression constants
-- Theme detection, connections, suggestions, rituals, review generation
-- Sync engine and crypto, backup restore, export
-- Real ObjectBox store behaviour (`test/data/`, needs `libobjectbox`)
-- Widget tests for capture, memories, entry detail, settings, support
+Coverage includes entry models, tree boundaries and blueprint determinism,
+capture inference and the capture sheet, theme and connection evaluation
+sets, sync engine/crypto/media crypto/Drive and CloudKit log protocol, backup
+restore, export/import (Markdown, Day One, SafeZipReader), real ObjectBox
+store behaviour (`test/data/`), palette usage and contrast, calm mode, Reduce
+Motion, accessibility targets, and tree goldens (no text, 0.5% tolerance,
+Linux only).
 
-Run tests: `flutter test`
-
-### Integration Testing Notes
-The following require device/emulator testing:
-- AudioPlaybackService (requires Flutter bindings)
-- Actual camera/microphone permissions
-- File storage operations
-- Image compression
-- Export/share functionality
+Device-only checks (native code, keychain, backups, widgets, notifications,
+screen readers, large exports, real Day One files) are listed in
+`docs/release/device-verification.md`.
 
 ## Troubleshooting
 
@@ -753,17 +491,20 @@ Ensure `ios/Podfile` has: `platform :ios, '15.0'`
 **Permission denied on camera/mic:**
 Check that Info.plist has NSCameraUsageDescription, NSMicrophoneUsageDescription, NSPhotoLibraryUsageDescription
 
-**Audio not playing:**
-Ensure the audio file exists at the path and the app has proper permissions.
+**Real-store tests skipped:**
+Put `libobjectbox.so` on `LD_LIBRARY_PATH` (CI downloads objectbox-c 5.1.0).
 
-**Export not working:**
-Ensure share_plus and archive packages are installed. Check file permissions on device.
+**Golden test fails locally on macOS/Windows:**
+Goldens are compared on Linux only. Regenerate on Linux with Flutter 3.47.7.
 
 **iOS Widget not showing data:**
-Ensure App Groups capability is enabled for both Runner and SeedlingWidgetExtension targets with `group.com.seedling.seedling`. See Phase 4.5 manual setup instructions.
+Ensure App Groups capability is enabled for both Runner and SeedlingWidgetExtension targets with `group.com.seedling.seedling`.
 
 **Android Widget not updating:**
-Widget updates on entry save. Force update by removing and re-adding the widget. Check that `SeedlingWidgetProvider` is registered in AndroidManifest.xml.
+Widget updates (debounced) after entry changes and when the app is backgrounded. Force update by removing and re-adding the widget. Check that `SeedlingWidgetProvider` is registered in AndroidManifest.xml.
+
+**CloudKit works in Debug but not TestFlight:**
+Deploy the Development schema (`SeedlingFile {name: String, data: Asset}`) to Production. See `docs/release/device-verification.md` §1.
 
 ## Rule: always use qmd before reading files
 

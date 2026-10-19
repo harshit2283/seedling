@@ -11,9 +11,6 @@ import UIKit
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
 
-    // Register ML Text Analyzer plugin for on-device NLP
-    MLTextAnalyzerPlugin.register(with: self.registrar(forPlugin: "MLTextAnalyzerPlugin")!)
-
     // Register Speech Transcription plugin for on-device voice transcription
     SpeechTranscriptionPlugin.register(with: self.registrar(forPlugin: "SpeechTranscriptionPlugin")!)
 

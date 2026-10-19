@@ -16,7 +16,6 @@
 		SP0000010000000000000002 /* CloudKitSyncPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = SP0000020000000000000002 /* CloudKitSyncPlugin.swift */; };
 		SP0000010000000000000003 /* AppIntentsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = SP0000020000000000000003 /* AppIntentsPlugin.swift */; };
 		SP0000010000000000000004 /* MediaFileProtectionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = SP0000020000000000000004 /* MediaFileProtectionPlugin.swift */; };
-		ML00000100000000000001 /* MLTextAnalyzerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = ML00000200000000000001 /* MLTextAnalyzerPlugin.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -82,7 +81,6 @@
 		SP0000020000000000000002 /* CloudKitSyncPlugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudKitSyncPlugin.swift; sourceTree = "<group>"; };
 		SP0000020000000000000003 /* AppIntentsPlugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppIntentsPlugin.swift; sourceTree = "<group>"; };
 		SP0000020000000000000004 /* MediaFileProtectionPlugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MediaFileProtectionPlugin.swift; sourceTree = "<group>"; };
-		ML00000200000000000001 /* MLTextAnalyzerPlugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MLTextAnalyzerPlugin.swift; sourceTree = "<group>"; };
 		7A36AEABBA27783CB97CAB01 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
@@ -219,7 +217,6 @@
 					SP0000020000000000000002 /* CloudKitSyncPlugin.swift */,
 					SP0000020000000000000003 /* AppIntentsPlugin.swift */,
 					SP0000020000000000000004 /* MediaFileProtectionPlugin.swift */,
-					ML00000200000000000001 /* MLTextAnalyzerPlugin.swift */,
 					74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				);
 			path = Runner;
@@ -490,7 +487,6 @@
 					SP0000010000000000000002 /* CloudKitSyncPlugin.swift in Sources */,
 					SP0000010000000000000003 /* AppIntentsPlugin.swift in Sources */,
 					SP0000010000000000000004 /* MediaFileProtectionPlugin.swift in Sources */,
-					ML00000100000000000001 /* MLTextAnalyzerPlugin.swift in Sources */,
 					1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				);
 			runOnlyForDeploymentPostprocessing = 0;

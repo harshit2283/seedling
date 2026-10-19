@@ -10,8 +10,6 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        // Register ML Text Analyzer plugin for on-device NLP
-        flutterEngine.plugins.add(MLTextAnalyzerPlugin())
         // Register Speech Transcription plugin for on-device voice-to-text
         flutterEngine.plugins.add(SpeechTranscriptionPlugin())
 

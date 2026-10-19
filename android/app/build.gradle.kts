@@ -81,9 +81,4 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-    // ML Kit for on-device NLP (Phase 4)
-    implementation("com.google.mlkit:entity-extraction:16.0.0-beta5")
-    implementation("com.google.mlkit:language-id:17.0.6")
-    // Coroutines for async ML operations
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

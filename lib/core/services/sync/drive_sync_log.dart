@@ -648,15 +648,6 @@ class DriveSyncLogStore {
     }
   }
 
-  /// Rewrites the legacy document with [quarantine] cleared.
-  Future<void> clearLegacyQuarantine() async {
-    final file = await _files.findByName(legacyFileName);
-    final doc = await readLegacyDocument();
-    if (file == null || doc == null) return;
-    doc['quarantine'] = <String, dynamic>{};
-    await _files.overwrite(file.id, utf8.encode(jsonEncode(doc)));
-  }
-
   /// Keyring files: `{kdfSalt, check}` - the account's random key salt and
   /// an encrypted key-check value that proves a passphrase is right. Several
   /// can exist if devices enabled sync at the same moment (no create-if-
