@@ -67,7 +67,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.doc_text,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Export as Markdown'),
             subtitle: const Text('Readable files, opens in Obsidian'),
@@ -119,7 +119,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.tray_arrow_down,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Import from Day One / Markdown'),
             subtitle: const Text('Day One JSON or Markdown export (.zip)'),
