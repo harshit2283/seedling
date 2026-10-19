@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/providers.dart';
@@ -15,11 +17,15 @@ class _OnboardingPanel {
   final String subtitle;
   final List<Color> glowColors;
 
+  /// The panel that asks for the person's own capture cue.
+  final bool asksForIntention;
+
   const _OnboardingPanel({
     required this.symbol,
     required this.title,
     required this.subtitle,
     required this.glowColors,
+    this.asksForIntention = false,
   });
 }
 
@@ -36,6 +42,15 @@ const _panels = [
     subtitle:
         'Save thoughts, moments, and feelings.\nWatch them shape your tree over time.',
     glowColors: [Color(0xFFD8E8D0), Color(0xFFF2E8D7)],
+  ),
+  _OnboardingPanel(
+    symbol: CupertinoIcons.time,
+    title: 'When do small moments find you?',
+    subtitle:
+        'Tie Seedling to something you already do. We\'ll keep it as a '
+        'quiet hint, nothing more.',
+    glowColors: [Color(0xFFE9EEDC), Color(0xFFF4E9D6)],
+    asksForIntention: true,
   ),
   _OnboardingPanel(
     symbol: CupertinoIcons.leaf_arrow_circlepath,
@@ -55,15 +70,26 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     with TickerProviderStateMixin {
   final PageController _pageController = PageController();
+  final TextEditingController _intentionController = TextEditingController();
+  final FocusNode _intentionFocus = FocusNode();
   int _currentPage = 0;
+  bool _completing = false;
 
   /// Animation controllers for each panel's fade-in.
   late final List<AnimationController> _fadeControllers;
   late final List<Animation<double>> _fadeAnimations;
 
+  bool get _reduceMotion =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+  bool get _onLastPage => _currentPage == _panels.length - 1;
+
   @override
   void initState() {
     super.initState();
+
+    _intentionController.text =
+        ref.read(onboardingPreferencesProvider).captureIntention ?? '';
 
     _fadeControllers = List.generate(
       _panels.length,
@@ -76,18 +102,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     _fadeAnimations = _fadeControllers
         .map((c) => CurvedAnimation(parent: c, curve: Curves.easeOutCubic))
         .toList();
-
-    // Start the first panel's animation immediately.
-    _fadeControllers[0].forward();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      // Reduce Motion: panels appear without fading.
-      for (final controller in _fadeControllers) {
-        controller.value = 1;
+    // Start the first panel's fade (or show it at once with reduced motion).
+    final first = _fadeControllers[0];
+    if (first.status == AnimationStatus.dismissed) {
+      if (_reduceMotion) {
+        first.value = 1;
+      } else {
+        first.forward();
       }
     }
   }
@@ -95,6 +121,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   @override
   void dispose() {
     _pageController.dispose();
+    _intentionController.dispose();
+    _intentionFocus.dispose();
     for (final controller in _fadeControllers) {
       controller.dispose();
     }
@@ -102,20 +130,52 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   void _onPageChanged(int page) {
+    if (_panels[_currentPage].asksForIntention) {
+      _intentionFocus.unfocus();
+      unawaited(_saveIntention());
+    }
     setState(() {
       _currentPage = page;
     });
-    // Trigger fade-in for the new panel (instant under Reduce Motion).
-    if (MediaQuery.disableAnimationsOf(context)) {
+    // Trigger fade-in for the new panel.
+    if (_reduceMotion) {
       _fadeControllers[page].value = 1;
     } else {
       _fadeControllers[page].forward(from: 0.0);
     }
   }
 
-  Future<void> _completeOnboarding() async {
+  void _goToPage(int page) {
+    if (page == _currentPage || page < 0 || page >= _panels.length) return;
+    HapticFeedback.selectionClick();
+    if (_reduceMotion) {
+      _pageController.jumpToPage(page);
+    } else {
+      _pageController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  Future<void> _saveIntention() {
+    return ref
+        .read(captureIntentionProvider.notifier)
+        .set(_intentionController.text);
+  }
+
+  /// Finishes onboarding. With [openCapture] the home screen opens the
+  /// capture sheet as soon as it appears, so the button keeps its promise.
+  Future<void> _completeOnboarding({required bool openCapture}) async {
+    if (_completing) return;
+    _completing = true;
+    await _saveIntention();
     final onboarding = ref.read(onboardingPreferencesProvider);
     await onboarding.setCompleted();
+    if (openCapture) {
+      ref.read(pendingFirstCaptureProvider.notifier).request();
+    }
     if (mounted) {
       context.go('/');
     }
@@ -135,6 +195,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       body: SafeArea(
         child: Column(
           children: [
+            // Skip, always one tap away (the last page has its own quiet
+            // "Not now").
+            SizedBox(
+              height: 48,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _onLastPage
+                    ? const SizedBox.shrink()
+                    : _QuietTextButton(
+                        label: 'Skip',
+                        color: subtitleColor,
+                        onPressed: () =>
+                            _completeOnboarding(openCapture: false),
+                      ),
+              ),
+            ),
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -189,9 +265,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                                   color: subtitleColor,
                                 ),
                               ),
+                              if (panel.asksForIntention) ...[
+                                const SizedBox(height: 28),
+                                _buildIntentionField(
+                                  textColor: textColor,
+                                  mutedColor: mutedColor,
+                                  accentColor: accentColor,
+                                  isDark: isDark,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Optional. You can change it in Settings.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: mutedColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                _QuietTextButton(
+                                  label: 'Continue',
+                                  color: accentColor,
+                                  onPressed: () => _goToPage(index + 1),
+                                ),
+                              ],
                               if (isLastPanel) ...[
                                 const SizedBox(height: 48),
                                 _buildActionButton(context.palette.primaryFill),
+                                const SizedBox(height: 8),
+                                _QuietTextButton(
+                                  label: 'Not now',
+                                  color: subtitleColor,
+                                  onPressed: () =>
+                                      _completeOnboarding(openCapture: false),
+                                ),
                               ],
                             ],
                           ),
@@ -203,26 +310,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               ),
             ),
 
-            // Dot indicators
+            // Dot indicators (tappable)
             Padding(
-              padding: const EdgeInsets.only(bottom: 48),
+              padding: const EdgeInsets.only(bottom: 36),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(_panels.length, (index) {
                   final isActive = index == _currentPage;
-                  return AnimatedContainer(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    margin: const EdgeInsets.symmetric(horizontal: 5),
-                    width: isActive ? 24 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      color: isActive
-                          ? accentColor
-                          : mutedColor.withValues(alpha: 0.3),
+                  return Semantics(
+                    button: true,
+                    selected: isActive,
+                    label: 'Page ${index + 1} of ${_panels.length}',
+                    onTap: () => _goToPage(index),
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      key: ValueKey('onboarding-dot-$index'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _goToPage(index),
+                      child: SizedBox(
+                        height: 44,
+                        width: isActive ? 40 : 24,
+                        child: Center(
+                          child: AnimatedContainer(
+                            duration: _reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                            width: isActive ? 24 : 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(4),
+                              color: isActive
+                                  ? accentColor
+                                  : mutedColor.withValues(alpha: 0.3),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   );
                 }),
@@ -234,11 +358,66 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     );
   }
 
+  Widget _buildIntentionField({
+    required Color textColor,
+    required Color mutedColor,
+    required Color accentColor,
+    required bool isDark,
+  }) {
+    const hint = 'e.g. When I make my morning coffee';
+    final fill = context.palette.surfaceMuted;
+    if (Platform.isIOS) {
+      return CupertinoTextField(
+        key: const ValueKey('onboarding-intention'),
+        controller: _intentionController,
+        focusNode: _intentionFocus,
+        placeholder: hint,
+        textAlign: TextAlign.center,
+        textCapitalization: TextCapitalization.sentences,
+        maxLength: 80,
+        style: TextStyle(fontSize: 17, color: textColor),
+        placeholderStyle: TextStyle(fontSize: 17, color: mutedColor),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        onSubmitted: (_) => _goToPage(_currentPage + 1),
+      );
+    }
+    return TextField(
+      key: const ValueKey('onboarding-intention'),
+      controller: _intentionController,
+      focusNode: _intentionFocus,
+      textAlign: TextAlign.center,
+      textCapitalization: TextCapitalization.sentences,
+      maxLength: 80,
+      style: TextStyle(fontSize: 17, color: textColor),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 17, color: mutedColor),
+        counterText: '',
+        filled: true,
+        fillColor: fill,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: accentColor.withValues(alpha: 0.6)),
+        ),
+      ),
+      onSubmitted: (_) => _goToPage(_currentPage + 1),
+    );
+  }
+
   Widget _buildActionButton(Color accentColor) {
+    void onPressed() => _completeOnboarding(openCapture: true);
     if (Platform.isIOS) {
       return CupertinoButton.filled(
         borderRadius: BorderRadius.circular(20),
-        onPressed: _completeOnboarding,
+        onPressed: onPressed,
         child: const Text(
           'Add your first memory',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
@@ -247,7 +426,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     }
 
     return ElevatedButton(
-      onPressed: _completeOnboarding,
+      onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: accentColor,
         foregroundColor: context.palette.onPrimaryFill,
@@ -260,6 +439,35 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     );
+  }
+}
+
+/// A plain text button that looks at home on both platforms.
+class _QuietTextButton extends StatelessWidget {
+  const _QuietTextButton({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      label,
+      style: TextStyle(color: color, fontSize: 15, fontWeight: FontWeight.w500),
+    );
+    if (Platform.isIOS) {
+      return CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        onPressed: onPressed,
+        child: text,
+      );
+    }
+    return TextButton(onPressed: onPressed, child: text);
   }
 }
 

@@ -165,21 +165,34 @@ void main() {
       expect(deleted, [picked]);
     });
 
-    testWidgets('a photo left in photo mode is deleted when a text memory '
-        'is saved instead', (tester) async {
+    testWidgets('a picked photo plus words saves as a photo and is kept', (
+      tester,
+    ) async {
       await tester.pumpWidget(harness());
       await tester.pumpAndSettle();
       final picked = await pickPhoto(tester);
 
-      await tester.tap(find.text('Line'));
-      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'just words');
       await tester.pump();
       await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
       expect(saved, hasLength(1));
-      expect(deleted, [picked]);
+      expect(saved.single.type, EntryType.photo);
+      expect(saved.single.mediaPath, picked);
+      expect(saved.single.text, 'just words');
+      expect(deleted, isEmpty);
+    });
+
+    testWidgets('replacing a picked photo deletes the first one', (
+      tester,
+    ) async {
+      await tester.pumpWidget(harness());
+      await tester.pumpAndSettle();
+      final first = await pickPhoto(tester);
+      await pickPhoto(tester);
+
+      expect(deleted, [first]);
     });
   });
 

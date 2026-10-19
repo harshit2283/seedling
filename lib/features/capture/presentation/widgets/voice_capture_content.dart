@@ -21,6 +21,10 @@ class VoiceCaptureContent extends ConsumerStatefulWidget {
   final ValueChanged<String> onTextChanged;
   final String text;
 
+  /// Whether the recording preview shows its own note field. The quick
+  /// capture sheet keeps one shared text field and turns this off.
+  final bool showNoteField;
+
   const VoiceCaptureContent({
     super.key,
     this.initialVoicePath,
@@ -29,14 +33,15 @@ class VoiceCaptureContent extends ConsumerStatefulWidget {
     required this.onDurationChanged,
     required this.onTextChanged,
     required this.text,
+    this.showNoteField = true,
   });
 
   @override
   ConsumerState<VoiceCaptureContent> createState() =>
-      _VoiceCaptureContentState();
+      VoiceCaptureContentState();
 }
 
-class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
+class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   String? _voicePath;
   Duration? _recordedDuration;
@@ -429,9 +434,11 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        // Optional text field
-        _buildTextField(),
+        if (widget.showNoteField) ...[
+          const SizedBox(height: 16),
+          // Optional text field
+          _buildTextField(),
+        ],
       ],
     );
   }
@@ -472,6 +479,13 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
       onChanged: widget.onTextChanged,
     );
   }
+
+  /// Starts recording on behalf of a hold that began outside this widget
+  /// (the capture sheet's mic button). Pair with [endHold].
+  Future<void> beginHold() => _startRecording();
+
+  /// Ends a hold started with [beginHold], keeping what was recorded.
+  Future<void> endHold() => _stopRecording();
 
   Future<void> _startRecording() async {
     if (_isRecording || _isStarting || _voicePath != null) return;

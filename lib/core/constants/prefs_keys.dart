@@ -8,6 +8,10 @@ class PrefsKeys {
   // Onboarding
   static const String onboardingCompleted = 'onboarding_completed';
 
+  // Implementation intention ("When I make my morning coffee"), optional.
+  // Shown softly as the capture field's hint.
+  static const String captureIntention = 'capture_intention';
+
   // App lock
   static const String appLockEnabled = 'app_lock_enabled';
 
@@ -20,6 +24,9 @@ class PrefsKeys {
 
   // Home feed
   static const String homeFeedScope = 'home_feed_scope';
+
+  // Calm mode: hide counts, stages and progress (the tree still grows).
+  static const String calmModeEnabled = 'calm_mode_enabled';
 
   // Sync provider (iOS)
   static const String syncProviderIOS = 'sync_provider_ios';
@@ -35,6 +42,10 @@ class PrefsKeys {
   // Remote layout version this device has fully uploaded for (re-push all
   // local entries when it is behind SyncEngine.currentFormatVersion).
   static const String syncFormatVersion = 'sync_format_version';
+  // Records that failed to decrypt/authenticate, kept for a retry.
+  static const String syncQuarantine = 'sync_quarantine';
+  // Fingerprint of the key the last full upload was done with.
+  static const String syncKeyFingerprint = 'sync_key_fingerprint';
 
   // Google Drive sync
   static const String syncGDriveLockedAccount = 'sync_gdrive_locked_account';
@@ -70,6 +81,12 @@ class PrefsKeys {
 
   // On This Day card (day-keyed dismissal)
   static const String onThisDayDismissedDate = 'on_this_day_dismissed_date';
+
+  // "From your tree" resurfacing card (day-keyed dismissal) and its
+  // opt-in weekly notification.
+  static const String resurfaceDismissedDate = 'resurface_dismissed_date';
+  static const String resurfaceNotificationsEnabled =
+      'resurface_notifications_enabled';
 
   // Support invitation (shown at most once, ever)
   static const String supportInvitationShown = 'support_invitation_shown';

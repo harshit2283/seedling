@@ -45,5 +45,29 @@ void main() {
       expect(filtered.first.isCapsule, false);
       expect(filtered.first.text, 'Garden walk');
     });
+
+    test('the Line filter also matches fragments; no Fragment chip', () {
+      final line = Entry.line(text: 'A long walk by the river at dusk');
+      final fragment = Entry.fragment(text: 'rain');
+      final photo = Entry.photo(mediaPath: '/p.jpg');
+
+      final container = ProviderContainer(
+        overrides: [
+          pagedEntriesProvider.overrideWith((ref) => [line, fragment, photo]),
+          entriesProvider.overrideWith((ref) => [line, fragment, photo]),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(memoriesFilterProvider.notifier)
+          .toggleTypeFilter(EntryType.line);
+
+      final filtered = container.read(filteredEntriesProvider);
+      expect(filtered, containsAll([line, fragment]));
+      expect(filtered, isNot(contains(photo)));
+      expect(filterableEntryTypes, isNot(contains(EntryType.fragment)));
+      expect(filterableEntryTypes, contains(EntryType.line));
+    });
   });
 }

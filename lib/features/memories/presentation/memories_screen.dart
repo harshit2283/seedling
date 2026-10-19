@@ -11,11 +11,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
 import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import '../../../data/models/entry.dart';
+import '../../capture/presentation/quick_capture_sheet.dart';
 import 'entry_detail_screen.dart';
 import 'memory_card.dart';
 import 'memories_filter_state.dart';
@@ -438,7 +440,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                 const SizedBox(width: 8),
               ],
               // Type filter chips
-              ...EntryType.values.map(
+              ...filterableEntryTypes.map(
                 (type) => Padding(
                   padding: const EdgeInsets.only(right: 8, top: 2, bottom: 2),
                   child: Center(
@@ -689,9 +691,60 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 28),
+            _buildPlantMemoryButton(context),
+            const SizedBox(height: 10),
+            Text(
+              'The first one can be tiny.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  /// The empty state's way forward: open capture right here.
+  Widget _buildPlantMemoryButton(BuildContext context) {
+    void plant() {
+      HapticFeedback.selectionClick();
+      showQuickCaptureSheet(context);
+    }
+
+    final palette = context.palette;
+    final label = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(AdaptiveIcons.leaf, size: 18, color: palette.onPrimaryFill),
+        const SizedBox(width: 8),
+        Text(
+          'Plant a memory',
+          style: TextStyle(
+            color: palette.onPrimaryFill,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+    if (PlatformUtils.isIOS) {
+      return CupertinoButton(
+        color: palette.primaryFill,
+        borderRadius: SeedlingRadius.button,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        onPressed: plant,
+        child: label,
+      );
+    }
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: palette.primaryFill,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.button),
+      ),
+      onPressed: plant,
+      child: label,
     );
   }
 

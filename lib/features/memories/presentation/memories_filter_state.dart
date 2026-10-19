@@ -99,6 +99,19 @@ class MemoriesFilterNotifier extends Notifier<MemoriesFilterState> {
   }
 }
 
+/// Entry types offered as filter chips. Fragment is folded into Line: the
+/// capture sheet no longer asks people to tell them apart.
+final List<EntryType> filterableEntryTypes = EntryType.values
+    .where((t) => t != EntryType.fragment)
+    .toList(growable: false);
+
+/// The stored types a set of chip filters matches. "Line" also matches
+/// fragments (short lines), including ones saved before the merge.
+Set<EntryType> expandTypeFilters(Set<EntryType> filters) => {
+  ...filters,
+  if (filters.contains(EntryType.line)) EntryType.fragment,
+};
+
 /// Provider for filter state
 final memoriesFilterProvider =
     NotifierProvider<MemoriesFilterNotifier, MemoriesFilterState>(
@@ -134,7 +147,8 @@ final _typeAndThemeFilteredProvider = Provider<List<Entry>>((ref) {
   var filtered = baseEntries.where((e) => !e.isCapsule).toList();
 
   if (typeFilters.isNotEmpty) {
-    filtered = filtered.where((e) => typeFilters.contains(e.type)).toList();
+    final types = expandTypeFilters(typeFilters);
+    filtered = filtered.where((e) => types.contains(e.type)).toList();
   }
 
   if (themeFilters.isNotEmpty) {

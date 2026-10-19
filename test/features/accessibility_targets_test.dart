@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/app/theme/palette.dart';
 import 'package:seedling/app/theme/seedling_theme.dart';
+import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/data/models/entry.dart';
-import 'package:seedling/features/capture/presentation/widgets/entry_type_button.dart';
+import 'package:seedling/features/capture/presentation/quick_capture_sheet.dart';
 import 'package:seedling/features/memories/presentation/memory_reader_screen.dart';
 import 'package:seedling/features/prompts/data/prompt_repository.dart';
 import 'package:seedling/features/prompts/presentation/prompt_card.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/contrast_helpers.dart';
 
@@ -80,76 +84,87 @@ void main() {
     });
   });
 
-  group('EntryTypeButton', () {
+  group('Quick capture controls', () {
+    Future<void> pumpSheet(WidgetTester tester, ThemeData theme) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: _host(const QuickCaptureSheet(), theme: theme),
+        ),
+      );
+      await tester.pump();
+    }
+
     for (final theme in [SeedlingTheme.light, SeedlingTheme.dark]) {
       final palette = theme.extension<SeedlingPalette>()!;
       final name = palette.isDark ? 'dark' : 'light';
 
-      testWidgets('$name: unselected label stays AA and >= 12pt', (
+      testWidgets('$name: idle labels stay AA, >= 12pt, 44pt targets', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          _host(
-            EntryTypeButton(
-              icon: Icons.format_quote,
-              label: 'Line',
-              color: palette.accentLine,
-              isSelected: false,
-              onTap: () {},
+        final handle = tester.ensureSemantics();
+        await pumpSheet(tester, theme);
+        for (final label in ['Photo', 'Voice', 'Title', 'Let go', 'Ritual']) {
+          final rich = tester.widget<RichText>(
+            find.descendant(
+              of: find.text(label),
+              matching: find.byType(RichText),
             ),
-            theme: theme,
-          ),
-        );
-        final rich = tester.widget<RichText>(
-          find.descendant(
-            of: find.text('Line'),
-            matching: find.byType(RichText),
-          ),
-        );
-        final style = rich.text.style!;
-        expect(
-          contrastRatio(style.color!, palette.surface),
-          greaterThanOrEqualTo(4.5),
-        );
-        expect(style.fontSize, greaterThanOrEqualTo(12));
-        final size = tester.getSize(find.byType(EntryTypeButton));
-        expect(size.height, greaterThanOrEqualTo(44));
-        expect(size.width, greaterThanOrEqualTo(44));
+          );
+          final style = rich.text.style!;
+          expect(
+            contrastRatio(style.color!, palette.surface),
+            greaterThanOrEqualTo(4.5),
+            reason: label,
+          );
+          expect(style.fontSize, greaterThanOrEqualTo(12), reason: label);
+        }
+        for (final label in [
+          'Add a photo',
+          'Record a voice memo',
+          'Add a title',
+          'Let go mode',
+          'Ritual mode',
+          'Enable capsule mode',
+        ]) {
+          final size = tester.getSize(find.bySemanticsLabel(label));
+          expect(size.height, greaterThanOrEqualTo(44), reason: label);
+          expect(size.width, greaterThanOrEqualTo(44), reason: label);
+        }
+        handle.dispose();
       });
     }
 
-    testWidgets('exposes selected state to assistive tech', (tester) async {
+    testWidgets('mode chips expose selected state to assistive tech', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _host(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              EntryTypeButton(
-                icon: Icons.format_quote,
-                label: 'Line',
-                color: SeedlingPalette.light.accentLine,
-                isSelected: true,
-                onTap: () {},
-              ),
-              EntryTypeButton(
-                icon: Icons.photo,
-                label: 'Photo',
-                color: SeedlingPalette.light.accentPhoto,
-                isSelected: false,
-                onTap: () {},
-              ),
-            ],
-          ),
+      await pumpSheet(tester, SeedlingTheme.light);
+      await tester.tap(find.text('Let go'));
+      await tester.pump();
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Let go mode')),
+        isSemantics(
+          isButton: true,
+          hasSelectedState: true,
+          isSelected: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
         ),
       );
       expect(
-        tester.getSemantics(find.bySemanticsLabel('Line')),
-        isSemantics(isButton: true, hasSelectedState: true, isSelected: true),
-      );
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Photo')),
-        isSemantics(isButton: true, hasSelectedState: true, isSelected: false),
+        tester.getSemantics(find.bySemanticsLabel('Ritual mode')),
+        isSemantics(
+          isButton: true,
+          hasSelectedState: true,
+          isSelected: false,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
       );
       handle.dispose();
     });

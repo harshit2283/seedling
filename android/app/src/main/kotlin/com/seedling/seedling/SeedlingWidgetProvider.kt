@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetPlugin
 import org.json.JSONArray
@@ -50,6 +51,9 @@ class SeedlingWidgetProvider : AppWidgetProvider() {
             val stateName = widgetData.getString("stateName", "Seed") ?: "Seed"
             val progress = widgetData.getFloat("progress", 0f)
             val stateDescription = widgetData.getString("stateDescription", "Every memory starts as a seed") ?: "Every memory starts as a seed"
+            // Calm mode: the tree still grows, but no counts, stages or bars.
+            val calmMode = widgetData.getBoolean("calmMode", false)
+            val numbersVisibility = if (calmMode) View.GONE else View.VISIBLE
 
             // Parse recent entries
             val recentEntriesJson = widgetData.getString("recentEntries", "[]") ?: "[]"
@@ -72,6 +76,8 @@ class SeedlingWidgetProvider : AppWidgetProvider() {
             if (layoutId == R.layout.widget_small) {
                 views.setTextViewText(R.id.widget_tree_emoji, treeEmoji)
                 views.setTextViewText(R.id.widget_entry_count, entryCount.toString())
+                views.setViewVisibility(R.id.widget_entry_count, numbersVisibility)
+                views.setViewVisibility(R.id.widget_count_label, numbersVisibility)
             } else {
                 // Set content for medium widget
                 views.setTextViewText(R.id.widget_tree_emoji, treeEmoji)
@@ -81,6 +87,10 @@ class SeedlingWidgetProvider : AppWidgetProvider() {
                 // Progress bar (use percentage of width)
                 val progressWidth = (progress * 100).toInt()
                 views.setInt(R.id.widget_progress_bar, "setProgress", progressWidth)
+                views.setViewVisibility(R.id.widget_entry_count, numbersVisibility)
+                views.setViewVisibility(R.id.widget_state_name, numbersVisibility)
+                views.setViewVisibility(R.id.widget_progress_label, numbersVisibility)
+                views.setViewVisibility(R.id.widget_progress_bar, numbersVisibility)
 
                 // Recent entry preview
                 if (recentPreview.isNotEmpty()) {

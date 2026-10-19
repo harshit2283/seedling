@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:io' show Platform;
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -61,33 +59,42 @@ final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
 final syncCryptoServiceProvider = Provider<SyncCryptoService>((ref) {
   return SyncCryptoService(
     secureStorage: ref.watch(secureStorageProvider),
-    kdfSaltProvider: () => resolveSyncKdfSalt(
-      cloudSyncEnabled: ref.read(cloudSyncEnabledProvider),
-      backend: ref.read(syncBackendProvider),
+    keyring: BackendSyncKeyring(
+      cloudSyncEnabled: () => ref.read(cloudSyncEnabledProvider),
+      backend: () => ref.read(syncBackendProvider),
     ),
   );
 });
 
-/// Reads the account's per-user key salt from the sync backend, creating a
-/// random one on first use. Only contacts the backend after the cloud-sync
-/// opt-in.
-Future<List<int>> resolveSyncKdfSalt({
-  required bool cloudSyncEnabled,
-  required SyncBackend backend,
-}) async {
-  if (!cloudSyncEnabled || !await backend.isAvailable()) {
-    throw const SyncPayloadCryptoException(
-      'Turn on cloud sync and connect your account before setting a sync '
-      'passphrase.',
-    );
+/// The account keyring stored by the selected sync backend. Only contacts
+/// the backend after the cloud-sync opt-in.
+class BackendSyncKeyring implements SyncKeyring {
+  final bool Function() _cloudSyncEnabled;
+  final SyncBackend Function() _backend;
+
+  BackendSyncKeyring({
+    required bool Function() cloudSyncEnabled,
+    required SyncBackend Function() backend,
+  }) : _cloudSyncEnabled = cloudSyncEnabled,
+       _backend = backend;
+
+  Future<SyncBackend> _ready() async {
+    final backend = _backend();
+    if (!_cloudSyncEnabled() || !await backend.isAvailable()) {
+      throw const SyncPayloadCryptoException(
+        'Turn on cloud sync and connect your account before setting a sync '
+        'passphrase.',
+      );
+    }
+    return backend;
   }
-  final existing = await backend.readKdfSalt();
-  if (existing != null) return base64Decode(existing);
-  final random = Random.secure();
-  final fresh = base64Encode(
-    List<int>.generate(32, (_) => random.nextInt(256)),
-  );
-  return base64Decode(await backend.publishKdfSalt(fresh));
+
+  @override
+  Future<Map<String, dynamic>?> read() async => (await _ready()).readKeyring();
+
+  @override
+  Future<Map<String, dynamic>> publish(Map<String, dynamic> keyring) async =>
+      (await _ready()).publishKeyring(keyring);
 }
 
 /// Whether a sync passphrase-derived key is configured.

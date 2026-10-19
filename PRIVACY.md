@@ -62,8 +62,8 @@ it never has any.
 Sync is **off by default** and starts only after you turn it on in
 Settings and choose a provider:
 
-- **iCloud (iOS):** records go to the private CloudKit database in your own
-  iCloud account.
+- **iCloud (iOS):** encrypted sync files go to a private zone of the
+  CloudKit database in your own iCloud account.
 - **Google Drive (Android, optionally iOS):** you sign in with Google, and
   Seedling uses Drive's hidden app-data folder in your own Drive. Seedling
   requests only that app-data scope; it cannot see your other Drive files.
@@ -74,7 +74,14 @@ transcription, detected theme, and links between memories) is encrypted
 with a key derived from that passphrase (AES-256-GCM; PBKDF2 with a random
 salt unique to your account, stored in your own sync space). The
 passphrase itself is never stored, on your devices or anywhere else.
-Without it, those fields can't be read by Apple, Google, or us.
+Without it, those fields can't be read by Apple, Google, or us. Your sync
+space also holds an encrypted check value, so a mistyped passphrase on a
+new device is rejected instead of silently producing unreadable data.
+Each encrypted field is bound to its memory, and every synced record
+(including the unencrypted metadata listed below) carries an
+authentication code, so the storage provider can't alter, swap or forge
+records without detection. Records that fail these checks are set aside,
+not imported.
 
 **Photos, voice memos, and object photos sync end-to-end encrypted.** Each
 file is encrypted on your device with its own random key (AES-256-GCM,
@@ -92,7 +99,8 @@ What sync does **not** encrypt end-to-end:
   dates, capsule unlock dates, deletion state and date, a sentiment score,
   the local media file name, a random media file id, and a random device
   ID are stored unencrypted alongside the encrypted fields, so sync can
-  work.
+  work. They are authenticated (tampering is detected) but readable by the
+  storage provider.
 - **Sizes and timing.** Apple or Google can see how many records and media
   files you have, roughly how large each encrypted file is, and when they
   change.

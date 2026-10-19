@@ -1,12 +1,13 @@
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/providers/sync_providers.dart';
 import 'package:seedling/core/services/sync/sync_backend.dart';
 import 'package:seedling/core/services/sync/sync_crypto_service.dart';
 
 class _KeyringBackend extends SyncBackend {
-  String? stored;
+  Map<String, dynamic>? stored;
   var calls = 0;
 
   @override
@@ -16,10 +17,11 @@ class _KeyringBackend extends SyncBackend {
   }
 
   @override
-  Future<String?> readKdfSalt() async => stored;
+  Future<Map<String, dynamic>?> readKeyring() async => stored;
 
   @override
-  Future<String> publishKdfSalt(String salt) async => stored ??= salt;
+  Future<Map<String, dynamic>> publishKeyring(Map<String, dynamic> k) async =>
+      stored ??= k;
 
   @override
   Future<String> getAccountStatus() async => 'test';
@@ -32,35 +34,55 @@ class _KeyringBackend extends SyncBackend {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const passphrase = 'correct horse battery staple';
+
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+  SyncCryptoService serviceFor(
+    _KeyringBackend backend, {
+    bool optedIn = true,
+  }) => SyncCryptoService(
+    secureStorage: const FlutterSecureStorage(),
+    keyring: BackendSyncKeyring(
+      cloudSyncEnabled: () => optedIn,
+      backend: () => backend,
+    ),
+  );
+
   test('does not contact the backend before the cloud-sync opt-in', () async {
     final backend = _KeyringBackend();
     await expectLater(
-      resolveSyncKdfSalt(cloudSyncEnabled: false, backend: backend),
+      serviceFor(backend, optedIn: false).setPassphrase(passphrase),
       throwsA(isA<SyncPayloadCryptoException>()),
     );
     expect(backend.calls, 0);
     expect(backend.stored, isNull);
   });
 
-  test('creates one random 32-byte salt and reuses it afterwards', () async {
+  test('creates one random salt with a key check, reused afterwards', () async {
     final backend = _KeyringBackend();
-    final first = await resolveSyncKdfSalt(
-      cloudSyncEnabled: true,
-      backend: backend,
-    );
-    expect(first, hasLength(32));
-    expect(base64Decode(backend.stored!), first);
-    final second = await resolveSyncKdfSalt(
-      cloudSyncEnabled: true,
-      backend: backend,
-    );
-    expect(second, first);
+    await serviceFor(backend).setPassphrase(passphrase);
+    final keyring = backend.stored!;
+    expect(base64Decode(keyring['kdfSalt'] as String), hasLength(32));
+    expect(keyring['check'], startsWith('syncenc:v1:'));
 
-    // A different account gets a different salt.
-    final other = await resolveSyncKdfSalt(
-      cloudSyncEnabled: true,
-      backend: _KeyringBackend(),
+    // Another device with the right passphrase joins without changing it.
+    FlutterSecureStorage.setMockInitialValues({});
+    await serviceFor(backend).setPassphrase(passphrase);
+    expect(backend.stored, same(keyring));
+  });
+
+  test('a wrong passphrase is rejected and nothing is stored', () async {
+    final backend = _KeyringBackend();
+    await serviceFor(backend).setPassphrase(passphrase);
+
+    FlutterSecureStorage.setMockInitialValues({});
+    final other = serviceFor(backend);
+    await expectLater(
+      other.setPassphrase('a different passphrase'),
+      throwsA(isA<SyncWrongPassphraseException>()),
     );
-    expect(other, isNot(first));
+    expect(await other.hasPassphrase(), isFalse);
   });
 }
