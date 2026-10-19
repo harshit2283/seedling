@@ -329,13 +329,20 @@ final databaseMaintenanceProvider =
 
 /// Provider that reactively resolves linked entries for a given entry.
 /// Watches the entries stream so it updates when linked entries change.
-final linkedEntriesProvider = Provider.family<List<Entry>, List<String>>((
+///
+/// Keyed by the entry's raw `manualLinkIds` string: a `List` key compares by
+/// identity, so a fresh list per build would mint a new provider every frame.
+final linkedEntriesProvider = Provider.autoDispose.family<List<Entry>, String>((
   ref,
-  syncUUIDs,
+  manualLinkIds,
 ) {
   final db = ref.watch(databaseProvider);
   // Re-evaluate when entries change (linked entries may span years)
   ref.watch(allEntriesStreamProvider);
+  final syncUUIDs = manualLinkIds
+      .split(',')
+      .where((s) => s.isNotEmpty)
+      .toList();
   if (syncUUIDs.isEmpty) return [];
   return db.getEntriesBySyncUUIDs(syncUUIDs);
 });

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
@@ -519,10 +520,10 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
   // ---------------------------------------------------------------------------
 
   Widget _buildLinkedMemories(BuildContext context, Entry entry) {
-    // Watch entries stream so linked entries update when they change
-    final db = ref.read(databaseProvider);
-    ref.watch(entriesStreamProvider);
-    final linkedEntries = db.getEntriesBySyncUUIDs(entry.manualLinkList);
+    // Reactive and memoised per link set: no DB query inside build.
+    final linkedEntries = ref.watch(
+      linkedEntriesProvider(entry.manualLinkIds ?? ''),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1751,9 +1752,32 @@ class _LinkPickerSheet extends ConsumerStatefulWidget {
 class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
   final _searchController = TextEditingController();
   String _query = '';
+  Timer? _queryDebounce;
+
+  /// Lowercased displayContent per entry object, tagged with the string it
+  /// came from. Cached entries are replaced (not mutated) on edit, and the
+  /// identity check catches in-place changes, so this never goes stale.
+  static final _lowerDisplay = Expando<(String, String)>();
+
+  static String _lowerFor(Entry entry) {
+    final source = entry.displayContent;
+    final cached = _lowerDisplay[entry];
+    if (cached != null && identical(cached.$1, source)) return cached.$2;
+    final lower = source.toLowerCase();
+    _lowerDisplay[entry] = (source, lower);
+    return lower;
+  }
+
+  void _onQueryChanged(String value) {
+    _queryDebounce?.cancel();
+    _queryDebounce = Timer(const Duration(milliseconds: 150), () {
+      if (mounted) setState(() => _query = value);
+    });
+  }
 
   @override
   void dispose() {
+    _queryDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -1764,6 +1788,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
 
     // Exclude self and already-linked entries
     final alreadyLinked = widget.current.manualLinkList.toSet();
+    final q = _query.toLowerCase();
     final candidates = allEntries.where((e) {
       if (e.id == widget.current.id) return false;
       // Locked capsules stay sealed: don't show or search their content.
@@ -1771,9 +1796,8 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
       if (e.syncUUID != null && alreadyLinked.contains(e.syncUUID)) {
         return false;
       }
-      if (_query.isEmpty) return true;
-      final q = _query.toLowerCase();
-      return e.displayContent.toLowerCase().contains(q);
+      if (q.isEmpty) return true;
+      return _lowerFor(e).contains(q);
     }).toList();
 
     if (PlatformUtils.isIOS) {
@@ -1828,7 +1852,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
                   child: CupertinoSearchTextField(
                     controller: _searchController,
                     placeholder: 'Search memories...',
-                    onChanged: (v) => setState(() => _query = v),
+                    onChanged: _onQueryChanged,
                   ),
                 ),
                 Expanded(child: _buildCandidateList(context, candidates)),
@@ -1889,7 +1913,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
                   vertical: 12,
                 ),
               ),
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: _onQueryChanged,
             ),
           ),
           Expanded(child: _buildCandidateList(context, candidates)),
