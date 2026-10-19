@@ -156,6 +156,9 @@ class HybridMLTextAnalyzer implements MLTextAnalyzer {
 ///
 /// This is used when native ML services aren't available or fail.
 class FallbackTextAnalyzer implements MLTextAnalyzer {
+  static final RegExp _nonWord = RegExp(r'[^\w\s]');
+  static final RegExp _whitespace = RegExp(r'\s+');
+
   @override
   Future<bool> isAvailable() async => true;
 
@@ -340,8 +343,8 @@ class FallbackTextAnalyzer implements MLTextAnalyzer {
   Set<String> _tokenize(String text) {
     return text
         .toLowerCase()
-        .replaceAll(RegExp(r'[^\w\s]'), ' ')
-        .split(RegExp(r'\s+'))
+        .replaceAll(_nonWord, ' ')
+        .split(_whitespace)
         .where((word) => word.length > 2)
         .toSet();
   }

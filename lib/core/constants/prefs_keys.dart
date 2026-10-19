@@ -74,4 +74,8 @@ class PrefsKeys {
 
   // Support invitation (shown at most once, ever)
   static const String supportInvitationShown = 'support_invitation_shown';
+
+  // One-time background pass that persists detected themes on entries saved
+  // before themes were stored at capture. Holds the completed pass version.
+  static const String themeBackfillVersion = 'theme_backfill_version';
 }

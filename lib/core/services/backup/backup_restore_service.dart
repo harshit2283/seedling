@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../../../data/datasources/local/objectbox_database.dart';
 import '../../../data/models/entry.dart';
+import '../ai/theme_detector_service.dart';
 import '../export/export_service.dart';
 import '../media/file_storage_service.dart';
 
@@ -20,6 +21,7 @@ class BackupRestoreService {
        _fileStorage = fileStorage;
 
   final ObjectBoxDatabase _database;
+  static final _themeDetector = ThemeDetectorService();
   final FileStorageService _fileStorage;
 
   /// Counts what a merge of [loaded] would add, without writing anything.
@@ -110,6 +112,8 @@ class BackupRestoreService {
         entryMap,
         restoredMediaPath: restoredMediaPath,
       );
+      // Older backups carry no theme: store one so counts stay cheap.
+      if (!entry.hasTheme) _themeDetector.assignTheme(entry);
       await _database.saveEntry(entry);
       known.add(entryMap);
       importedEntries++;

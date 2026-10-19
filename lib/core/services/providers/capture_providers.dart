@@ -28,6 +28,9 @@ class EntryCreatorNotifier extends Notifier<void> {
     final db = ref.read(databaseProvider);
     final syncEngine = ref.read(syncEngineProvider);
     syncEngine.ensureSyncUUID(entry);
+    // Persist the theme in the same write so theme counts, badges and
+    // filters never have to re-run keyword detection over the collection.
+    ref.read(themeDetectorProvider).assignTheme(entry);
     final saved = await db.saveEntry(entry);
     // Record entry type usage for smart button ordering
     await ref
@@ -175,6 +178,8 @@ class EntryCreatorNotifier extends Notifier<void> {
 
     if (text != null) entry.text = text;
     if (title != null) entry.title = title;
+    entry.invalidateSearchCache();
+    ref.read(themeDetectorProvider).assignTheme(entry);
     db.updateEntry(entry);
     ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
   }
@@ -182,6 +187,9 @@ class EntryCreatorNotifier extends Notifier<void> {
   /// Persist an edit made outside the text fields (manual links, a voice
   /// transcription) and queue it for sync, so it reaches other devices.
   void saveEdit(Entry entry) {
+    // A transcription can change the text, so keep the persisted theme true.
+    entry.invalidateSearchCache();
+    ref.read(themeDetectorProvider).assignTheme(entry);
     ref.read(databaseProvider).updateEntry(entry);
     ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
   }

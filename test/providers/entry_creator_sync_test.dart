@@ -285,6 +285,44 @@ void main() {
       ]);
     });
 
+    test('new entries are saved with their theme already detected', () async {
+      when(
+        () => mockDb.saveEntry(any()),
+      ).thenAnswer((inv) async => inv.positionalArguments.first as Entry);
+
+      await container
+          .read(entryCreatorProvider.notifier)
+          .createLineEntry(
+            'Dinner with my mom and dad, my sister and brother, at home with family',
+          );
+
+      final saved =
+          verify(() => mockDb.saveEntry(captureAny())).captured.single as Entry;
+      expect(saved.detectedTheme, 'family');
+    });
+
+    test('editing text re-detects the stored theme', () async {
+      final entry =
+          Entry.line(
+              text:
+                  'Dinner with my mom and dad, my sister and brother, at home with family',
+            )
+            ..id = 17
+            ..detectedTheme = 'family';
+      when(() => mockDb.getEntry(17)).thenReturn(entry);
+      when(() => mockDb.updateEntry(any())).thenReturn(null);
+
+      await container
+          .read(entryCreatorProvider.notifier)
+          .updateEntryText(
+            17,
+            text:
+                'Hiking the forest by the lake and river under a sunny sky with birds',
+          );
+
+      expect(entry.detectedTheme, 'nature');
+    });
+
     test('updateEntryText does nothing if entry not found', () async {
       when(() => mockDb.getEntry(99)).thenReturn(null);
 

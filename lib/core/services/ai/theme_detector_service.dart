@@ -7,6 +7,9 @@ import 'models/memory_theme.dart';
 /// Each theme has a set of associated keywords, and the entry
 /// is assigned the theme with the highest keyword match score.
 class ThemeDetectorService {
+  static final RegExp _nonWord = RegExp(r'[^\w\s]');
+  static final RegExp _whitespace = RegExp(r'\s+');
+
   /// Keyword mappings for each theme
   /// More specific keywords score higher
   static const Map<MemoryTheme, List<String>> _themeKeywords = {
@@ -454,8 +457,12 @@ class ThemeDetectorService {
   ///
   /// Returns the theme with the highest keyword match score.
   /// If no meaningful keywords are found, defaults to 'moments'.
-  MemoryTheme detectTheme(Entry entry) {
-    final content = entry.searchableContent;
+  MemoryTheme detectTheme(Entry entry) =>
+      detectThemeForContent(entry.searchableContent);
+
+  /// [detectTheme] over already-lowercased searchable content. Works on plain
+  /// strings so it can run in a background isolate.
+  MemoryTheme detectThemeForContent(String content) {
     if (content.isEmpty) return MemoryTheme.moments;
 
     final scores = <MemoryTheme, double>{};
@@ -532,20 +539,46 @@ class ThemeDetectorService {
     return score / totalScore;
   }
 
-  /// Analyze multiple entries and return theme distribution
-  Map<MemoryTheme, int> analyzeDistribution(List<Entry> entries) {
-    final distribution = <MemoryTheme, int>{};
+  /// The theme name to persist on [entry], or null when it has no text to
+  /// classify (an empty fragment, a photo without a note).
+  String? themeNameFor(Entry entry) {
+    if (entry.searchableContent.isEmpty) return null;
+    return detectTheme(entry).name;
+  }
 
-    for (final theme in MemoryTheme.values) {
-      distribution[theme] = 0;
+  /// Detect and store the theme on [entry]. Call whenever an entry is created
+  /// or its text changes, so readers can count persisted themes instead of
+  /// re-running keyword detection over the whole collection.
+  /// Returns true when the stored value changed.
+  bool assignTheme(Entry entry) {
+    final name = themeNameFor(entry);
+    if (entry.detectedTheme == name) return false;
+    entry.detectedTheme = name;
+    return true;
+  }
+
+  /// The theme of [entry]: the persisted one when present, otherwise
+  /// detected on the fly (entries not yet backfilled).
+  MemoryTheme themeOf(Entry entry) {
+    if (entry.hasTheme) {
+      final stored = MemoryThemeExtension.fromString(entry.detectedTheme);
+      if (stored != null) return stored;
     }
+    return detectTheme(entry);
+  }
+
+  /// Analyze multiple entries and return theme distribution.
+  ///
+  /// Persisted themes make this a plain count; only entries that have not
+  /// been themed yet fall back to keyword detection.
+  Map<MemoryTheme, int> analyzeDistribution(List<Entry> entries) {
+    final distribution = <MemoryTheme, int>{
+      for (final theme in MemoryTheme.values) theme: 0,
+    };
 
     for (final entry in entries) {
-      final theme = entry.hasTheme
-          ? MemoryThemeExtension.fromString(entry.detectedTheme) ??
-                detectTheme(entry)
-          : detectTheme(entry);
-      distribution[theme] = (distribution[theme] ?? 0) + 1;
+      final theme = themeOf(entry);
+      distribution[theme] = distribution[theme]! + 1;
     }
 
     return distribution;
@@ -567,8 +600,8 @@ class ThemeDetectorService {
   /// Tokenize content into lowercase words
   Set<String> _tokenize(String content) {
     return content
-        .replaceAll(RegExp(r'[^\w\s]'), ' ')
-        .split(RegExp(r'\s+'))
+        .replaceAll(_nonWord, ' ')
+        .split(_whitespace)
         .where((word) => word.length > 1)
         .toSet();
   }
