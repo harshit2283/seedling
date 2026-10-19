@@ -41,6 +41,34 @@ void main() {
         }
       }
     }
-    expect(testMetrics.macroF1, greaterThan(0.0));
+    // Baseline (keyword detector): accuracy 0.087, macro-F1 0.014, 100%
+    // moments. Floors sit a little under the current held-out numbers so
+    // lexicon edits that regress quality fail here.
+    expect(testMetrics.macroF1, greaterThanOrEqualTo(0.78));
+    expect(testMetrics.accuracy, greaterThanOrEqualTo(0.78));
+    expect(
+      (testMetrics.predictedMomentsShare - testMetrics.trueMomentsShare).abs(),
+      lessThan(0.05),
+      reason: "'moments' should mean unthemed, not 'the detector gave up'",
+    );
+  });
+
+  test('inference stays well under 1ms per entry', () {
+    final inputs = [for (final m in all) ThemeInput.fromEntry(m.toEntry())];
+    for (final input in inputs) {
+      detector.analyze(input); // warm-up, builds the lexicon tables
+    }
+    final sw = Stopwatch()..start();
+    const rounds = 5;
+    for (var r = 0; r < rounds; r++) {
+      for (final input in inputs) {
+        detector.analyze(input);
+      }
+    }
+    final perEntryUs = sw.elapsedMicroseconds / (rounds * inputs.length);
+    if (verbose) {
+      debugPrint('analyze: ${perEntryUs.toStringAsFixed(1)}us/entry');
+    }
+    expect(perEntryUs, lessThan(1000));
   });
 }

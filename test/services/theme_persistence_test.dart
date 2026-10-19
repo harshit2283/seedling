@@ -19,9 +19,9 @@ class _CountingDetector extends ThemeDetectorService {
   int detections = 0;
 
   @override
-  MemoryTheme detectThemeForContent(String content) {
+  ThemeAnalysis analyze(ThemeInput input) {
     detections++;
-    return super.detectThemeForContent(content);
+    return super.analyze(input);
   }
 }
 
@@ -106,7 +106,7 @@ void main() {
     test('classify (isolate payload) matches detectTheme', () {
       final entry = Entry.line(text: 'Hiked the forest trail up the mountain');
       final result = ThemeBackfillService.classify([
-        (7, entry.searchableContent),
+        (7, ThemeInput.fromEntry(entry)),
       ]);
       expect(result[7], detector.detectTheme(entry).name);
     });

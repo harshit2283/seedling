@@ -1,7 +1,7 @@
 /// Common English stop words shared across AI services.
 ///
 /// IMPORTANT: Do not add words that appear in theme keyword lists
-/// (see [FallbackTextAnalyzer._countKeywordMatches] in ml_text_analyzer.dart).
+/// (see theme_lexicon.dart).
 /// Words like 'mom', 'dad', 'work', 'make', 'good', 'home', 'food', 'art'
 /// are theme-significant and must NOT be treated as stop words.
 const Set<String> commonStopWords = {
