@@ -54,6 +54,10 @@ void showQuickCaptureSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      // The route's own drag-to-dismiss pops without asking the sheet, so a
+      // swipe would throw the draft away. The sheet handles the swipe itself
+      // and saves before it closes.
+      enableDrag: false,
       builder: (context) => QuickCaptureSheet(
         initialText: initialText,
         startAsCapsule: startAsCapsule,
@@ -127,6 +131,16 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   // Capsule capture state
   bool _sealAsCapsule = false;
   DateTime? _capsuleUnlockDate;
+
+  // Swipe down to save: how far the sheet has been dragged so far.
+  double _dragOffset = 0;
+  bool _dismissInFlight = false;
+
+  /// A downward fling faster than this (logical px/s) dismisses the sheet.
+  static const _dismissVelocity = 700.0;
+
+  /// A drag further than this (logical px) dismisses the sheet on release.
+  static const _dismissDistance = 100.0;
 
   // Media captured into this draft; files not saved are deleted.
   late final DraftMediaTracker _draftMedia = DraftMediaTracker(
@@ -211,37 +225,44 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
     final content = PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop || !mounted) return;
-        final navigator = Navigator.of(context);
-        final route = ModalRoute.of(context);
-        final shouldPop = await _handleRouteDismiss();
+      onPopInvokedWithResult: (didPop, result) {
         if (!mounted) return;
-        final routeIsCurrent = route?.isCurrent ?? false;
-        if (shouldPop && navigator.mounted && routeIsCurrent) {
-          navigator.pop();
+        if (didPop) {
+          // Something closed the route without asking (a pop from outside
+          // the sheet). Keep whatever can be kept; the save holds its own
+          // references, so it finishes even as the sheet goes away.
+          if (!_wasExplicitlySaved && _canSave()) {
+            unawaited(_saveEntry(fromDismiss: true));
+          }
+          return;
         }
+        unawaited(_dismiss());
       },
       child: Padding(
         padding: EdgeInsets.only(bottom: bottomPadding),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag handle (decorative)
-            const SizedBox(height: 12),
+            // Drag handle: swipe down to save and close.
             ExcludeSemantics(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: PlatformUtils.isIOS
-                      ? CupertinoColors.systemGrey3
-                      : context.palette.border,
-                  borderRadius: BorderRadius.circular(2),
+              child: SizedBox(
+                key: const ValueKey('capture-drag-handle'),
+                width: double.infinity,
+                height: 24,
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: PlatformUtils.isIOS
+                          ? CupertinoColors.systemGrey3
+                          : context.palette.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
             // Compression / save progress hairline
             AnimatedSwitcher(
               duration: _motion(220),
@@ -410,12 +431,67 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       ),
     );
 
-    // Wrap with glass effect on iOS
-    return GlassSheet(
-      backgroundColor: context.palette.surface,
-      opacity: PlatformUtils.isIOS ? 0.85 : 1.0,
-      child: content,
+    // Wrap with glass effect on iOS. The sheet follows the finger on a
+    // downward drag; letting go far or fast enough saves and closes it.
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragUpdate: _onSheetDragUpdate,
+      onVerticalDragEnd: _onSheetDragEnd,
+      onVerticalDragCancel: _resetSheetDrag,
+      child: AnimatedContainer(
+        duration: _dragOffset == 0 ? _motion(200) : Duration.zero,
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _dragOffset, 0),
+        child: GlassSheet(
+          backgroundColor: context.palette.surface,
+          opacity: PlatformUtils.isIOS ? 0.85 : 1.0,
+          child: content,
+        ),
+      ),
     );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Swipe down to save
+  // ───────────────────────────────────────────────────────────────────────
+
+  void _onSheetDragUpdate(DragUpdateDetails details) {
+    if (_dismissInFlight) return;
+    final next = (_dragOffset + details.delta.dy).clamp(0.0, double.infinity);
+    if (next != _dragOffset) setState(() => _dragOffset = next);
+  }
+
+  void _onSheetDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final dismiss =
+        velocity > _dismissVelocity ||
+        (_dragOffset > _dismissDistance && velocity >= 0);
+    _resetSheetDrag();
+    if (dismiss) unawaited(_dismiss());
+  }
+
+  void _resetSheetDrag() {
+    if (_dragOffset != 0 && mounted) setState(() => _dragOffset = 0);
+  }
+
+  /// The one way the sheet closes itself when asked to (swipe down, back,
+  /// tapping outside): saves a savable draft exactly once, asks before
+  /// throwing away an incomplete one, and closes an empty one quietly.
+  Future<void> _dismiss() async {
+    if (_dismissInFlight || !mounted) return;
+    _dismissInFlight = true;
+    try {
+      final navigator = Navigator.of(context);
+      final route = ModalRoute.of(context);
+      final shouldPop = await _handleRouteDismiss();
+      if (!mounted) return;
+      final routeIsCurrent = route?.isCurrent ?? false;
+      if (shouldPop && navigator.mounted && routeIsCurrent) {
+        navigator.pop();
+      }
+    } finally {
+      _dismissInFlight = false;
+    }
   }
 
   Widget _buildTextField() {
@@ -1226,6 +1302,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     }
     _didPopDuringSave = false;
 
+    // Read everything the save needs up front: a swipe can close the sheet
+    // while the save is still running, and ref is gone after dispose.
+    final errorReporter = ref.read(errorReporterProvider);
     try {
       final creator = ref.read(entryCreatorProvider.notifier);
       final intent = _buildIntent();
@@ -1256,9 +1335,11 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       }
       return true;
     } catch (e, st) {
-      ref
-          .read(errorReporterProvider)
-          .report(e, stack: st, context: 'QuickCaptureSheet._saveEntry');
+      errorReporter.report(
+        e,
+        stack: st,
+        context: 'QuickCaptureSheet._saveEntry',
+      );
       if (!fromDismiss && mounted) {
         setState(() {
           _saveError = 'Could not save this memory. Please try again.';

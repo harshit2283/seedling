@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -320,16 +321,15 @@ void main() {
       expect(find.text('Let it go completely'), findsNothing);
     });
 
-    testWidgets('swipe-down saves the draft exactly once', (tester) async {
+    Future<void> openWith(
+      WidgetTester tester,
+      void Function(BuildContext) open,
+    ) async {
       await tester.pumpWidget(
         buildTestWidget(
           child: Builder(
             builder: (context) => TextButton(
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => const QuickCaptureSheet(),
-              ),
+              onPressed: () => open(context),
               child: const Text('open'),
             ),
           ),
@@ -337,22 +337,127 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+    }
 
+    testWidgets('a real swipe down on the sheet saves the draft exactly once', (
+      tester,
+    ) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
       await tester.enterText(
         find.byKey(const ValueKey('capture-text')),
         'Dismissing should keep this',
       );
       await tester.pump();
 
-      // Dismiss the sheet (what a swipe down does).
-      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-      navigator.maybePop();
+      await tester.fling(
+        find.byType(QuickCaptureSheet),
+        const Offset(0, 500),
+        2000,
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(QuickCaptureSheet), findsNothing);
       final saved = savedEntries();
       expect(saved, hasLength(1));
       expect(saved.single.text, 'Dismissing should keep this');
+    });
+
+    testWidgets('a swipe down from the drag handle saves too', (tester) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'Grabbed by the handle',
+      );
+      await tester.pump();
+
+      await tester.drag(
+        find.byKey(const ValueKey('capture-drag-handle')),
+        const Offset(0, 400),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      expect(savedEntries().single.text, 'Grabbed by the handle');
+    });
+
+    testWidgets('a swipe down on the iOS popup route saves too', (
+      tester,
+    ) async {
+      await openWith(
+        tester,
+        (context) => showCupertinoModalPopup<void>(
+          context: context,
+          // The host is not iOS, so the sheet builds Material fields.
+          builder: (_) => const Material(child: QuickCaptureSheet()),
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'Kept on the other platform',
+      );
+      await tester.pump();
+
+      await tester.fling(
+        find.byType(QuickCaptureSheet),
+        const Offset(0, 500),
+        2000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      expect(savedEntries().single.text, 'Kept on the other platform');
+    });
+
+    testWidgets('a small drag springs back and saves nothing', (tester) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'Still writing this one',
+      );
+      await tester.pump();
+
+      await tester.drag(
+        find.byKey(const ValueKey('capture-drag-handle')),
+        const Offset(0, 30),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsOneWidget);
+      verifyNever(() => mockDb.saveEntry(any()));
+    });
+
+    testWidgets('swiping an empty sheet away saves nothing', (tester) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+
+      await tester.fling(
+        find.byType(QuickCaptureSheet),
+        const Offset(0, 500),
+        2000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      verifyNever(() => mockDb.saveEntry(any()));
+    });
+
+    testWidgets('back / barrier dismiss saves the draft exactly once', (
+      tester,
+    ) async {
+      await openWith(tester, (context) => showQuickCaptureSheet(context));
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'Closed with the back button',
+      );
+      await tester.pump();
+
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      navigator.maybePop();
+      await tester.pump();
+      navigator.maybePop();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      expect(savedEntries(), hasLength(1));
     });
   });
 }
