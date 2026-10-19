@@ -154,6 +154,34 @@ class Entry {
     this.deviceId,
   }) : createdAt = createdAt ?? DateTime.now();
 
+  /// A field-for-field copy (persisted fields plus [decryptionFailed]).
+  /// The database uses this so the objects it caches are never the ones
+  /// callers hold and mutate.
+  Entry copy() => Entry(
+    id: id,
+    createdAt: createdAt,
+    typeIndex: typeIndex,
+    text: text,
+    mediaPath: mediaPath,
+    title: title,
+    context: context,
+    mood: mood,
+    tags: tags,
+    isReleased: isReleased,
+    isDeleted: isDeleted,
+    deletedAt: deletedAt,
+    detectedTheme: detectedTheme,
+    connectionIds: connectionIds,
+    manualLinkIds: manualLinkIds,
+    sentimentScore: sentimentScore,
+    lastAnalyzedAt: lastAnalyzedAt,
+    capsuleUnlockDate: capsuleUnlockDate,
+    transcription: transcription,
+    syncUUID: syncUUID,
+    modifiedAt: modifiedAt,
+    deviceId: deviceId,
+  )..decryptionFailed = decryptionFailed;
+
   /// Create a LINE entry - text that stayed with you
   factory Entry.line({String? text, String? context, String? mood}) {
     return Entry(

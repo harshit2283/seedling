@@ -28,7 +28,15 @@ class ObjectBoxDatabase {
   final _entriesController = StreamController<List<Entry>>.broadcast();
   final _capsulesController = StreamController<List<Entry>>.broadcast();
 
-  // Cached decrypted entry lists, invalidated on every mutation.
+  // Plaintext copies of stored entries, keyed by id. Every write in this
+  // class keeps it current (we already hold the plaintext when writing), so
+  // reads after a write never re-decrypt the store. Entries are decrypted at
+  // most once per session, the first time they are read.
+  final Map<int, Entry> _plainById = {};
+  bool _plainComplete = false;
+
+  // Sorted views derived from [_plainById]; rebuilt (sort only, no
+  // decryption) after a write.
   List<Entry>? _allEntriesCache;
   List<Entry>? _visibleEntriesCache;
 
@@ -137,53 +145,65 @@ class ObjectBoxDatabase {
   }
 
   void _emitEntries() {
-    _entriesController.add(_refreshVisibleEntriesCache());
+    _entriesController.add(getCurrentYearEntries());
   }
 
-  /// Invalidate cached decrypted entry lists. Call before every mutation emit
-  /// so the next reader triggers a fresh load.
+  /// Drop the sorted views. The plaintext map stays valid: writers update it.
   void _invalidateEntryCaches() {
     _allEntriesCache = null;
     _visibleEntriesCache = null;
   }
 
+  /// Make sure every stored entry has a plaintext copy in [_plainById].
+  void _ensureAllPlainLoaded() {
+    if (_plainComplete) return;
+    for (final raw in _entryBox.getAll()) {
+      _plainById.putIfAbsent(raw.id, () => _decrypted(raw));
+    }
+    _plainComplete = true;
+  }
+
+  static int _newestFirst(Entry a, Entry b) {
+    final byDate = b.createdAt.compareTo(a.createdAt);
+    return byDate != 0 ? byDate : b.id.compareTo(a.id);
+  }
+
   List<Entry> _refreshAllEntriesCache() {
-    final entries = _queryAllEntries();
+    _ensureAllPlainLoaded();
+    final entries = _plainById.values.where((e) => !e.isDeleted).toList()
+      ..sort(_newestFirst);
     _allEntriesCache = entries;
     return entries;
   }
 
   List<Entry> _refreshVisibleEntriesCache() {
-    final entries = _queryVisibleEntries();
+    _ensureAllPlainLoaded();
+    final startOfYear = DateTime(DateTime.now().year);
+    final entries =
+        _plainById.values
+            .where(
+              (e) =>
+                  !e.isDeleted &&
+                  !e.createdAt.isBefore(startOfYear) &&
+                  !e.isLocked,
+            )
+            .toList()
+          ..sort(_newestFirst);
     _visibleEntriesCache = entries;
     return entries;
   }
 
-  List<Entry> _queryAllEntries() {
-    final query = _entryBox
-        .query(Entry_.isDeleted.equals(false))
-        .order(Entry_.createdAt, flags: Order.descending)
-        .build();
-    final results = query.find();
-    query.close();
-    _decryptEntries(results);
-    return results;
-  }
+  /// Plaintext versions of raw query results, decrypting only entries this
+  /// session has not seen yet. Order is preserved.
+  List<Entry> _plain(List<Entry> raw) => [
+    for (final entry in raw)
+      _plainById.putIfAbsent(entry.id, () => _decrypted(entry)),
+  ];
 
-  List<Entry> _queryVisibleEntries() {
-    final startOfYear = DateTime(DateTime.now().year);
-    final query = _entryBox
-        .query(
-          Entry_.createdAt
-              .greaterOrEqual(startOfYear.millisecondsSinceEpoch)
-              .and(Entry_.isDeleted.equals(false)),
-        )
-        .order(Entry_.createdAt, flags: Order.descending)
-        .build();
-    final results = query.find();
-    query.close();
-    _decryptEntries(results);
-    return results.where((entry) => !entry.isLocked).toList();
+  /// Decrypts [raw] in place (it is a fresh object from the box) and returns it.
+  Entry _decrypted(Entry raw) {
+    _decryptEntryFields(raw);
+    return raw;
   }
 
   // ============== Tree Operations ==============
@@ -239,36 +259,107 @@ class ObjectBoxDatabase {
 
   // ============== Entry Operations ==============
 
-  /// Save a new entry and update tree count
+  /// Save an entry (new or existing) and keep tree counts in step.
   Future<Entry> saveEntry(Entry entry) async {
-    _assignSyncUUIDIfMissing(entry);
-    entry.modifiedAt = DateTime.now();
-    _encryptEntryFields(entry);
-    final id = _entryBox.put(entry);
-    entry.id = id;
+    _writeEntries([entry]);
+    return entry;
+  }
 
-    // Update tree count
-    await _adjustTreeCountForEntryYear(entry, increment: true);
+  /// Save many entries in a single transaction with a single change
+  /// notification. Tree counts are adjusted from each entry's previous stored
+  /// state, so inserting soft-deleted entries or flipping isDeleted keeps
+  /// counts correct.
+  ///
+  /// With [preserveModifiedAt] the entries keep their own modifiedAt (sync
+  /// merges must not make a remote change look like a newer local edit).
+  Future<List<Entry>> saveEntries(
+    List<Entry> entries, {
+    bool preserveModifiedAt = false,
+  }) async {
+    _writeEntries(entries, preserveModifiedAt: preserveModifiedAt);
+    return entries;
+  }
 
-    // Notify listeners
+  /// The single write path for entries. Encrypts copies (the caller's
+  /// objects stay plaintext), applies tree-count deltas, refreshes the
+  /// plaintext cache and notifies listeners once.
+  void _writeEntries(List<Entry> entries, {bool preserveModifiedAt = false}) {
+    if (entries.isEmpty) return;
+    final now = DateTime.now();
+    var touchesCapsules = false;
+    _store.runInTransaction(TxMode.write, () {
+      final yearDeltas = <int, int>{};
+      final stored = <Entry>[];
+      for (final entry in entries) {
+        _assignSyncUUIDIfMissing(entry);
+        if (!preserveModifiedAt || entry.modifiedAt == null) {
+          entry.modifiedAt = now;
+        }
+        final previous = entry.id != 0 ? _entryBox.get(entry.id) : null;
+        if (previous != null && !previous.isDeleted) {
+          yearDeltas.update(
+            previous.createdAt.year,
+            (d) => d - 1,
+            ifAbsent: () => -1,
+          );
+        }
+        if (!entry.isDeleted) {
+          yearDeltas.update(
+            entry.createdAt.year,
+            (d) => d + 1,
+            ifAbsent: () => 1,
+          );
+        }
+        if (entry.isCapsule || (previous?.isCapsule ?? false)) {
+          touchesCapsules = true;
+        }
+        stored.add(_encryptedCopy(entry));
+      }
+      final ids = _entryBox.putMany(stored);
+      for (var i = 0; i < entries.length; i++) {
+        entries[i].id = ids[i];
+      }
+      _applyTreeDeltas(yearDeltas);
+    });
+    for (final entry in entries) {
+      entry.invalidateSearchCache();
+      _plainById[entry.id] = entry.copy();
+    }
+
     _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
-    if (entry.isCapsule) {
-      _emitCapsules();
+    if (touchesCapsules) _emitCapsules();
+  }
+
+  void _applyTreeDeltas(Map<int, int> yearDeltas) {
+    for (final MapEntry(key: year, value: delta) in yearDeltas.entries) {
+      if (delta == 0) continue;
+      final tree = getTreeForYear(year) ?? Tree(year: year);
+      for (var i = 0; i < delta.abs(); i++) {
+        delta > 0 ? tree.addEntry() : tree.removeEntry();
+      }
+      _treeBox.put(tree);
     }
-
-    _decryptEntryFields(entry);
-    return entry;
   }
 
-  /// Get an entry by ID
-  Entry? getEntry(int id) {
-    final entry = _entryBox.get(id);
-    if (entry == null) return null;
-    _decryptEntryFields(entry);
-    return entry;
+  Entry _encryptedCopy(Entry entry) {
+    final copy = entry.copy();
+    _encryptEntryFields(copy);
+    return copy;
   }
+
+  /// Plaintext copy of the stored entry [id], or null.
+  Entry? _plainForId(int id) {
+    final cached = _plainById[id];
+    if (cached != null) return cached;
+    final raw = _entryBox.get(id);
+    if (raw == null) return null;
+    return _plainById[id] = _decrypted(raw);
+  }
+
+  /// Get an entry by ID. Returns a private copy the caller may mutate.
+  Entry? getEntry(int id) => _plainForId(id)?.copy();
 
   /// Get all entries for current year, newest first (excludes soft-deleted)
   List<Entry> getCurrentYearEntries() {
@@ -284,8 +375,9 @@ class ObjectBoxDatabase {
     query.limit = limit;
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results.where((entry) => !entry.isLocked).take(limit).toList();
+    return _plain(
+      results,
+    ).where((entry) => !entry.isLocked).take(limit).toList();
   }
 
   /// Get all entries (excludes soft-deleted)
@@ -312,8 +404,7 @@ class ObjectBoxDatabase {
     query.limit = limit;
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   /// Count entries with optional year and deletion filters.
@@ -334,24 +425,14 @@ class ObjectBoxDatabase {
 
   /// Soft delete an entry (recoverable for 30 days) and update tree count
   Future<bool> softDeleteEntry(int id) async {
-    final entry = _entryBox.get(id);
+    final entry = _plainForId(id)?.copy();
     if (entry == null || entry.isDeleted) return false;
 
     entry.isDeleted = true;
     entry.deletedAt = DateTime.now().toUtc();
-    // Bump modifiedAt so sync treats the deletion as a newer change and
-    // propagates it to other devices.
-    entry.modifiedAt = DateTime.now();
-    _entryBox.put(entry);
-
-    // Update tree count
-    await _adjustTreeCountForEntryYear(entry, increment: false);
-
-    // Notify listeners
-    _invalidateEntryCaches();
-    _emitCurrentTree();
-    _emitEntries();
-
+    // _writeEntries bumps modifiedAt, so sync treats the deletion as a newer
+    // change and propagates it; it also decrements the tree count.
+    _writeEntries([entry]);
     return true;
   }
 
@@ -359,7 +440,7 @@ class ObjectBoxDatabase {
   Future<bool> deleteEntry(int id) async {
     final entry = _entryBox.get(id);
     if (entry != null && !entry.isDeleted) {
-      await _adjustTreeCountForEntryYear(entry, increment: false);
+      _applyTreeDeltas({entry.createdAt.year: -1});
     }
 
     if (entry != null) {
@@ -367,6 +448,7 @@ class ObjectBoxDatabase {
     }
 
     final removed = _entryBox.remove(id);
+    _plainById.remove(id);
 
     // Notify listeners
     _invalidateEntryCaches();
@@ -396,22 +478,12 @@ class ObjectBoxDatabase {
 
   /// Restore a soft-deleted entry
   Future<bool> restoreEntry(int id) async {
-    final entry = _entryBox.get(id);
+    final entry = _plainForId(id)?.copy();
     if (entry == null || !entry.isDeleted) return false;
 
     entry.isDeleted = false;
     entry.deletedAt = null;
-    entry.modifiedAt = DateTime.now();
-    _entryBox.put(entry);
-
-    // Update tree count
-    await _adjustTreeCountForEntryYear(entry, increment: true);
-
-    // Notify listeners
-    _invalidateEntryCaches();
-    _emitCurrentTree();
-    _emitEntries();
-
+    _writeEntries([entry]);
     return true;
   }
 
@@ -423,8 +495,7 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   /// Purge entries deleted more than 30 days ago
@@ -452,6 +523,7 @@ class ObjectBoxDatabase {
 
     final ids = expiredEntries.map((e) => e.id).toList();
     final removed = _entryBox.removeMany(ids);
+    ids.forEach(_plainById.remove);
 
     if (removed > 0) {
       _invalidateEntryCaches();
@@ -462,17 +534,11 @@ class ObjectBoxDatabase {
     return removed;
   }
 
-  /// Update an entry
+  /// Update an entry. The caller's object stays plaintext (callers such as
+  /// the detail screen keep using it), and tree counts follow any isDeleted
+  /// change.
   void updateEntry(Entry entry) {
-    _assignSyncUUIDIfMissing(entry);
-    entry.modifiedAt = DateTime.now();
-    _encryptEntryFields(entry);
-    _entryBox.put(entry);
-    // Callers keep using the object they passed in (e.g. the detail screen),
-    // so hand it back as plaintext, exactly like saveEntry does.
-    _decryptEntryFields(entry);
-    _invalidateEntryCaches();
-    _emitEntries();
+    _writeEntries([entry]);
   }
 
   /// Watch entries for changes (current year, newest first)
@@ -526,8 +592,7 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   /// Get only locked capsules
@@ -559,14 +624,14 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   /// Get entries from previous years that match today's month and day.
   ///
-  /// Excludes the current year at the query level to avoid decrypting
-  /// entries that will never match.
+  /// Excludes the current year at the query level, and filters by date and
+  /// lock state (plaintext columns) before anything is decrypted, so only
+  /// the handful of matches are ever decrypted.
   List<Entry> getEntriesOnThisDay() {
     final today = DateTime.now();
     final startOfYear = DateTime(today.year).millisecondsSinceEpoch;
@@ -582,13 +647,14 @@ class ObjectBoxDatabase {
         .build();
     final pastEntries = query.find();
     query.close();
-    _decryptEntries(pastEntries);
 
-    return pastEntries.where((entry) {
-      if (entry.isLocked) return false;
-      return entry.createdAt.month == today.month &&
-          entry.createdAt.day == today.day;
-    }).toList();
+    return _plain(
+      pastEntries.where((entry) {
+        if (entry.isLocked) return false;
+        return entry.createdAt.month == today.month &&
+            entry.createdAt.day == today.day;
+      }).toList(),
+    );
   }
 
   /// Save a capsule entry (same as saveEntry but with semantic naming)
@@ -657,25 +723,14 @@ class ObjectBoxDatabase {
   /// Permanently clears all entries and tree growth data.
   Future<void> clearAllData() async {
     _entryBox.removeAll();
+    _plainById.clear();
+    _plainComplete = false;
     _treeBox.removeAll();
     await _ensureCurrentYearTree();
     _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
     _emitCapsules();
-  }
-
-  Future<void> _adjustTreeCountForEntryYear(
-    Entry entry, {
-    required bool increment,
-  }) async {
-    final tree = await _ensureTreeForYear(entry.createdAt.year);
-    if (increment) {
-      tree.addEntry();
-    } else {
-      tree.removeEntry();
-    }
-    _treeBox.put(tree);
   }
 
   // ============== Sync Operations (Phase 5) ==============
@@ -746,8 +801,8 @@ class ObjectBoxDatabase {
     final query = _entryBox.query(Entry_.syncUUID.equals(syncUUID)).build();
     final result = query.findFirst();
     query.close();
-    if (result != null) _decryptEntryFields(result);
-    return result;
+    if (result == null) return null;
+    return _plain([result]).single.copy();
   }
 
   /// Get all entries modified since a given timestamp (for sync push)
@@ -758,8 +813,7 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   Query<Entry> _buildEntriesQuery({
@@ -813,12 +867,6 @@ class ObjectBoxDatabase {
     entry.connectionIds = _encryptionService.encryptField(entry.connectionIds);
     entry.manualLinkIds = _encryptionService.encryptField(entry.manualLinkIds);
     entry.transcription = _encryptionService.encryptField(entry.transcription);
-  }
-
-  void _decryptEntries(List<Entry> entries) {
-    for (final entry in entries) {
-      _decryptEntryFields(entry);
-    }
   }
 
   void _decryptEntryFields(Entry entry) {
@@ -887,8 +935,7 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   // ============ Manual Link Operations ============
@@ -915,7 +962,6 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 }
