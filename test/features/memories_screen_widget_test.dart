@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedling/features/capture/presentation/quick_capture_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -164,6 +165,17 @@ void main() {
         find.text('Your memories will appear here\nas you capture them.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('empty state offers a way to plant a memory', (tester) async {
+      await tester.pumpWidget(buildTestWidget(entries: []));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Plant a memory'), findsOneWidget);
+      await tester.tap(find.text('Plant a memory'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsOneWidget);
     });
 
     testWidgets('filter chips are displayed', (tester) async {

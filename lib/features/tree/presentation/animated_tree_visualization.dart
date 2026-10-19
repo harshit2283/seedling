@@ -32,6 +32,14 @@ double treeGrowthValue(TreeState state, double progress) {
   return state.index + p.clamp(0.0, cap);
 }
 
+/// Memory lights for the home tree: memories from the last two weeks
+/// (capped by [TreeScene.maxMemoryLights]).
+int recentMemoryLightCount(Iterable<DateTime> createdAt, {DateTime? now}) {
+  final cutoff = (now ?? DateTime.now()).subtract(const Duration(days: 14));
+  final n = createdAt.where((d) => d.isAfter(cutoff)).length;
+  return math.min(n, TreeScene.maxMemoryLights);
+}
+
 /// How many times the tree's static layers have been recorded (test hook).
 @visibleForTesting
 int get debugTreeLayerBuilds => _TreePainter._layerBuilds;
@@ -63,6 +71,10 @@ class AnimatedTreeVisualization extends StatefulWidget {
   /// Recent memories drawn as small glowing lights in the tree (capped).
   final int memoryLights;
 
+  /// Whether to show the stage name and progress-to-next-stage bar under
+  /// the tree. Calm mode turns this off; the tree itself still grows.
+  final bool showGrowthDetails;
+
   const AnimatedTreeVisualization({
     super.key,
     required this.state,
@@ -73,6 +85,7 @@ class AnimatedTreeVisualization extends StatefulWidget {
     this.season,
     this.seed,
     this.memoryLights = 0,
+    this.showGrowthDetails = true,
   });
 
   @override
@@ -332,7 +345,9 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
     final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
     return Semantics(
       button: widget.onTap != null,
-      label: 'Your tree is a ${_getStateName()}. Tap to open memories.',
+      label: widget.showGrowthDetails
+          ? 'Your tree is a ${_getStateName()}. Tap to open memories.'
+          : 'Your tree. Tap to open memories.',
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -385,16 +400,18 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
                   },
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                _getStateName(),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: _getStateColor(),
-                  fontWeight: FontWeight.w500,
+              if (widget.showGrowthDetails) ...[
+                const SizedBox(height: 16),
+                Text(
+                  _getStateName(),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: _getStateColor(),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              _buildProgressIndicator(context),
+                const SizedBox(height: 8),
+                _buildProgressIndicator(context),
+              ],
             ],
           ),
         ),

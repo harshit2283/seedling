@@ -8,6 +8,10 @@ class PrefsKeys {
   // Onboarding
   static const String onboardingCompleted = 'onboarding_completed';
 
+  // Implementation intention ("When I make my morning coffee"), optional.
+  // Shown softly as the capture field's hint.
+  static const String captureIntention = 'capture_intention';
+
   // App lock
   static const String appLockEnabled = 'app_lock_enabled';
 
@@ -20,6 +24,9 @@ class PrefsKeys {
 
   // Home feed
   static const String homeFeedScope = 'home_feed_scope';
+
+  // Calm mode: hide counts, stages and progress (the tree still grows).
+  static const String calmModeEnabled = 'calm_mode_enabled';
 
   // Sync provider (iOS)
   static const String syncProviderIOS = 'sync_provider_ios';
@@ -70,6 +77,12 @@ class PrefsKeys {
 
   // On This Day card (day-keyed dismissal)
   static const String onThisDayDismissedDate = 'on_this_day_dismissed_date';
+
+  // "From your tree" resurfacing card (day-keyed dismissal) and its
+  // opt-in weekly notification.
+  static const String resurfaceDismissedDate = 'resurface_dismissed_date';
+  static const String resurfaceNotificationsEnabled =
+      'resurface_notifications_enabled';
 
   // Support invitation (shown at most once, ever)
   static const String supportInvitationShown = 'support_invitation_shown';

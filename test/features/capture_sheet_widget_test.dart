@@ -90,34 +90,46 @@ void main() {
     );
   }
 
+  List<Entry> savedEntries() =>
+      verify(() => mockDb.saveEntry(captureAny())).captured.cast<Entry>();
+
   group('QuickCaptureSheet', () {
-    testWidgets('renders entry type buttons', (tester) async {
+    testWidgets('opens straight into a focused text field', (tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      // The default ordered types include Line, Photo, Voice, Fragment,
-      // Object, Let Go, and Capsule. Verify the primary ones render.
-      expect(find.text('Line'), findsOneWidget);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.focusNode?.hasFocus, isTrue);
+      expect(field.decoration?.hintText, 'What stayed with you?');
+    });
+
+    testWidgets('type chips are secondary; Line and Fragment are merged', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      // Attachments infer the type.
       expect(find.text('Photo'), findsOneWidget);
       expect(find.text('Voice'), findsOneWidget);
-      expect(find.text('Fragment'), findsOneWidget);
-      expect(find.text('Object'), findsOneWidget);
-      expect(find.text('Let Go'), findsOneWidget);
+      expect(find.text('Title'), findsOneWidget);
+      // Deliberate modes stay reachable.
+      expect(find.text('Let go'), findsOneWidget);
+      expect(find.text('Ritual'), findsOneWidget);
       expect(find.text('Capsule'), findsOneWidget);
+      // No up-front choice between Line and Fragment.
+      expect(find.text('Line'), findsNothing);
+      expect(find.text('Fragment'), findsNothing);
     });
 
     testWidgets('text input accepts text', (tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      // The text field should be present (TextField on non-iOS platforms)
       final textField = find.byType(TextField);
-      expect(textField, findsOneWidget);
-
       await tester.enterText(textField, 'A quiet morning');
       await tester.pump();
 
-      // Verify the text was entered
       final textFieldWidget = tester.widget<TextField>(textField);
       expect(textFieldWidget.controller?.text, 'A quiet morning');
     });
@@ -128,38 +140,219 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      // Before entering text, the save button label should exist but hint
-      // should reflect the placeholder state.
       expect(find.text('Save memory'), findsOneWidget);
 
-      // Enter text to enable saving
-      final textField = find.byType(TextField);
-      await tester.enterText(textField, 'Something I noticed');
+      await tester.enterText(find.byType(TextField), 'Something I noticed');
       await tester.pump();
 
-      // After entering text, the hint should say "Ready to save this memory"
       expect(find.text('Ready to save this memory'), findsOneWidget);
     });
 
-    testWidgets('selecting entry type changes mode', (tester) async {
+    testWidgets('a full sentence saves as a line', (tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      // Initially Line is selected — the text field should show the line hint
-      final textField = find.byType(TextField);
-      expect(textField, findsOneWidget);
-
-      // Tap the Fragment button to switch type
-      await tester.tap(find.text('Fragment'));
+      await tester.enterText(
+        find.byType(TextField),
+        'The light on the kitchen table this morning',
+      );
+      await tester.pump();
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
-      // The text field should still be present (Fragment uses text mode)
-      // but the hint text should change
-      final updatedTextField = tester.widget<TextField>(find.byType(TextField));
-      expect(
-        updatedTextField.decoration?.hintText,
-        'A thought, incomplete is fine...',
+      final saved = savedEntries();
+      expect(saved, hasLength(1));
+      expect(saved.single.type, EntryType.line);
+    });
+
+    testWidgets('a very short line saves as a fragment', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'rain, again');
+      await tester.pump();
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+
+      expect(savedEntries().single.type, EntryType.fragment);
+    });
+
+    testWidgets('adding a title makes it an object', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(TextField),
+        'She wore it every Sunday',
       );
+      await tester.tap(find.text('Title'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-title')),
+        "Grandma's ring",
+      );
+      await tester.pump();
+      expect(find.text('Saving as an object'), findsOneWidget);
+
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+
+      final entry = savedEntries().single;
+      expect(entry.type, EntryType.object);
+      expect(entry.title, "Grandma's ring");
+      expect(entry.text, 'She wore it every Sunday');
+    });
+
+    testWidgets('Let go changes the hint and saves a release', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Let go'));
+      await tester.pumpAndSettle();
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('capture-text')),
+      );
+      expect(field.decoration?.hintText, 'What would you like to let go of?');
+
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'The argument',
+      );
+      await tester.pump();
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+
+      expect(savedEntries().single.type, EntryType.release);
+    });
+
+    testWidgets('Ritual needs a name and saves a ritual', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ritual'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('capture-title')), findsOneWidget);
+      expect(find.text('Give the ritual a name'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-title')),
+        'Sunday pancakes',
+      );
+      await tester.pump();
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+
+      final entry = savedEntries().single;
+      expect(entry.type, EntryType.ritual);
+      expect(entry.title, 'Sunday pancakes');
+    });
+
+    Widget launcher() => buildTestWidget(
+      child: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => const QuickCaptureSheet(),
+          ),
+          child: const Text('open'),
+        ),
+      ),
+    );
+
+    Future<void> saveRelease(WidgetTester tester) async {
+      await tester.pumpWidget(launcher());
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Let go'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'The grudge I carried all summer',
+      );
+      await tester.pump();
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a saved release offers the ceremony; keeping is default', (
+      tester,
+    ) async {
+      await saveRelease(tester);
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      expect(find.text('Keep it in the tree'), findsOneWidget);
+      expect(find.text('Let it go completely'), findsOneWidget);
+
+      await tester.tap(find.text('Keep it in the tree'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Keep it in the tree'), findsNothing);
+      verifyNever(() => mockDb.deleteEntry(any()));
+    });
+
+    testWidgets('letting go completely hard-deletes the entry', (tester) async {
+      final stored = <int, Entry>{};
+      when(() => mockDb.saveEntry(any())).thenAnswer((invocation) async {
+        final entry = invocation.positionalArguments[0] as Entry;
+        entry.id = 41;
+        stored[entry.id] = entry;
+        return entry;
+      });
+      when(
+        () => mockDb.getEntry(any()),
+      ).thenAnswer((inv) => stored[inv.positionalArguments.first as int]);
+      when(() => mockDb.deleteEntry(any())).thenAnswer((inv) async {
+        return stored.remove(inv.positionalArguments.first as int) != null;
+      });
+
+      await saveRelease(tester);
+      await tester.tap(find.text('Let it go completely'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      verify(() => mockDb.deleteEntry(41)).called(1);
+      verifyNever(() => mockDb.softDeleteEntry(any()));
+      expect(stored, isEmpty);
+      // The ceremony closes on its own after a quiet beat.
+      expect(find.text("It's gone."), findsNothing);
+      expect(find.text('Let it go completely'), findsNothing);
+    });
+
+    testWidgets('swipe-down saves the draft exactly once', (tester) async {
+      await tester.pumpWidget(
+        buildTestWidget(
+          child: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => const QuickCaptureSheet(),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'Dismissing should keep this',
+      );
+      await tester.pump();
+
+      // Dismiss the sheet (what a swipe down does).
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      navigator.maybePop();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      final saved = savedEntries();
+      expect(saved, hasLength(1));
+      expect(saved.single.text, 'Dismissing should keep this');
     });
   });
 }

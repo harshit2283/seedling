@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedling/data/models/entry.dart';
+import 'package:seedling/features/capture/domain/capture_inference.dart';
 import 'package:seedling/features/capture/presentation/quick_capture_sheet.dart';
 
 void main() {
@@ -21,25 +23,42 @@ void main() {
     });
   });
 
-  // Note: Widget tests for QuickCaptureSheet require ProviderScope
-  // and mocked services. Key test scenarios:
-  //
-  // - Sheet opens with text mode by default
-  // - Tapping Photo button switches to photo mode
-  // - Tapping Voice button switches to voice mode
-  // - Tapping Object button switches to object mode
-  // - Toggling Capsule enables unlock-date controls across all modes
-  // - Tapping Line/Fragment/Release switches back to text mode
-  // - Text field is focused in text mode
-  // - Text field loses focus in non-text modes
-  // - Swipe down saves entry (text mode)
-  // - Swipe down saves entry (photo mode with photo)
-  // - Swipe down saves entry (voice mode with recording)
-  // - Swipe down saves entry (object mode with title)
-  // - Empty text mode doesn't save (except fragment)
-  // - Photo mode without photo doesn't save
-  // - Voice mode without recording doesn't save
-  // - Object mode without title doesn't save
-  // - Haptic feedback on button taps
-  // - Save hint text updates based on mode
+  group('inferCaptureType', () {
+    test('plain text is a line; very short text is a fragment', () {
+      expect(
+        inferCaptureType(text: 'The smell of rain on warm stone'),
+        EntryType.line,
+      );
+      expect(inferCaptureType(text: 'hmm'), EntryType.fragment);
+      expect(inferCaptureType(text: ''), EntryType.fragment);
+      expect(isFragmentText('   ok   '), isTrue);
+    });
+
+    test('attachments infer photo, voice and object', () {
+      expect(inferCaptureType(hasPhoto: true), EntryType.photo);
+      expect(inferCaptureType(hasVoice: true), EntryType.voice);
+      expect(inferCaptureType(title: 'Ring'), EntryType.object);
+      // A titled photo is an object with a photo.
+      expect(inferCaptureType(title: 'Ring', hasPhoto: true), EntryType.object);
+      // A voice memo keeps its title as a title.
+      expect(inferCaptureType(title: 'Ring', hasVoice: true), EntryType.voice);
+      // Whitespace is not a title.
+      expect(inferCaptureType(title: '   ', hasPhoto: true), EntryType.photo);
+    });
+
+    test('explicit Let go and Ritual win; other explicit types do not', () {
+      expect(
+        inferCaptureType(text: 'x', explicit: EntryType.release),
+        EntryType.release,
+      );
+      expect(
+        inferCaptureType(title: 'Tea', explicit: EntryType.ritual),
+        EntryType.ritual,
+      );
+      expect(
+        inferCaptureType(hasPhoto: true, explicit: EntryType.line),
+        EntryType.photo,
+      );
+    });
+  });
 }

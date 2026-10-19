@@ -76,12 +76,14 @@ class WidgetDataService {
     required Tree? tree,
     required List<Entry> recentEntries,
     required bool showMemoryPreviews,
+    bool calmMode = false,
   }) {
     // Snapshot now: the payload must reflect this call, not later mutation.
     final payload = buildPayload(
       tree: tree,
       recentEntries: recentEntries,
       showMemoryPreviews: showMemoryPreviews,
+      calmMode: calmMode,
     );
     _pendingWrite = () => unawaited(_writeIfChanged(payload));
     _debounceTimer?.cancel();
@@ -105,17 +107,20 @@ class WidgetDataService {
   }
 
   /// Update widget data with current tree and recent entries right away.
-  /// Skips the platform writes when nothing visible changed.
+  /// Skips the platform writes when nothing visible changed. With
+  /// [calmMode] the widgets hide counts, stage names and progress.
   Future<void> updateWidgetData({
     required Tree? tree,
     required List<Entry> recentEntries,
     required bool showMemoryPreviews,
+    bool calmMode = false,
   }) {
     return _writeIfChanged(
       buildPayload(
         tree: tree,
         recentEntries: recentEntries,
         showMemoryPreviews: showMemoryPreviews,
+        calmMode: calmMode,
       ),
     );
   }
@@ -125,6 +130,7 @@ class WidgetDataService {
     required Tree? tree,
     required List<Entry> recentEntries,
     required bool showMemoryPreviews,
+    bool calmMode = false,
   }) {
     // Recent entries (up to 3 for large widget)
     final recentEntriesJson = jsonEncode(
@@ -152,6 +158,8 @@ class WidgetDataService {
       'stateDescription':
           tree?.stateDescription ?? 'Every memory starts as a seed',
       'recentEntries': recentEntriesJson,
+      // Calm mode: native widgets hide counts, stages and progress.
+      'calmMode': calmMode,
     };
   }
 

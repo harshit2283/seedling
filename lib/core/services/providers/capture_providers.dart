@@ -78,12 +78,14 @@ class EntryCreatorNotifier extends Notifier<void> {
     return saved;
   }
 
-  /// Create a RITUAL entry from shared text.
+  /// Create a RITUAL entry. [title] names the ritual; [text] defaults to
+  /// the title (shared text arrives as a single string).
   Future<Entry> createRitualEntry(
-    String text, {
+    String title, {
+    String? text,
     DateTime? capsuleUnlockDate,
   }) async {
-    final entry = Entry.ritual(title: text, text: text);
+    final entry = Entry.ritual(title: title, text: text ?? title);
     entry.capsuleUnlockDate = capsuleUnlockDate;
     final saved = await _saveAndSync(entry);
     await ref.read(ritualServiceProvider).updateAfterEntry(saved);
@@ -238,8 +240,12 @@ class EntryCreatorNotifier extends Notifier<void> {
           text: text,
           capsuleUnlockDate: capsuleUnlockDate,
         ),
-      RitualCapture(:final title, :final capsuleUnlockDate) =>
-        createRitualEntry(title, capsuleUnlockDate: capsuleUnlockDate),
+      RitualCapture(:final title, :final text, :final capsuleUnlockDate) =>
+        createRitualEntry(
+          title,
+          text: text,
+          capsuleUnlockDate: capsuleUnlockDate,
+        ),
       CapsuleCapture(:final text, :final unlockDate) => createCapsuleEntry(
         text,
         unlockDate,
@@ -307,6 +313,54 @@ final onboardingPreferencesProvider = Provider<OnboardingPreferences>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return OnboardingPreferences(prefs);
 });
+
+/// The person's optional capture cue ("When I make my morning coffee").
+class CaptureIntentionNotifier extends Notifier<String?> {
+  @override
+  String? build() => ref.watch(onboardingPreferencesProvider).captureIntention;
+
+  Future<void> set(String? intention) async {
+    await ref
+        .read(onboardingPreferencesProvider)
+        .setCaptureIntention(intention);
+    state = ref.read(onboardingPreferencesProvider).captureIntention;
+  }
+}
+
+final captureIntentionProvider =
+    NotifierProvider<CaptureIntentionNotifier, String?>(
+      CaptureIntentionNotifier.new,
+    );
+
+/// The capture field's hint for a given cue: the person's own words, then a
+/// gentle question. Falls back to the default question without a cue.
+String captureHintFor(String? intention) {
+  const fallback = 'What stayed with you?';
+  final cue = intention?.trim().replaceAll(RegExp(r'[\s.,;:!?…—-]+$'), '');
+  if (cue == null || cue.isEmpty) return fallback;
+  return '$cue… what stayed with you?';
+}
+
+/// Set when onboarding ends with "Add your first memory": the home screen
+/// opens the capture sheet once it has appeared, then clears this.
+class PendingFirstCaptureNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void request() => state = true;
+
+  /// Returns whether a capture was pending, and clears it.
+  bool consume() {
+    final pending = state;
+    if (pending) state = false;
+    return pending;
+  }
+}
+
+final pendingFirstCaptureProvider =
+    NotifierProvider<PendingFirstCaptureNotifier, bool>(
+      PendingFirstCaptureNotifier.new,
+    );
 
 /// Provider for entry type usage tracking (smart button ordering)
 final entryTypeUsageServiceProvider = Provider<EntryTypeUsageService>((ref) {

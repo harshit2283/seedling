@@ -228,6 +228,7 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
     // Keep home widgets in sync with latest tree/entry data.
     ref.watch(widgetAutoUpdateProvider);
     ref.watch(reminderAutoRescheduleProvider);
+    ref.watch(resurfaceNotificationAutoScheduleProvider);
 
     if (PlatformUtils.isIOS) {
       // Use MediaQuery to detect system brightness for Cupertino
