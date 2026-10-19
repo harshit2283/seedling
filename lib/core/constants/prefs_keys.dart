@@ -68,4 +68,7 @@ class PrefsKeys {
 
   // On This Day card (day-keyed dismissal)
   static const String onThisDayDismissedDate = 'on_this_day_dismissed_date';
+
+  // Support invitation (shown at most once, ever)
+  static const String supportInvitationShown = 'support_invitation_shown';
 }

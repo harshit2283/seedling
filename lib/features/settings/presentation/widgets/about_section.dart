@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
@@ -51,6 +53,17 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             trailing: const CupertinoListTileChevron(),
             onTap: () => _showAboutDialog(context),
           ),
+          CupertinoListTile(
+            leading: buildSettingsIconBox(
+              context,
+              CupertinoIcons.heart,
+              SeedlingColors.forestGreen,
+            ),
+            title: const Text('Support Seedling'),
+            additionalInfo: const Text('Free, always'),
+            trailing: const CupertinoListTileChevron(),
+            onTap: () => context.push(AppRoutes.support),
+          ),
         ],
       );
     }
@@ -65,6 +78,13 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
           title: 'About Seedling',
           subtitle: 'Version $_appVersion',
           onTap: () => _showAboutDialog(context),
+        ),
+        buildMaterialActionTile(
+          context,
+          icon: Icons.favorite_border,
+          title: 'Support Seedling',
+          subtitle: 'Free and open source. Nothing is locked.',
+          onTap: () => context.push(AppRoutes.support),
         ),
       ],
     );

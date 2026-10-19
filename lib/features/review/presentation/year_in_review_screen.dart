@@ -11,6 +11,7 @@ import '../../../core/models/season.dart';
 import '../../../core/presentation/seedling_iconography.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/seedling_symbol.dart';
+import '../../support/presentation/support_invitation_card.dart';
 import '../domain/review_generator.dart';
 import 'widgets/season_card.dart';
 import 'widgets/theme_garden.dart';
@@ -250,6 +251,8 @@ class _ReviewBody extends StatelessWidget {
           icon: const Icon(Icons.auto_stories_outlined),
           label: const Text('Browse memories'),
         ),
+        // The one-time, dismissible support note. Never repeats.
+        const SupportInvitationCard(),
         const SizedBox(height: 48),
       ],
     );
