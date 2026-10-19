@@ -36,12 +36,20 @@ class DraftMediaTracker {
     }
   }
 
-  /// The draft was saved with [savedPath]: keep it, delete every other file
-  /// this draft captured (e.g. a photo taken before switching to voice).
+  /// The draft was saved with [savedPath]. Nothing is deleted here: the
+  /// only files a draft deletes are ones the person removed or replaced
+  /// (see [update]), never one they may still be looking at. Anything left
+  /// pending is unreferenced and the orphan sweeper collects it later.
   Future<void> commit(String? savedPath) async {
     _settled = true;
     _pending.remove(savedPath);
-    await _deleteAllPending();
+    if (_pending.isNotEmpty) {
+      debugPrint(
+        'DraftMediaTracker kept ${_pending.length} unsaved capture(s) '
+        'for the orphan sweeper',
+      );
+    }
+    _pending.clear();
   }
 
   /// The draft was discarded: delete every file it captured. No-op after

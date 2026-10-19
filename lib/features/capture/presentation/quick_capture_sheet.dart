@@ -122,6 +122,11 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   String? _voicePath;
   Duration? _voiceDuration;
 
+  /// A memory holds one photo or one voice memo. Set when the person agreed
+  /// to swap their photo for a voice memo: the photo goes only once the
+  /// recording exists to take its place.
+  bool _voiceReplacesPhoto = false;
+
   // Hold-to-record from the toolbar mic
   Timer? _holdTimer;
   Offset? _holdOrigin;
@@ -302,15 +307,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                         initialDuration: _voiceDuration,
                         text: '',
                         showNoteField: false,
-                        onVoicePathChanged: (path) {
-                          unawaited(
-                            _draftMedia.update(
-                              previous: _voicePath,
-                              next: path,
-                            ),
-                          );
-                          setState(() => _voicePath = path);
-                        },
+                        onVoicePathChanged: _onVoicePathChanged,
                         onDurationChanged: (duration) =>
                             _voiceDuration = duration,
                         onTextChanged: (_) {},
@@ -636,6 +633,87 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     );
   }
 
+  void _onVoicePathChanged(String? path) {
+    unawaited(_draftMedia.update(previous: _voicePath, next: path));
+    final replacePhoto =
+        path != null && _voiceReplacesPhoto && _photoPath != null;
+    if (replacePhoto) {
+      // The person asked for this swap; the recording now takes its place.
+      unawaited(_draftMedia.update(previous: _photoPath));
+    }
+    setState(() {
+      _voicePath = path;
+      if (replacePhoto) _photoPath = null;
+      if (path != null) _voiceReplacesPhoto = false;
+    });
+  }
+
+  /// Asks before one kind of attachment replaces the other. A memory holds
+  /// one photo or one voice memo, and nothing the person can still see is
+  /// ever dropped without them saying so.
+  Future<bool> _confirmReplaceAttachment({
+    required String title,
+    required String keepLabel,
+  }) async {
+    const message =
+        'A memory holds one photo or one voice memo. '
+        'The one you have now will be removed.';
+    if (PlatformUtils.isIOS) {
+      final replace = await showCupertinoModalPopup<bool>(
+        context: context,
+        builder: (sheetContext) => CupertinoActionSheet(
+          title: Text(title),
+          message: const Text(message),
+          actions: [
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () => Navigator.of(sheetContext).pop(true),
+              child: const Text('Replace'),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(sheetContext).pop(false),
+            child: Text(keepLabel),
+          ),
+        ),
+      );
+      return replace ?? false;
+    }
+    final replace = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: const Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(keepLabel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    return replace ?? false;
+  }
+
+  Future<void> _askVoiceReplacesPhoto() async {
+    final replace = await _confirmReplaceAttachment(
+      title: 'Replace the photo with a voice memo?',
+      keepLabel: 'Keep photo',
+    );
+    if (!replace || !mounted) return;
+    _focusNode.unfocus();
+    _titleFocusNode.unfocus();
+    setState(() {
+      _voiceReplacesPhoto = true;
+      _voiceOpen = true;
+    });
+  }
+
   Widget _buildToolbar() {
     final attachEnabled = !_isDeliberateMode;
     final deliberateEnabled = !_hasAttachments && !_voiceOpen;
@@ -644,7 +722,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         _AttachButton(
           icon: AdaptiveIcons.photo,
           label: 'Photo',
-          semanticLabel: _photoPath == null ? 'Add a photo' : 'Replace photo',
+          semanticLabel: _voicePath != null
+              ? 'Replace the voice memo with a photo'
+              : (_photoPath == null ? 'Add a photo' : 'Replace photo'),
           color: context.palette.accentPhoto,
           active: _photoPath != null,
           enabled: attachEnabled && !_isPickingPhoto,
@@ -727,6 +807,18 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   /// away (lift to stop). A raw [Listener] so the hold keeps working while
   /// the recorder appears above it.
   Widget _buildMicButton({required bool enabled}) {
+    if (_photoPath != null && !_voiceReplacesPhoto) {
+      // Holding would record over the photo; ask first instead.
+      return _AttachButton(
+        icon: AdaptiveIcons.mic,
+        label: 'Voice',
+        semanticLabel: 'Replace the photo with a voice memo',
+        color: context.palette.accentVoice,
+        active: false,
+        enabled: enabled,
+        onTap: _askVoiceReplacesPhoto,
+      );
+    }
     final active = _voiceOpen || _voicePath != null;
     return Semantics(
       button: true,
@@ -787,7 +879,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       _holdTimer!.cancel();
       // A tap: close the recorder again if it was already open and empty.
       if (_voiceWasOpenOnDown && _voicePath == null) {
-        setState(() => _voiceOpen = false);
+        setState(() {
+          _voiceOpen = false;
+          _voiceReplacesPhoto = false;
+        });
         _focusNode.requestFocus();
       }
       return;
@@ -800,7 +895,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
   void _toggleVoicePanel() {
     if (_voicePath != null) return;
-    setState(() => _voiceOpen = !_voiceOpen);
+    setState(() {
+      _voiceOpen = !_voiceOpen;
+      if (!_voiceOpen) _voiceReplacesPhoto = false;
+    });
     if (_voiceOpen) {
       _focusNode.unfocus();
     } else {
@@ -898,6 +996,22 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
   Future<void> _attachPhoto() async {
     if (_isPickingPhoto) return;
+    // A memory holds one photo or one voice memo: ask before a photo takes
+    // the place of a recording. The recording stays until a photo arrives.
+    final replacesVoice = _voicePath != null;
+    if (replacesVoice) {
+      final replace = await _confirmReplaceAttachment(
+        title: 'Replace the voice memo with a photo?',
+        keepLabel: 'Keep voice memo',
+      );
+      if (!replace || !mounted) return;
+    } else if (_voiceOpen) {
+      // An empty recorder: nothing to lose, just put it away.
+      setState(() {
+        _voiceOpen = false;
+        _voiceReplacesPhoto = false;
+      });
+    }
     final source = await _choosePhotoSource();
     if (source == null || !mounted) return;
 
@@ -916,7 +1030,18 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     if (result.isSuccess && result.path != null) {
       HapticFeedback.lightImpact();
       unawaited(_draftMedia.update(previous: _photoPath, next: result.path));
-      setState(() => _photoPath = result.path);
+      final replacedVoice = replacesVoice ? _voicePath : null;
+      if (replacedVoice != null) {
+        unawaited(_draftMedia.update(previous: replacedVoice));
+      }
+      setState(() {
+        _photoPath = result.path;
+        if (replacedVoice != null) {
+          _voicePath = null;
+          _voiceDuration = null;
+          _voiceOpen = false;
+        }
+      });
       _focusNode.requestFocus();
     } else if (result.permissionDenied) {
       final camera = source == _PhotoSource.camera;

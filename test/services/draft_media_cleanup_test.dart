@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:seedling/core/services/media/audio_playback_service.dart';
 import 'package:seedling/core/services/media/draft_media_tracker.dart';
 import 'package:seedling/core/services/media/file_storage_service.dart';
 import 'package:seedling/core/services/media/photo_capture_service.dart';
+import 'package:seedling/core/services/media/voice_recording_service.dart';
 import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/ritual/ritual_service.dart';
 import 'package:seedling/core/services/storage/media_orphan_sweeper.dart';
@@ -25,6 +27,30 @@ class _MockRitual extends Mock implements RitualService {}
 class _MockPhotoCapture extends Mock implements PhotoCaptureService {}
 
 class _MockFileStorage extends Mock implements FileStorageService {}
+
+class _MockPlayback extends Mock implements AudioPlaybackService {}
+
+class _FakeRecorder extends Fake implements VoiceRecordingService {
+  @override
+  void Function(VoiceRecordingResult result)? onMaxDurationReached;
+
+  @override
+  Future<VoiceStartRecordingResult> startRecording() async =>
+      VoiceStartRecordingResult.started();
+
+  @override
+  Future<VoiceRecordingResult> stopRecording() async =>
+      VoiceRecordingResult.success('/m/voice.m4a', const Duration(seconds: 3));
+
+  @override
+  Future<void> cancelRecording() async {}
+
+  @override
+  Duration get currentDuration => Duration.zero;
+
+  @override
+  Stream<double> get amplitudeStream => const Stream.empty();
+}
 
 void main() {
   group('DraftMediaTracker', () {
@@ -50,13 +76,15 @@ void main() {
       expect(tracker.pending, isEmpty);
     });
 
-    test('commit keeps the saved file and deletes other captures', () async {
+    test('commit never deletes a capture nobody removed', () async {
       await tracker.update(next: 'photo.jpg');
       await tracker.update(next: 'voice.m4a');
       await tracker.commit('voice.m4a');
-      expect(deleted, ['photo.jpg']);
+      // Only an explicit removal or replacement deletes a file; anything
+      // else left over is for the orphan sweeper, never a silent loss.
+      expect(deleted, isEmpty);
       await tracker.discard();
-      expect(deleted, ['photo.jpg']);
+      expect(deleted, isEmpty);
     });
 
     test('discard deletes every captured file', () async {
@@ -71,6 +99,7 @@ void main() {
     late _MockDb db;
     late _MockPhotoCapture photoCapture;
     late _MockFileStorage fileStorage;
+    late _MockPlayback playback;
     late SharedPreferences prefs;
     late List<String> deleted;
     late List<Entry> saved;
@@ -84,6 +113,15 @@ void main() {
       db = _MockDb();
       photoCapture = _MockPhotoCapture();
       fileStorage = _MockFileStorage();
+      playback = _MockPlayback();
+      when(() => playback.stateStream).thenAnswer((_) => const Stream.empty());
+      when(
+        () => playback.positionStream,
+      ).thenAnswer((_) => const Stream.empty());
+      when(
+        () => playback.durationStream,
+      ).thenAnswer((_) => const Stream.empty());
+      when(() => playback.currentPath).thenReturn(null);
       deleted = [];
       saved = [];
       SharedPreferences.setMockInitialValues({});
@@ -133,6 +171,8 @@ void main() {
           syncEngineProvider.overrideWithValue(_MockSync()),
           photoCaptureServiceProvider.overrideWithValue(photoCapture),
           fileStorageServiceProvider.overrideWithValue(fileStorage),
+          voiceRecordingServiceProvider.overrideWithValue(_FakeRecorder()),
+          audioPlaybackServiceProvider.overrideWithValue(playback),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -230,6 +270,116 @@ void main() {
       expect(saved, hasLength(1));
       expect(saved.single.mediaPath, picked);
       expect(deleted, isEmpty);
+    });
+
+    /// Holds the toolbar mic long enough to record, then lets go.
+    void tallScreen(WidgetTester tester) {
+      // Room for a photo preview and the recorder at once.
+      tester.view.physicalSize = const Size(2400, 4200);
+      addTearDown(tester.view.reset);
+    }
+
+    Future<void> holdMic(WidgetTester tester) async {
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Voice')),
+      );
+      // Let the recorder build before the hold delay elapses.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('holding the mic with a photo attached never drops the photo', (
+      tester,
+    ) async {
+      tallScreen(tester);
+      await tester.pumpWidget(harness(asSheet: true));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final picked = await pickPhoto(tester);
+
+      await holdMic(tester);
+      // Whatever the sheet asks, keeping the photo is the safe answer.
+      if (find.text('Keep photo').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Keep photo'));
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+      expect(find.bySemanticsLabel('Attached photo'), findsOneWidget);
+
+      await tester.tap(find.text('Save memory'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(saved, hasLength(1));
+      expect(saved.single.mediaPath, picked);
+      expect(deleted, isEmpty);
+    });
+
+    testWidgets('the mic asks before a voice memo replaces the photo', (
+      tester,
+    ) async {
+      tallScreen(tester);
+      await tester.pumpWidget(harness(asSheet: true));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final picked = await pickPhoto(tester);
+
+      await tester.tap(find.text('Voice'));
+      await tester.pumpAndSettle();
+      expect(find.text('Replace the photo with a voice memo?'), findsOneWidget);
+      await tester.tap(find.text('Replace'));
+      await tester.pumpAndSettle();
+
+      // The photo stays until there is a recording to take its place.
+      expect(deleted, isEmpty);
+      expect(find.bySemanticsLabel('Attached photo'), findsOneWidget);
+
+      await holdMic(tester);
+      expect(deleted, [picked]);
+      expect(find.bySemanticsLabel('Attached photo'), findsNothing);
+
+      await tester.tap(find.text('Save memory'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(saved.single.type, EntryType.voice);
+      expect(saved.single.mediaPath, '/m/voice.m4a');
+      expect(deleted, [picked]);
+    });
+
+    testWidgets('adding a photo asks before it replaces a voice memo', (
+      tester,
+    ) async {
+      tallScreen(tester);
+      await tester.pumpWidget(harness(asSheet: true));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await holdMic(tester);
+
+      await tester.tap(find.text('Photo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Replace the voice memo with a photo?'), findsOneWidget);
+      await tester.tap(find.text('Keep voice memo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Library'), findsNothing);
+
+      await tester.tap(find.text('Photo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Replace'));
+      await tester.pumpAndSettle();
+      expect(deleted, isEmpty);
+      await tester.tap(find.text('Library'));
+      await tester.pump();
+      await tester.pump();
+      final picked = '/m/p${next - 1}.jpg';
+      expect(deleted, ['/m/voice.m4a']);
+
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+      expect(saved.single.type, EntryType.photo);
+      expect(saved.single.mediaPath, picked);
     });
 
     testWidgets('replacing a picked photo deletes the first one', (
