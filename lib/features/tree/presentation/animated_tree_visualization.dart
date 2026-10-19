@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../app/theme/colors.dart';
@@ -16,6 +17,14 @@ Season getCurrentSeason() {
     _ => Season.winter,
   };
 }
+
+/// How many times the tree's static layers have been recorded (test hook).
+@visibleForTesting
+int get debugTreeLayerBuilds => _TreePainter._layerBuilds;
+
+/// Drop cached tree layers (test hook).
+@visibleForTesting
+void debugClearTreeLayerCache() => _TreePainter._clearLayerCache();
 
 /// Animated tree visualization with procedural graphics
 /// Features: idle sway, growth transitions, seasonal colors, celebration particles
@@ -455,6 +464,36 @@ class _TreePainter extends CustomPainter {
 
   static final _particlePaint = Paint()..style = PaintingStyle.fill;
 
+  static final _ambientPaint = Paint()..style = PaintingStyle.fill;
+
+  static final _layerImagePaint = Paint()..filterQuality = FilterQuality.low;
+
+  /// Horizontal skew per unit of sway. The sway is applied as one transform
+  /// over the cached tree: points on the ground line stay put and the crown
+  /// moves ~3px, like the old per-element sway but without re-tessellating.
+  static const double _swaySkew = 0.02;
+
+  /// Cached static layers, most recently used last. Small because only the
+  /// home tree (and a growth transition's endpoints) are ever on screen.
+  // Map literals are insertion-ordered (LinkedHashMap), which gives LRU.
+  static final _layerCache = <_TreeLayerKey, _TreeLayers>{};
+  static const int _maxCachedLayers = 4;
+
+  /// Number of times static layers were (re)built. Tests use this to prove
+  /// idle frames replay the cache instead of re-recording the tree.
+  static int _layerBuilds = 0;
+
+  static void _clearLayerCache() {
+    for (final layers in _layerCache.values) {
+      layers.dispose();
+    }
+    _layerCache.clear();
+  }
+
+  /// When true the painter records the static layer: no glow (rasterised
+  /// separately) and no falling leaves (animated per frame).
+  bool _recordingStatic = false;
+
   _TreePainter({
     required this.stateValue,
     required this.swayValue,
@@ -475,19 +514,26 @@ class _TreePainter extends CustomPainter {
     canvas.scale(growthScale);
     canvas.translate(-center.dx, -center.dy);
 
-    if (stateValue < 0.5) {
-      _drawSeed(canvas, size, stateValue * 2);
-    } else if (stateValue < 1.5) {
-      _drawSprout(canvas, size, (stateValue - 0.5) / 1.0);
-    } else if (stateValue < 2.5) {
-      _drawSapling(canvas, size, (stateValue - 1.5) / 1.0);
-    } else if (stateValue < 3.5) {
-      _drawYoungTree(canvas, size, (stateValue - 2.5) / 1.0);
-    } else if (stateValue < 4.5) {
-      _drawMatureTree(canvas, size, (stateValue - 3.5) / 1.0);
+    // Settled state: replay cached layers. During a growth transition the
+    // state value changes every frame, so draw directly instead of caching.
+    final settled =
+        growthScale == 1.0 && stateValue == stateValue.roundToDouble();
+    final groundY = size.height * _groundFraction();
+
+    if (settled) {
+      final layers = _layersFor(size);
+      if (layers.glow != null) {
+        _layerImagePaint.color = Color.fromRGBO(0, 0, 0, _glowOpacity());
+        canvas.drawImage(layers.glow!, layers.glowOrigin, _layerImagePaint);
+      }
+      _withSway(canvas, groundY, () => canvas.drawPicture(layers.body));
     } else {
-      _drawAncientTree(canvas, size, math.min(1.0, stateValue - 4.5));
+      final still = _restingCopy();
+      still._drawGlow(canvas, size, opacity: _glowOpacity());
+      still._recordingStatic = true;
+      _withSway(canvas, groundY, () => still._drawStatic(canvas, size));
     }
+    _drawAnimatedDetails(canvas, size);
 
     canvas.restore();
 
@@ -502,8 +548,155 @@ class _TreePainter extends CustomPainter {
     }
   }
 
+  /// Draw the tree for the current state (sway-free when recording).
+  void _drawStatic(Canvas canvas, Size size) {
+    if (stateValue < 0.5) {
+      _drawSeed(canvas, size, stateValue * 2);
+    } else if (stateValue < 1.5) {
+      _drawSprout(canvas, size, (stateValue - 0.5) / 1.0);
+    } else if (stateValue < 2.5) {
+      _drawSapling(canvas, size, (stateValue - 1.5) / 1.0);
+    } else if (stateValue < 3.5) {
+      _drawYoungTree(canvas, size, (stateValue - 2.5) / 1.0);
+    } else if (stateValue < 4.5) {
+      _drawMatureTree(canvas, size, (stateValue - 3.5) / 1.0);
+    } else {
+      _drawAncientTree(canvas, size, math.min(1.0, stateValue - 4.5));
+    }
+  }
+
+  /// Same tree at rest (sway 0): the geometry the static layer is built from.
+  _TreePainter _restingCopy() => _TreePainter(
+    stateValue: stateValue,
+    swayValue: 0,
+    season: season,
+    particles: const [],
+    particleProgress: 0,
+    ambientParticles: const [],
+    growthScale: 1,
+    personality: personality,
+  );
+
+  void _withSway(Canvas canvas, double groundY, VoidCallback draw) {
+    canvas.save();
+    // Skew about the ground line: x' = x + k * (groundY - y).
+    canvas.translate(0, groundY);
+    canvas.skew(-_swaySkew * swayValue, 0);
+    canvas.translate(0, -groundY);
+    draw();
+    canvas.restore();
+  }
+
+  double _groundFraction() {
+    if (stateValue < 3.5) return 0.85;
+    if (stateValue < 4.5) return 0.88;
+    return 0.9;
+  }
+
+  _TreeLayers _layersFor(Size size) {
+    final key = _TreeLayerKey(size, stateValue, season, personality);
+    final cached = _layerCache.remove(key);
+    if (cached != null) {
+      _layerCache[key] = cached; // mark most recently used
+      return cached;
+    }
+
+    _layerBuilds++;
+    final still = _restingCopy().._recordingStatic = true;
+
+    final recorder = ui.PictureRecorder();
+    still._drawStatic(Canvas(recorder), size);
+    final body = recorder.endRecording();
+
+    final glow = still._rasteriseGlow(size);
+    final layers = _TreeLayers(body, glow?.image, glow?.origin ?? Offset.zero);
+
+    _layerCache[key] = layers;
+    while (_layerCache.length > _maxCachedLayers) {
+      final oldest = _layerCache.keys.first;
+      _layerCache.remove(oldest)!.dispose();
+    }
+    return layers;
+  }
+
+  /// Where and how big the soft glow is for this state, or null.
+  ({Offset center, double radius, double sigma})? _glowSpec(Size size) {
+    if (stateValue < 0.5) {
+      final groundY = size.height * 0.85;
+      final seedSize = 12.0 + stateValue * 2 * 4;
+      final seedY = groundY - seedSize / 2 - 2;
+      return (
+        center: Offset(size.width / 2, seedY),
+        radius: seedSize + 10,
+        sigma: 15.0,
+      );
+    }
+    if (stateValue >= 4.5) {
+      final groundY = size.height * 0.9;
+      return (
+        center: Offset(size.width / 2, groundY - 95.0 * 0.65),
+        radius: 80.0,
+        sigma: 30.0,
+      );
+    }
+    return null;
+  }
+
+  /// Glow opacity this frame: the seed's glow breathes with the sway.
+  double _glowOpacity() {
+    if (stateValue < 0.5) {
+      return (0.2 + 0.1 * math.sin(swayValue * math.pi)).clamp(0.0, 1.0);
+    }
+    return 0.15;
+  }
+
+  /// The blurred glow at full alpha, drawn directly (growth transitions).
+  void _drawGlow(Canvas canvas, Size size, {required double opacity}) {
+    final spec = _glowSpec(size);
+    if (spec == null) return;
+    _glowPaint
+      ..color = SeedlingColors.paleGreen.withValues(alpha: opacity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, spec.sigma);
+    canvas.drawCircle(spec.center, spec.radius, _glowPaint);
+  }
+
+  /// Rasterise the blur once: MaskFilter.blur is re-rasterised on every
+  /// frame it is drawn, an image is just sampled. Opacity is applied when
+  /// the image is drawn, so the seed's breathing glow still works.
+  ({ui.Image image, Offset origin})? _rasteriseGlow(Size size) {
+    final spec = _glowSpec(size);
+    if (spec == null) return null;
+    final extent = spec.radius + spec.sigma * 3;
+    final origin = spec.center - Offset(extent, extent);
+    final side = (extent * 2).ceil();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)..translate(-origin.dx, -origin.dy);
+    _drawGlow(canvas, size, opacity: 1);
+    final picture = recorder.endRecording();
+    try {
+      return (image: picture.toImageSync(side, side), origin: origin);
+    } finally {
+      picture.dispose();
+    }
+  }
+
+  /// Per-frame details that move independently of the tree.
+  void _drawAnimatedDetails(Canvas canvas, Size size) {
+    if (season != Season.autumn || stateValue < 3.5) return;
+    final Offset canopyCenter;
+    if (stateValue < 4.5) {
+      final groundY = size.height * 0.88;
+      final trunkHeight = 85.0 + (stateValue - 3.5) * 10;
+      canopyCenter = Offset(size.width / 2, groundY - trunkHeight * 0.7);
+    } else {
+      final groundY = size.height * 0.9;
+      canopyCenter = Offset(size.width / 2, groundY - 95.0 * 0.65);
+    }
+    _drawFallingLeaves(canvas, size, canopyCenter);
+  }
+
   void _drawAmbient(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
+    final paint = _ambientPaint;
     for (final p in ambientParticles) {
       final x = p.x * size.width;
       final y = p.y * size.height;
@@ -592,13 +785,8 @@ class _TreePainter extends CustomPainter {
 
     canvas.restore();
 
-    // Subtle glow
-    _glowPaint
-      ..color = SeedlingColors.paleGreen.withValues(
-        alpha: 0.2 + 0.1 * math.sin(swayValue * math.pi),
-      )
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
-    canvas.drawCircle(Offset(centerX, seedY), seedSize + 10, _glowPaint);
+    // Subtle glow: drawn as its own cached layer (see _rasteriseGlow).
+    if (!_recordingStatic) _drawGlow(canvas, size, opacity: _glowOpacity());
   }
 
   void _drawSprout(Canvas canvas, Size size, double progress) {
@@ -763,7 +951,7 @@ class _TreePainter extends CustomPainter {
     // Decorative elements based on season
     if (season == Season.spring) {
       _drawBlossoms(canvas, canopyCenter, 50);
-    } else if (season == Season.autumn) {
+    } else if (season == Season.autumn && !_recordingStatic) {
       _drawFallingLeaves(canvas, size, canopyCenter);
     }
 
@@ -801,7 +989,7 @@ class _TreePainter extends CustomPainter {
 
     if (season == Season.spring) {
       _drawBlossoms(canvas, canopyCenter, 65);
-    } else if (season == Season.autumn) {
+    } else if (season == Season.autumn && !_recordingStatic) {
       _drawFallingLeaves(canvas, size, canopyCenter);
     }
 
@@ -813,11 +1001,8 @@ class _TreePainter extends CustomPainter {
       _drawBirds(canvas, canopyCenter, 65);
     }
 
-    // Wisdom glow
-    _glowPaint
-      ..color = SeedlingColors.paleGreen.withValues(alpha: 0.15)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30);
-    canvas.drawCircle(canopyCenter, 80, _glowPaint);
+    // Wisdom glow: drawn as its own cached layer (see _rasteriseGlow).
+    if (!_recordingStatic) _drawGlow(canvas, size, opacity: _glowOpacity());
   }
 
   void _drawGround(Canvas canvas, Size size, double groundY) {
@@ -1239,6 +1424,47 @@ class _TreePainter extends CustomPainter {
         oldDelegate.personality != personality ||
         oldDelegate.particles.length != particles.length ||
         !identical(oldDelegate.ambientParticles, ambientParticles);
+  }
+}
+
+/// Identity of a cached static tree: anything that changes its pixels.
+class _TreeLayerKey {
+  const _TreeLayerKey(
+    this.size,
+    this.stateValue,
+    this.season,
+    this.personality,
+  );
+
+  final Size size;
+  final double stateValue;
+  final Season season;
+  final TreePersonality? personality;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _TreeLayerKey &&
+      other.size == size &&
+      other.stateValue == stateValue &&
+      other.season == season &&
+      other.personality == personality;
+
+  @override
+  int get hashCode => Object.hash(size, stateValue, season, personality);
+}
+
+/// Recorded tree (ground, trunk, foliage, decorations) plus the rasterised
+/// glow, replayed every frame under the sway transform.
+class _TreeLayers {
+  _TreeLayers(this.body, this.glow, this.glowOrigin);
+
+  final ui.Picture body;
+  final ui.Image? glow;
+  final Offset glowOrigin;
+
+  void dispose() {
+    body.dispose();
+    glow?.dispose();
   }
 }
 
