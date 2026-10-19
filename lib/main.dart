@@ -4,9 +4,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'app/router.dart';
+import 'core/services/export/export_cleanup.dart';
 import 'core/services/media/file_storage_service.dart';
 import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
@@ -104,4 +106,18 @@ Future<void> _runApp() async {
       child: const SeedlingApp(),
     ),
   );
+
+  // Housekeeping that must never delay the first frame.
+  unawaited(_sweepTransientFiles());
+}
+
+/// Deletes plaintext export/share leftovers (e.g. from a share sheet that was
+/// open when the app was killed).
+Future<void> _sweepTransientFiles() async {
+  try {
+    final tempDir = await getTemporaryDirectory();
+    await sweepStaleExportArtifacts(tempDir);
+  } catch (e) {
+    debugPrint('Startup export sweep failed: $e');
+  }
 }

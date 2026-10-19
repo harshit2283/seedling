@@ -282,7 +282,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       final result = await exportService.exportToJson(entries);
 
       if (result.success && result.filePath != null) {
-        await exportService.shareFile(
+        await exportService.shareAndDelete(
           result.filePath!,
           subject: 'Seedling Memories Export',
           sharePositionOrigin: shareOrigin,
@@ -325,7 +325,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       );
 
       if (result.success && result.filePath != null) {
-        await exportService.shareFile(
+        await exportService.shareAndDelete(
           result.filePath!,
           subject: 'Seedling Backup',
           sharePositionOrigin: shareOrigin,
@@ -403,7 +403,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         } catch (e) {
           debugPrint('Failed to record backup date: $e');
         }
-        await exportService.shareFile(
+        await exportService.shareAndDelete(
           result.filePath!,
           subject: 'Seedling Encrypted Backup',
           sharePositionOrigin: shareOrigin,

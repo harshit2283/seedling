@@ -9,6 +9,23 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../data/models/entry.dart';
 import '../error_reporter.dart';
+import 'export_cleanup.dart';
+
+/// Presents the platform share sheet for [file]. Injectable for tests.
+typedef ShareFileFn =
+    Future<void> Function(XFile file, {String? subject, Rect? origin});
+
+Future<void> _defaultShareFile(
+  XFile file, {
+  String? subject,
+  Rect? origin,
+}) async {
+  await Share.shareXFiles(
+    [file],
+    subject: subject,
+    sharePositionOrigin: origin,
+  );
+}
 
 /// Result of an export operation
 class ExportResult {
@@ -91,9 +108,11 @@ class ExportService {
   static const int _maxArchiveBytes = 800 * 1024 * 1024;
 
   final ErrorReporter _errorReporter;
+  final ShareFileFn _shareFile;
 
-  ExportService({ErrorReporter? errorReporter})
-    : _errorReporter = errorReporter ?? const ErrorReporter();
+  ExportService({ErrorReporter? errorReporter, ShareFileFn? shareFile})
+    : _errorReporter = errorReporter ?? const ErrorReporter(),
+      _shareFile = shareFile ?? _defaultShareFile;
 
   /// Export entries as JSON file
   Future<ExportResult> exportToJson(List<Entry> entries) async {
@@ -454,15 +473,34 @@ class ExportService {
     String? subject,
     Rect? sharePositionOrigin,
   }) async {
-    final xFile = XFile(filePath);
-    final safeSharePositionOrigin = _normalizeSharePositionOrigin(
-      sharePositionOrigin,
-    );
-    await Share.shareXFiles(
-      [xFile],
+    await _shareFile(
+      XFile(filePath),
       subject: subject ?? 'Seedling Export',
-      sharePositionOrigin: safeSharePositionOrigin,
+      origin: _normalizeSharePositionOrigin(sharePositionOrigin),
     );
+  }
+
+  /// Shares an exported file, then deletes it whether or not sharing
+  /// succeeded. Exports are plaintext copies of the user's memories in the
+  /// temp/cache directory; they must not outlive the share sheet.
+  ///
+  /// Safe on both platforms: iOS completes the share before this returns, and
+  /// share_plus on Android hands the receiver its own staged copy (which the
+  /// startup sweep removes later).
+  Future<void> shareAndDelete(
+    String filePath, {
+    String? subject,
+    Rect? sharePositionOrigin,
+  }) async {
+    try {
+      await shareFile(
+        filePath,
+        subject: subject,
+        sharePositionOrigin: sharePositionOrigin,
+      );
+    } finally {
+      await deleteExportArtifact(filePath);
+    }
   }
 
   /// Convert entries to JSON-serializable map
