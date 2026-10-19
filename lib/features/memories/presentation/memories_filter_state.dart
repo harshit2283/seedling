@@ -105,6 +105,27 @@ final List<EntryType> filterableEntryTypes = EntryType.values
     .where((t) => t != EntryType.fragment)
     .toList(growable: false);
 
+/// The chip types that have at least one visible memory (across all years;
+/// locked capsules and deleted memories don't count). Fragments count as
+/// lines, since the Line chip covers them.
+final presentEntryTypesProvider = Provider<Set<EntryType>>((ref) {
+  final entries = ref.watch(allEntriesProvider);
+  return {
+    for (final e in entries)
+      if (!e.isDeleted && !e.isLocked)
+        e.type == EntryType.fragment ? EntryType.line : e.type,
+  };
+});
+
+/// The type chips worth offering: types the user actually has, plus any
+/// that are selected (so a filter can always be seen and cleared).
+List<EntryType> visibleFilterTypes(
+  Set<EntryType> present,
+  Set<EntryType> selected,
+) => filterableEntryTypes
+    .where((t) => present.contains(t) || selected.contains(t))
+    .toList(growable: false);
+
 /// The stored types a set of chip filters matches. "Line" also matches
 /// fragments (short lines), including ones saved before the merge.
 Set<EntryType> expandTypeFilters(Set<EntryType> filters) => {

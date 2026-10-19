@@ -9,6 +9,7 @@ import 'package:seedling/core/services/ritual/ritual_service.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
+import 'package:seedling/features/memories/presentation/memories_filter_state.dart';
 import 'package:seedling/features/memories/presentation/memories_screen.dart';
 import 'package:seedling/features/memories/presentation/memory_card.dart';
 
@@ -86,6 +87,9 @@ void main() {
   /// Build a testable widget with provider overrides and test entries.
   Widget buildTestWidget({List<Entry> entries = const []}) {
     when(() => mockDb.watchEntries()).thenAnswer((_) => Stream.value(entries));
+    when(
+      () => mockDb.watchAllEntries(),
+    ).thenAnswer((_) => Stream.value(entries));
     when(
       () => mockDb.getEntriesPage(
         limit: any(named: 'limit'),
@@ -189,11 +193,50 @@ void main() {
       await tester.pumpWidget(buildTestWidget(entries: entries));
       await tester.pumpAndSettle();
 
-      // EntryType filter chips should be visible — they use the type names
-      // from EntryType.values. Check for a few of the main types.
+      // Only types the user has memories of get a chip.
       expect(find.text('Line'), findsWidgets);
-      expect(find.text('Photo'), findsWidgets);
-      expect(find.text('Voice'), findsWidgets);
+      expect(find.text('Photo'), findsNothing);
+      expect(find.text('Voice'), findsNothing);
+      expect(find.text('Object'), findsNothing);
+    });
+
+    testWidgets('a type chip appears once a memory of that type exists', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+      final entries = [
+        ...createTestEntries(),
+        Entry.object(title: 'Grandma\'s ring')..id = 10,
+      ];
+      await tester.pumpWidget(buildTestWidget(entries: entries));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Object'), findsWidgets);
+      expect(find.text('Photo'), findsNothing);
+    });
+  });
+
+  group('visibleFilterTypes', () {
+    test('hides empty types but keeps a selected one', () {
+      final types = visibleFilterTypes({EntryType.line}, {EntryType.photo});
+      expect(types, contains(EntryType.line));
+      expect(types, contains(EntryType.photo));
+      expect(types, isNot(contains(EntryType.voice)));
+    });
+
+    test('fragments count toward the Line chip', () {
+      final container = ProviderContainer(
+        overrides: [
+          allEntriesProvider.overrideWithValue([
+            Entry.fragment(text: 'half a thought'),
+            Entry.object(title: 'Cup')..isDeleted = true,
+          ]),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(presentEntryTypesProvider), {EntryType.line});
     });
   });
 }
