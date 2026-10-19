@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/data/models/entry.dart';
+import 'package:seedling/data/models/tree.dart';
 import 'package:seedling/core/services/ai/models/memory_theme.dart';
 import 'package:seedling/core/services/ai/theme_detector_service.dart';
 import 'package:seedling/features/review/domain/review_generator.dart';
@@ -263,19 +264,19 @@ void main() {
         expect(data.treeStateLabel, 'Sapling');
       });
 
-      test('101 entries -> Young Tree', () {
+      test('101 entries -> Young tree', () {
         final data = generator.generate(2025, makeEntries(101));
-        expect(data.treeStateLabel, 'Young Tree');
+        expect(data.treeStateLabel, 'Young tree');
       });
 
-      test('251 entries -> Mature Tree', () {
+      test('251 entries -> Mature tree', () {
         final data = generator.generate(2025, makeEntries(251));
-        expect(data.treeStateLabel, 'Mature Tree');
+        expect(data.treeStateLabel, 'Mature tree');
       });
 
-      test('501 entries -> Ancient Tree', () {
+      test('501 entries -> Ancient tree', () {
         final data = generator.generate(2025, makeEntries(501));
-        expect(data.treeStateLabel, 'Ancient Tree');
+        expect(data.treeStateLabel, 'Ancient tree');
       });
     });
   });
@@ -298,5 +299,87 @@ void main() {
     for (final season in review.seasons.values) {
       expect(season.sampleSnippet ?? '', isNot(contains('secret letter')));
     }
+  });
+
+  group('released memories', () {
+    List<Entry> yearWithReleases() {
+      final entries = makeEntries(12);
+      for (var m = 1; m <= 12; m++) {
+        entries.add(
+          Entry.release(text: 'Being angry at Jordan $m')
+            ..createdAt = DateTime(2025, m, 20),
+        );
+      }
+      // A line that was later released keeps its type but is flagged.
+      entries.add(
+        makeEntry(month: 7, text: 'The old grudge')..isReleased = true,
+      );
+      return entries;
+    }
+
+    test('never surface as memorable moments', () {
+      final review = generator.generate(2025, yearWithReleases());
+      expect(review.memorableMoments, isNotEmpty);
+      for (final e in review.memorableMoments) {
+        expect(e.type, isNot(EntryType.release));
+        expect(e.isReleased, isFalse);
+      }
+    });
+
+    test('never surface as season snippets or photos', () {
+      final review = generator.generate(2025, yearWithReleases());
+      for (final season in review.seasons.values) {
+        expect(season.sampleSnippet ?? '', isNot(contains('Jordan')));
+        expect(season.sampleSnippet ?? '', isNot(contains('grudge')));
+        expect(season.photos.where((e) => e.isReleased), isEmpty);
+      }
+    });
+
+    test('still count towards the year', () {
+      final review = generator.generate(2025, yearWithReleases());
+      expect(review.totalEntries, 25);
+    });
+
+    test('a year of only releases has no moments', () {
+      final review = generator.generate(2025, [
+        for (var i = 1; i <= 10; i++)
+          Entry.release(text: 'let go $i')..createdAt = DateTime(2025, i, 1),
+      ]);
+      expect(review.memorableMoments, isEmpty);
+    });
+  });
+
+  test('photos lead the memorable moments and fill season mosaics', () {
+    final entries = makeEntries(20);
+    for (var m in [6, 7, 8]) {
+      entries.add(
+        Entry.photo(mediaPath: '/p/$m.jpg', text: 'Summer photo $m')
+          ..createdAt = DateTime(2025, m, 3),
+      );
+    }
+    final review = generator.generate(2025, entries);
+
+    expect(
+      review.memorableMoments.where((e) => e.type == EntryType.photo).length,
+      3,
+    );
+    expect(review.memorableMoments.length, 5);
+    expect(review.seasons['summer']!.photos.length, 3);
+    expect(review.seasons['winter']!.photos, isEmpty);
+  });
+
+  test('moments are stable across rebuilds', () {
+    final entries = makeEntries(40);
+    final a = generator.generate(2025, entries).memorableMoments;
+    final b = generator.generate(2025, entries).memorableMoments;
+    expect(a.map((e) => e.displayContent), b.map((e) => e.displayContent));
+  });
+
+  test('tree state and finished-year helpers', () {
+    final review = generator.generate(2025, makeEntries(40));
+    expect(review.treeState, TreeState.sapling);
+    expect(review.treeProgress, closeTo(9 / 70, 1e-9));
+    expect(review.isFinished(DateTime(2026, 1, 2)), isTrue);
+    expect(review.isFinished(DateTime(2025, 12, 31)), isFalse);
   });
 }
