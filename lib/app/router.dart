@@ -16,6 +16,8 @@ import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/memories/presentation/object_gallery_screen.dart';
 import '../features/review/presentation/year_in_review_screen.dart';
 import '../features/settings/presentation/rituals_screen.dart';
+import '../features/settings/presentation/export_import_screen.dart';
+import '../features/settings/presentation/sync_settings_screen.dart';
 import '../features/support/presentation/support_screen.dart';
 
 /// App routes
@@ -31,6 +33,8 @@ class AppRoutes {
   static const String themeInsights = '/settings/themes';
   static const String rituals = '/settings/rituals';
   static const String support = '/settings/support';
+  static const String settingsSync = '/settings/sync';
+  static const String settingsData = '/settings/data';
   static const String capsules = '/capsules';
   static const String collection = '/collection';
   static const String yearReview = '/review/:year';
@@ -139,6 +143,18 @@ GoRouter createAppRouter(SharedPreferences prefs) {
         name: 'rituals',
         pageBuilder: (context, state) =>
             _buildPage(key: state.pageKey, child: const RitualsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.settingsSync,
+        name: 'settingsSync',
+        pageBuilder: (context, state) =>
+            _buildPage(key: state.pageKey, child: const SyncSettingsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.settingsData,
+        name: 'settingsData',
+        pageBuilder: (context, state) =>
+            _buildPage(key: state.pageKey, child: const ExportImportScreen()),
       ),
       GoRoute(
         path: AppRoutes.support,

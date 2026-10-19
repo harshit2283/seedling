@@ -1,13 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/notifications/gentle_reminder_service.dart';
 import '../../../../core/services/providers.dart';
-import 'settings_helpers.dart';
+import 'settings_tiles.dart';
 
-/// Settings section for gentle prompts and reminder settings.
+/// "Gentle nudges": prompts, the weekly memory, reminders and the
+/// person's own capture cue.
 class PromptsSection extends ConsumerStatefulWidget {
   const PromptsSection({super.key});
 
@@ -20,166 +20,63 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
   Widget build(BuildContext context) {
     final reminderSettings = ref.watch(reminderSettingsProvider);
     final intention = ref.watch(captureIntentionProvider);
-    final intentionSubtitle = intention ?? 'A cue for capturing, if you like';
 
-    if (PlatformUtils.isIOS) {
-      return CupertinoListSection.insetGrouped(
-        header: const Text('Prompts'),
-        children: [
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.sparkles,
-              context.palette.primary,
-            ),
-            title: const Text('Gentle Prompts'),
-            subtitle: const Text('Thoughtful suggestions on the home screen'),
-            trailing: CupertinoSwitch(
-              value: ref.watch(promptsEnabledProvider),
-              activeTrackColor: context.palette.primaryFill,
-              onChanged: (value) {
-                ref.read(promptSelectorProvider).setEnabled(value);
-                ref.invalidate(promptsEnabledProvider);
-              },
-            ),
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.time,
-              context.palette.primary,
-            ),
-            title: const Text('Your moment'),
-            subtitle: Text(intentionSubtitle),
-            trailing: const CupertinoListTileChevron(),
-            onTap: _editIntention,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.bell,
-              context.palette.primary,
-            ),
-            title: const Text('Gentle Reminder'),
-            subtitle: const Text('Quiet reminder when no memories are added'),
-            trailing: CupertinoSwitch(
-              value: reminderSettings.enabled,
-              activeTrackColor: context.palette.primaryFill,
-              onChanged: (value) {
-                ref.read(reminderSettingsProvider.notifier).setEnabled(value);
-              },
-            ),
-          ),
-          if (reminderSettings.enabled)
-            CupertinoListTile(
-              leading: buildSettingsIconBox(
-                context,
-                CupertinoIcons.calendar,
-                context.palette.primary,
-              ),
-              title: const Text('Reminder cadence'),
-              subtitle: Text(reminderSettings.cadence.label),
-              trailing: const CupertinoListTileChevron(),
-              onTap: _pickReminderCadence,
-            ),
-          if (reminderSettings.enabled)
-            CupertinoListTile(
-              leading: buildSettingsIconBox(
-                context,
-                CupertinoIcons.time,
-                context.palette.primary,
-              ),
-              title: const Text('Reminder time'),
-              subtitle: Text(
-                _formatTime(reminderSettings.hour, reminderSettings.minute),
-              ),
-              trailing: const CupertinoListTileChevron(),
-              onTap: _pickReminderTime,
-            ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.leaf_arrow_circlepath,
-              context.palette.primary,
-            ),
-            title: const Text('A memory from your tree'),
-            subtitle: const Text('Once a week, a quiet nudge to look back'),
-            trailing: CupertinoSwitch(
-              value: ref.watch(resurfaceNotificationsEnabledProvider),
-              activeTrackColor: context.palette.primaryFill,
-              onChanged: (value) {
-                ref
-                    .read(resurfaceNotificationsEnabledProvider.notifier)
-                    .setEnabled(value);
-              },
-            ),
-          ),
-        ],
-      );
-    }
-
-    return buildMaterialSection(
-      context,
-      title: 'Prompts',
+    return SettingsGroup(
+      title: 'Gentle nudges',
+      footer: 'All optional, all quiet. Seedling never counts streaks.',
       children: [
-        buildMaterialSwitchTile(
-          context,
-          icon: Icons.auto_awesome,
-          title: 'Gentle Prompts',
-          subtitle: 'Thoughtful suggestions on the home screen',
+        SettingsSwitchRow(
+          icon: adaptiveIcon(CupertinoIcons.sparkles, Icons.auto_awesome),
+          title: 'Gentle prompts',
+          subtitle: 'A soft suggestion on home',
           value: ref.watch(promptsEnabledProvider),
           onChanged: (value) {
             ref.read(promptSelectorProvider).setEnabled(value);
             ref.invalidate(promptsEnabledProvider);
           },
         ),
-        buildMaterialActionTile(
-          context,
-          icon: Icons.schedule,
-          title: 'Your moment',
-          subtitle: intentionSubtitle,
-          onTap: _editIntention,
+        SettingsSwitchRow(
+          icon: adaptiveIcon(
+            CupertinoIcons.leaf_arrow_circlepath,
+            Icons.history_toggle_off,
+          ),
+          title: 'A memory from your tree',
+          subtitle: 'Once a week, a quiet look back',
+          value: ref.watch(resurfaceNotificationsEnabledProvider),
+          onChanged: (value) => ref
+              .read(resurfaceNotificationsEnabledProvider.notifier)
+              .setEnabled(value),
         ),
-        buildMaterialSwitchTile(
-          context,
-          icon: Icons.notifications_outlined,
-          title: 'Gentle Reminder',
-          subtitle: 'Quiet reminder if no memories are added',
+        SettingsSwitchRow(
+          icon: adaptiveIcon(CupertinoIcons.bell, Icons.notifications_none),
+          title: 'Gentle reminder',
+          subtitle: 'Only after a quiet stretch',
           value: reminderSettings.enabled,
-          onChanged: (value) {
-            ref.read(reminderSettingsProvider.notifier).setEnabled(value);
-          },
+          onChanged: (value) =>
+              ref.read(reminderSettingsProvider.notifier).setEnabled(value),
         ),
-        if (reminderSettings.enabled)
-          buildMaterialActionTile(
-            context,
-            icon: Icons.calendar_today_outlined,
-            title: 'Reminder cadence',
-            subtitle: reminderSettings.cadence.label,
+        if (reminderSettings.enabled) ...[
+          SettingsRow(
+            icon: adaptiveIcon(
+              CupertinoIcons.calendar,
+              Icons.calendar_today_outlined,
+            ),
+            title: 'How often',
+            value: reminderSettings.cadence.label,
             onTap: _pickReminderCadence,
           ),
-        if (reminderSettings.enabled)
-          buildMaterialActionTile(
-            context,
-            icon: Icons.access_time,
+          SettingsRow(
+            icon: adaptiveIcon(CupertinoIcons.clock, Icons.access_time),
             title: 'Reminder time',
-            subtitle: _formatTime(
-              reminderSettings.hour,
-              reminderSettings.minute,
-            ),
+            value: _formatTime(reminderSettings.hour, reminderSettings.minute),
             onTap: _pickReminderTime,
           ),
-        buildMaterialSwitchTile(
-          context,
-          icon: Icons.history_toggle_off,
-          title: 'A memory from your tree',
-          subtitle: 'Once a week, a quiet nudge to look back',
-          value: ref.watch(resurfaceNotificationsEnabledProvider),
-          onChanged: (value) {
-            ref
-                .read(resurfaceNotificationsEnabledProvider.notifier)
-                .setEnabled(value);
-          },
+        ],
+        SettingsRow(
+          icon: adaptiveIcon(CupertinoIcons.sun_haze, Icons.wb_twilight),
+          title: 'Your moment',
+          subtitle: intention ?? 'A cue for capturing, if you like',
+          onTap: _editIntention,
         ),
       ],
     );
@@ -216,7 +113,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
       final selected = await showCupertinoModalPopup<ReminderCadence>(
         context: context,
         builder: (context) => CupertinoActionSheet(
-          title: const Text('Reminder Cadence'),
+          title: const Text('How often'),
           actions: ReminderCadence.values.map((cadence) {
             return CupertinoActionSheetAction(
               onPressed: () => Navigator.of(context).pop(cadence),
@@ -355,7 +252,7 @@ class _IntentionDialogState extends State<_IntentionDialog> {
   @override
   Widget build(BuildContext context) {
     const title = Text('When do small moments find you?');
-    const hint = 'e.g. When I make my morning coffee';
+    const hint = 'e.g. With my morning coffee';
     void clear() => Navigator.of(context).pop('');
     void save() => Navigator.of(context).pop(_controller.text);
 

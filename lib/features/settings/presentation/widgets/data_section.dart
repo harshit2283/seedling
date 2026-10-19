@@ -13,11 +13,11 @@ import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/backup/backup_restore_service.dart';
 import '../../../../core/services/export/export_service.dart';
 import '../../../../core/services/providers.dart';
-import '../../../../core/services/storage/storage_usage_service.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
 import 'settings_helpers.dart';
+import 'settings_tiles.dart';
 
-/// Settings section for export, import, storage, and tree rebuild.
+/// Export and import rows, shown on the "Export & import" screen.
 class DataSection extends ConsumerStatefulWidget {
   const DataSection({super.key});
 
@@ -27,281 +27,93 @@ class DataSection extends ConsumerStatefulWidget {
 
 class _DataSectionState extends ConsumerState<DataSection> {
   bool _isExporting = false;
-  bool _isRecountingTrees = false;
 
   @override
   Widget build(BuildContext context) {
-    final storageAsync = ref.watch(storageUsageProvider);
+    VoidCallback? busy(VoidCallback action) => _isExporting ? null : action;
+    final lock = AdaptiveIcons.lock;
 
-    if (PlatformUtils.isIOS) {
-      return CupertinoListSection.insetGrouped(
-        header: const Text('Your data'),
-        children: [
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.download,
-              context.palette.primary,
-            ),
-            title: const Text('Export as JSON'),
-            subtitle: const Text('Entries without media'),
-            trailing: _isExporting
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isExporting ? null : _exportJson,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.archivebox,
-              context.palette.primary,
-            ),
-            title: const Text('Export as ZIP'),
-            subtitle: const Text('Entries with all media'),
-            trailing: _isExporting
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isExporting ? null : _exportZip,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.doc_text,
-              context.palette.primary,
-            ),
-            title: const Text('Export as Markdown'),
-            subtitle: const Text('Readable files, opens in Obsidian'),
-            trailing: _isExporting
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isExporting ? null : _exportMarkdown,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.lock,
-              context.palette.primary,
-            ),
-            title: const Text('Encrypted Backup'),
-            subtitle: const Text('Password-protected .seedling file'),
-            trailing: _isExporting
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isExporting ? null : _exportEncryptedBackup,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.download,
-              context.palette.primary,
-            ),
-            title: const Text('Import Encrypted Backup'),
-            subtitle: const Text('Restore from .seedling file'),
-            trailing: _isExporting
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isExporting ? null : _importEncryptedBackup,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.download,
-              context.palette.primary,
-            ),
-            title: const Text('Import Archive (ZIP)'),
-            subtitle: const Text('Restore from .zip export'),
-            trailing: _isExporting
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isExporting ? null : _importZipArchive,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.tray_arrow_down,
-              context.palette.primary,
-            ),
-            title: const Text('Import from Day One / Markdown'),
-            subtitle: const Text('Day One JSON or Markdown export (.zip)'),
-            trailing: _isExporting
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isExporting ? null : _importJournal,
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.refresh,
-              context.palette.primary,
-            ),
-            title: const Text('Rebuild Tree Counts'),
-            subtitle: const Text('Repair yearly growth totals'),
-            trailing: _isRecountingTrees
-                ? const CupertinoActivityIndicator()
-                : const CupertinoListTileChevron(),
-            onTap: _isRecountingTrees ? null : _recountTrees,
-          ),
-          _buildStorageTileIOS(storageAsync),
-        ],
-      );
-    }
-
-    return buildMaterialSection(
-      context,
-      title: 'Data',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        buildMaterialActionTile(
-          context,
-          icon: AdaptiveIcons.download,
-          title: 'Export as JSON',
-          subtitle: 'Entries without media',
-          onTap: _exportJson,
-          isLoading: _isExporting,
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: Icons.archive_outlined,
-          title: 'Export as ZIP',
-          subtitle: 'Entries with all media',
-          onTap: _exportZip,
-          isLoading: _isExporting,
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: Icons.description_outlined,
-          title: 'Export as Markdown',
-          subtitle: 'Readable files, opens in Obsidian',
-          onTap: _exportMarkdown,
-          isLoading: _isExporting,
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: AdaptiveIcons.lock,
-          title: 'Encrypted Backup',
-          subtitle: 'Password-protected .seedling file',
-          onTap: _exportEncryptedBackup,
-          isLoading: _isExporting,
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: AdaptiveIcons.download,
-          title: 'Import Encrypted Backup',
-          subtitle: 'Restore from .seedling file',
-          onTap: _importEncryptedBackup,
-          isLoading: _isExporting,
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: AdaptiveIcons.download,
-          title: 'Import Archive (ZIP)',
-          subtitle: 'Restore from .zip export',
-          onTap: _importZipArchive,
-          isLoading: _isExporting,
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: Icons.move_to_inbox_outlined,
-          title: 'Import from Day One / Markdown',
-          subtitle: 'Day One JSON or Markdown export (.zip)',
-          onTap: _importJournal,
-          isLoading: _isExporting,
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: Icons.refresh,
-          title: 'Rebuild Tree Counts',
-          subtitle: 'Repair yearly growth totals',
-          onTap: _recountTrees,
-          isLoading: _isRecountingTrees,
-        ),
-        _buildStorageTileMaterial(context, storageAsync),
-      ],
-    );
-  }
-
-  Widget _buildStorageTileIOS(AsyncValue<StorageUsage> storageAsync) {
-    return storageAsync.when(
-      data: (storage) => CupertinoListTile(
-        leading: buildSettingsIconBox(
-          context,
-          CupertinoIcons.chart_pie,
-          context.palette.primary,
-        ),
-        title: const Text('Storage Used'),
-        additionalInfo: Text(storage.totalFormatted),
-        trailing: const CupertinoListTileChevron(),
-        onTap: () => showStorageDetails(context, storage),
-      ),
-      loading: () => CupertinoListTile(
-        leading: buildSettingsIconBox(
-          context,
-          CupertinoIcons.chart_pie,
-          context.palette.primary,
-        ),
-        title: const Text('Storage Used'),
-        trailing: const CupertinoActivityIndicator(),
-      ),
-      error: (error, stackTrace) => CupertinoListTile(
-        leading: buildSettingsIconBox(
-          context,
-          CupertinoIcons.chart_pie,
-          context.palette.textMuted,
-          isLight: true,
-        ),
-        title: const Text('Storage Used'),
-        additionalInfo: const Text('Error'),
-      ),
-    );
-  }
-
-  Widget _buildStorageTileMaterial(
-    BuildContext context,
-    AsyncValue<StorageUsage> storageAsync,
-  ) {
-    return storageAsync.when(
-      data: (storage) => buildMaterialActionTile(
-        context,
-        icon: Icons.pie_chart_outline,
-        title: 'Storage Used',
-        subtitle: storage.totalFormatted,
-        onTap: () => showStorageDetails(context, storage),
-      ),
-      loading: () => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        SettingsGroup(
+          title: 'Export',
+          footer:
+              'An encrypted backup is the safest full copy. It can be '
+              'restored on any device with its password.',
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.pie_chart_outline,
-                color: context.palette.textSecondary,
-                size: 20,
-              ),
+            SettingsRow(
+              icon: lock,
+              title: 'Encrypted backup',
+              subtitle: 'Password-protected .seedling file',
+              isLoading: _isExporting,
+              onTap: busy(_exportEncryptedBackup),
             ),
-            const SizedBox(width: 12),
-            const Text('Calculating...'),
-            const Spacer(),
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
+            SettingsRow(
+              icon: adaptiveIcon(
+                CupertinoIcons.archivebox,
+                Icons.archive_outlined,
+              ),
+              title: 'Export as ZIP',
+              subtitle: 'Memories with all photos and voice notes',
+              isLoading: _isExporting,
+              onTap: busy(_exportZip),
+            ),
+            SettingsRow(
+              icon: adaptiveIcon(
+                CupertinoIcons.doc_text,
+                Icons.description_outlined,
+              ),
+              title: 'Export as Markdown',
+              subtitle: 'Readable files, opens in Obsidian',
+              isLoading: _isExporting,
+              onTap: busy(_exportMarkdown),
+            ),
+            SettingsRow(
+              icon: AdaptiveIcons.download,
+              title: 'Export as JSON',
+              subtitle: 'Text only, without media',
+              isLoading: _isExporting,
+              onTap: busy(_exportJson),
             ),
           ],
         ),
-      ),
-      error: (error, stackTrace) => buildMaterialActionTile(
-        context,
-        icon: Icons.pie_chart_outline,
-        title: 'Storage Used',
-        subtitle: 'Error calculating',
-        enabled: false,
-        onTap: () {},
-      ),
+        SettingsGroup(
+          title: 'Import',
+          footer:
+              'Restoring a backup asks first whether to add to what is '
+              'here or replace it.',
+          children: [
+            SettingsRow(
+              icon: lock,
+              title: 'Restore an encrypted backup',
+              subtitle: 'From a .seedling file',
+              isLoading: _isExporting,
+              onTap: busy(_importEncryptedBackup),
+            ),
+            SettingsRow(
+              icon: adaptiveIcon(
+                CupertinoIcons.archivebox,
+                Icons.unarchive_outlined,
+              ),
+              title: 'Restore a ZIP export',
+              subtitle: 'From a Seedling .zip',
+              isLoading: _isExporting,
+              onTap: busy(_importZipArchive),
+            ),
+            SettingsRow(
+              icon: adaptiveIcon(
+                CupertinoIcons.tray_arrow_down,
+                Icons.move_to_inbox_outlined,
+              ),
+              title: 'Import from Day One / Markdown',
+              subtitle: 'Day One JSON or Markdown export (.zip)',
+              isLoading: _isExporting,
+              onTap: busy(_importJournal),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -583,24 +395,6 @@ class _DataSectionState extends ConsumerState<DataSection> {
     return result ?? false;
   }
 
-  Future<void> _recountTrees() async {
-    HapticFeedback.selectionClick();
-    setState(() => _isRecountingTrees = true);
-
-    try {
-      await ref.read(databaseMaintenanceProvider.notifier).recountTrees();
-      if (!mounted) return;
-      showSettingsSuccess(context, 'Tree counts rebuilt successfully');
-    } catch (e) {
-      if (!mounted) return;
-      showSettingsError(context, 'Could not rebuild tree counts');
-    } finally {
-      if (mounted) {
-        setState(() => _isRecountingTrees = false);
-      }
-    }
-  }
-
   Future<void> _exportEncryptedBackup() async {
     HapticFeedback.selectionClick();
     final authorized = await authorizeSensitiveAction(
@@ -689,7 +483,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
 
     final passphrase = await _promptForPassphrase(
       context,
-      title: 'Unlock Backup',
+      title: 'Unlock backup',
       message: 'Enter the passphrase for this encrypted backup.',
     );
     if (passphrase == null || passphrase.isEmpty) {
@@ -1040,7 +834,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       return showCupertinoDialog<BackupImportMode>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Import Backup'),
+          title: const Text('Import backup'),
           content: Text(summary),
           actions: [
             CupertinoDialogAction(
@@ -1066,7 +860,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
     return showDialog<BackupImportMode>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Import Backup'),
+        title: const Text('Import backup'),
         content: Text(summary),
         actions: [
           TextButton(
@@ -1156,7 +950,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       await showCupertinoDialog<void>(
         context: context,
         builder: (dialogContext) => CupertinoAlertDialog(
-          title: const Text('Import Complete'),
+          title: const Text('Import complete'),
           content: Text(message),
           actions: [
             CupertinoDialogAction(
@@ -1164,7 +958,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
                 Navigator.of(dialogContext).pop();
                 context.push(AppRoutes.memories);
               },
-              child: const Text('Open Memories'),
+              child: const Text('Open memories'),
             ),
             if (hasCapsules)
               CupertinoDialogAction(
@@ -1172,7 +966,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
                   Navigator.of(dialogContext).pop();
                   context.push(AppRoutes.capsules);
                 },
-                child: const Text('Open Capsules'),
+                child: const Text('Open capsules'),
               ),
             CupertinoDialogAction(
               isDefaultAction: true,
@@ -1188,7 +982,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Import Complete'),
+        title: const Text('Import complete'),
         content: Text(message),
         actions: [
           TextButton(
@@ -1196,7 +990,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
               Navigator.of(dialogContext).pop();
               context.push(AppRoutes.memories);
             },
-            child: const Text('Open Memories'),
+            child: const Text('Open memories'),
           ),
           if (hasCapsules)
             TextButton(
@@ -1204,7 +998,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
                 Navigator.of(dialogContext).pop();
                 context.push(AppRoutes.capsules);
               },
-              child: const Text('Open Capsules'),
+              child: const Text('Open capsules'),
             ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),

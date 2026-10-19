@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -10,13 +11,16 @@ import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/diagnostics_log.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
+import '../../../../core/constants/support_links.dart';
+import '../../../../core/services/providers.dart';
 import 'settings_helpers.dart';
+import 'settings_tiles.dart';
 
 const String shareDiagnosticsTitle = 'Share diagnostics';
-const String shareDiagnosticsSubtitle =
-    'Only if you choose to. Errors only, no memories.';
+const String shareDiagnosticsSubtitle = 'Errors only, never memories';
 
-/// Settings section showing app version and about dialog.
+/// "About": support, privacy policy, diagnostics, version, and a quiet
+/// "Advanced" disclosure for maintenance tools.
 class AboutSection extends ConsumerStatefulWidget {
   const AboutSection({super.key});
 
@@ -26,6 +30,9 @@ class AboutSection extends ConsumerStatefulWidget {
 
 class _AboutSectionState extends ConsumerState<AboutSection> {
   String _appVersion = '...';
+  bool _advancedOpen = false;
+  bool _isRecountingTrees = false;
+  bool _isClearingData = false;
 
   @override
   void initState() {
@@ -44,76 +51,119 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
 
   @override
   Widget build(BuildContext context) {
-    if (PlatformUtils.isIOS) {
-      return CupertinoListSection.insetGrouped(
-        header: const Text('About'),
-        children: [
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.info,
-              context.palette.textSecondary,
-              isLight: true,
-            ),
-            title: const Text('About Seedling'),
-            additionalInfo: Text('v$_appVersion'),
-            trailing: const CupertinoListTileChevron(),
-            onTap: () => _showAboutDialog(context),
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.heart,
-              context.palette.primary,
-            ),
-            title: const Text('Support Seedling'),
-            additionalInfo: const Text('Free, always'),
-            trailing: const CupertinoListTileChevron(),
-            onTap: () => context.push(AppRoutes.support),
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.doc_text,
-              context.palette.textSecondary,
-              isLight: true,
-            ),
-            title: const Text(shareDiagnosticsTitle),
-            subtitle: const Text(shareDiagnosticsSubtitle),
-            trailing: const CupertinoListTileChevron(),
-            onTap: () => _shareDiagnostics(context),
-          ),
-        ],
-      );
-    }
-
-    return buildMaterialSection(
-      context,
+    final collage = ref.watch(collageViewEnabledProvider);
+    return SettingsGroup(
       title: 'About',
       children: [
-        buildMaterialActionTile(
-          context,
-          icon: AdaptiveIcons.info,
-          title: 'About Seedling',
-          subtitle: 'Version $_appVersion',
-          onTap: () => _showAboutDialog(context),
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: Icons.favorite_border,
+        SettingsRow(
+          key: const ValueKey('settings-support'),
+          icon: adaptiveIcon(CupertinoIcons.heart, Icons.favorite_border),
+          isWarm: true,
           title: 'Support Seedling',
           subtitle: 'Free and open source. Nothing is locked.',
           onTap: () => context.push(AppRoutes.support),
         ),
-        buildMaterialActionTile(
-          context,
-          icon: Icons.description_outlined,
+        SettingsRow(
+          icon: AdaptiveIcons.shield,
+          title: 'Privacy policy',
+          subtitle: 'What Seedling keeps, and never does',
+          onTap: () => _copyLink(context, SupportLinks.privacyPolicyUrl),
+        ),
+        SettingsRow(
+          icon: adaptiveIcon(
+            CupertinoIcons.doc_text,
+            Icons.description_outlined,
+          ),
           title: shareDiagnosticsTitle,
           subtitle: shareDiagnosticsSubtitle,
           onTap: () => _shareDiagnostics(context),
         ),
+        SettingsRow(
+          icon: AdaptiveIcons.info,
+          title: 'About Seedling',
+          value: _appVersion == 'unknown' || _appVersion == '...'
+              ? null
+              : 'Version $_appVersion',
+          onTap: () => _showAboutDialog(context),
+        ),
+        SettingsRow(
+          key: const ValueKey('settings-advanced'),
+          icon: adaptiveIcon(CupertinoIcons.wrench, Icons.build_outlined),
+          title: 'Advanced',
+          showChevron: false,
+          trailing: AnimatedRotation(
+            duration: _reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            turns: _advancedOpen ? 0.25 : 0,
+            child: Icon(
+              AdaptiveIcons.chevronRight,
+              size: PlatformUtils.isIOS ? 18 : 24,
+              color: context.palette.textMuted,
+            ),
+          ),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _advancedOpen = !_advancedOpen);
+          },
+        ),
+        if (_advancedOpen) ...[
+          SettingsRow(
+            key: const ValueKey('settings-rebuild-tree'),
+            icon: adaptiveIcon(CupertinoIcons.refresh, Icons.refresh),
+            title: 'Rebuild tree counts',
+            subtitle: 'If your tree looks out of step',
+            isLoading: _isRecountingTrees,
+            onTap: _recountTrees,
+          ),
+          SettingsSwitchRow(
+            icon: adaptiveIcon(CupertinoIcons.square_grid_2x2, Icons.grid_view),
+            title: 'Photo grid in Memories',
+            subtitle: 'Experimental. May change.',
+            value: collage,
+            onChanged: (v) =>
+                ref.read(collageViewEnabledProvider.notifier).set(v),
+          ),
+          SettingsRow(
+            icon: adaptiveIcon(
+              CupertinoIcons.trash,
+              Icons.delete_forever_outlined,
+            ),
+            isDanger: true,
+            title: 'Clear all data',
+            subtitle: 'Delete every memory here',
+            isLoading: _isClearingData,
+            onTap: () => _confirmClearAllData(context),
+          ),
+        ],
       ],
     );
+  }
+
+  bool get _reduceMotion =>
+      MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  Future<void> _copyLink(BuildContext context, String url) async {
+    HapticFeedback.selectionClick();
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!context.mounted) return;
+    showSeedlingMessage(context, 'Link copied. Paste it in your browser.');
+  }
+
+  Future<void> _recountTrees() async {
+    HapticFeedback.selectionClick();
+    setState(() => _isRecountingTrees = true);
+    try {
+      await ref.read(databaseMaintenanceProvider.notifier).recountTrees();
+      if (!mounted) return;
+      showSettingsSuccess(context, 'Your tree is up to date');
+    } catch (e) {
+      if (!mounted) return;
+      showSettingsError(context, 'Could not rebuild tree counts');
+    } finally {
+      if (mounted) setState(() => _isRecountingTrees = false);
+    }
   }
 
   /// Shares the local error log, only after the person confirms. The log
@@ -296,6 +346,146 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
           ],
         ),
       );
+    }
+  }
+
+  void _confirmClearAllData(BuildContext context) {
+    // A warning, not a jolt: the double confirmation carries the weight.
+    HapticFeedback.mediumImpact();
+    if (PlatformUtils.isIOS) {
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Clear all data?'),
+          content: const Text(
+            'This will permanently delete ALL your memories, including photos and voice memos. This action cannot be undone.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(context);
+                _confirmClearAllDataSecond(context);
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Clear all data?'),
+          content: const Text(
+            'This will permanently delete ALL your memories, including photos and voice memos. This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: context.palette.error,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _confirmClearAllDataSecond(context);
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _confirmClearAllDataSecond(BuildContext context) {
+    if (PlatformUtils.isIOS) {
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Are you absolutely sure?'),
+          content: const Text(
+            'This is your last chance to cancel this destructive action.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(context);
+                _clearAllData();
+              },
+              child: const Text('Delete everything'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Are you absolutely sure?'),
+          content: const Text('This is your last chance to cancel.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: context.palette.error,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _clearAllData();
+              },
+              child: const Text('Delete everything'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _clearAllData() async {
+    if (_isClearingData) return;
+
+    final didAuthorize = await authorizeSensitiveAction(
+      ref,
+      context,
+      'Authenticate to clear all Seedling data',
+    );
+    if (!didAuthorize) return;
+
+    setState(() => _isClearingData = true);
+
+    try {
+      final database = ref.read(databaseProvider);
+      final fileStorage = ref.read(fileStorageServiceProvider);
+      await fileStorage.clearAllMedia();
+      await database.clearAllData();
+      if (!mounted) return;
+      showSettingsSuccess(context, 'All data was permanently deleted');
+    } catch (e) {
+      if (!mounted) return;
+      showSettingsError(
+        context,
+        "Your memories weren't cleared. Please try again.",
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingData = false);
+      }
     }
   }
 }

@@ -1,195 +1,86 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
-import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
-import 'sync_status_tile.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../app/router.dart';
 import 'settings_helpers.dart';
+import 'settings_tiles.dart';
 
-/// Title of the Privacy row explaining that device backups skip memories.
+/// Title of the note explaining that device backups skip memories.
 const String deviceBackupNoteTitle = 'Keeping a copy';
 
 /// Memories are excluded from iCloud/iTunes (and Android) device backups, so a
 /// lost phone means lost memories unless the person keeps their own copy.
 const String deviceBackupNoteSubtitle =
     "Device backups don't include your memories, so they stay with you. "
-    'To keep a copy somewhere safe, use Export or turn on sync.';
+    'To keep a copy somewhere safe, export a backup or turn on sync.';
 
-/// Settings section for privacy, app lock, sync passphrase, and widget previews.
+/// "Privacy & sync": app lock (one row, with what it changes shown only
+/// while it's on), widget previews, and a single way into cloud sync.
 class PrivacySection extends ConsumerWidget {
   const PrivacySection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appLockEnabled = ref.watch(appLockEnabledProvider);
-    final widgetMemoryPreviewsEnabled = ref.watch(
-      widgetMemoryPreviewsEnabledProvider,
-    );
-    final syncPassphraseConfiguredAsync = ref.watch(
-      syncPassphraseConfiguredProvider,
-    );
-    final isSyncPassphraseConfigured =
-        syncPassphraseConfiguredAsync.asData?.value ?? false;
+    final widgetPreviews = ref.watch(widgetMemoryPreviewsEnabledProvider);
+    final cloudSync = ref.watch(cloudSyncEnabledProvider);
+    final syncActive = ref.watch(syncEnabledProvider);
 
-    if (PlatformUtils.isIOS) {
-      return CupertinoListSection.insetGrouped(
-        header: const Text('Privacy'),
-        children: [
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.smartphone,
-              context.palette.primary,
-            ),
-            title: const Text('On your device'),
-            subtitle: const Text(
-              'Stored locally by default. Sync, widgets, export, and sharing are optional.',
-            ),
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.download,
-              context.palette.primary,
-            ),
-            title: const Text(deviceBackupNoteTitle),
-            subtitle: const Text(deviceBackupNoteSubtitle, maxLines: 3),
-          ),
-          const CupertinoListTile(title: SyncStatusTile()),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.square_grid_2x2,
-              context.palette.primary,
-            ),
-            title: const Text('Widget previews'),
-            subtitle: Text(
-              widgetMemoryPreviewsEnabled && !appLockEnabled
-                  ? 'Memory text can appear in widgets'
-                  : 'Aggregate-only widgets keep memory text hidden',
-            ),
-            trailing: CupertinoSwitch(
-              value: widgetMemoryPreviewsEnabled,
-              activeTrackColor: context.palette.primaryFill,
-              onChanged: (enabled) =>
-                  _toggleWidgetMemoryPreviews(context, ref, enabled),
-            ),
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.lock,
-              context.palette.primary,
-            ),
-            title: const Text('Sync passphrase'),
-            subtitle: Text(
-              isSyncPassphraseConfigured
-                  ? 'Set (tap to update)'
-                  : 'Required for encrypted cloud sync',
-            ),
-            trailing: const CupertinoListTileChevron(),
-            onTap: () => _configureSyncPassphrase(context, ref),
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.lock,
-              context.palette.primary,
-            ),
-            title: const Text('App Lock'),
-            subtitle: Text(
-              appLockEnabled ? 'Enabled' : 'Use device auth to unlock',
-            ),
-            trailing: CupertinoSwitch(
-              value: appLockEnabled,
-              activeTrackColor: context.palette.primaryFill,
-              onChanged: (enabled) => _toggleAppLock(context, ref, enabled),
-            ),
-          ),
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              AdaptiveIcons.lock,
-              context.palette.primary,
-            ),
-            title: const Text('No tracking'),
-            subtitle: const Text('No analytics or data collection'),
-          ),
-        ],
-      );
+    final String syncSummary;
+    if (!cloudSync) {
+      syncSummary = 'Off. Nothing leaves this device.';
+    } else if (syncActive) {
+      syncSummary = 'On, end-to-end encrypted';
+    } else {
+      syncSummary = 'Allowed, not set up yet';
     }
 
-    return buildMaterialSection(
-      context,
-      title: 'Privacy',
+    return SettingsGroup(
+      title: 'Privacy & sync',
+      footer:
+          'Your memories live on this device. No accounts, no ads, '
+          'no tracking.',
       children: [
-        buildMaterialInfoTile(
-          context,
-          icon: AdaptiveIcons.smartphone,
-          title: 'On your device',
-          subtitle:
-              'Stored locally by default. Sync, widgets, export, and sharing are optional.',
-        ),
-        buildMaterialInfoTile(
-          context,
-          icon: AdaptiveIcons.download,
-          title: deviceBackupNoteTitle,
-          subtitle: deviceBackupNoteSubtitle,
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: SyncStatusTile(),
-        ),
-        buildMaterialInfoTile(
-          context,
+        SettingsSwitchRow(
+          switchKey: const ValueKey('settings-app-lock'),
           icon: AdaptiveIcons.lock,
-          title: 'Sync passphrase',
-          subtitle: isSyncPassphraseConfigured
-              ? 'Set (tap to update)'
-              : 'Required for encrypted cloud sync',
-        ),
-        buildMaterialActionTile(
-          context,
-          icon: AdaptiveIcons.lock,
-          title: isSyncPassphraseConfigured
-              ? 'Update Sync Passphrase'
-              : 'Set Sync Passphrase',
-          subtitle: 'Used for end-to-end encrypted sync payloads',
-          onTap: () => _configureSyncPassphrase(context, ref),
-        ),
-        buildMaterialInfoTile(
-          context,
-          icon: AdaptiveIcons.lock,
-          title: 'App Lock',
-          subtitle: appLockEnabled ? 'Enabled' : 'Use device auth to unlock',
-        ),
-        buildMaterialSwitchTile(
-          context,
-          icon: AdaptiveIcons.lock,
-          title: 'Enable App Lock',
-          subtitle: 'Uses device biometrics/passcode',
+          title: 'App lock',
+          subtitle: 'Face, fingerprint or passcode to open',
           value: appLockEnabled,
           onChanged: (enabled) => _toggleAppLock(context, ref, enabled),
         ),
-        buildMaterialSwitchTile(
-          context,
-          icon: Icons.widgets_outlined,
-          title: 'Widget memory previews',
-          subtitle: widgetMemoryPreviewsEnabled && !appLockEnabled
-              ? 'Memory text may appear in widgets'
-              : 'Widgets show aggregate-only details',
-          value: widgetMemoryPreviewsEnabled,
-          onChanged: (enabled) =>
-              _toggleWidgetMemoryPreviews(context, ref, enabled),
-        ),
-        buildMaterialInfoTile(
-          context,
-          icon: AdaptiveIcons.lock,
-          title: 'No tracking',
-          subtitle: 'No analytics or data collection',
+        if (appLockEnabled)
+          SettingsRow(
+            icon: adaptiveIcon(
+              CupertinoIcons.square_grid_2x2,
+              Icons.widgets_outlined,
+            ),
+            title: 'Widgets stay private',
+            subtitle: 'No memory text while locked',
+          )
+        else
+          SettingsSwitchRow(
+            icon: adaptiveIcon(
+              CupertinoIcons.square_grid_2x2,
+              Icons.widgets_outlined,
+            ),
+            title: 'Memory text in widgets',
+            subtitle: widgetPreviews
+                ? 'Widgets may show a line'
+                : 'Widgets show only your tree',
+            value: widgetPreviews,
+            onChanged: (enabled) =>
+                _toggleWidgetMemoryPreviews(context, ref, enabled),
+          ),
+        SettingsRow(
+          key: const ValueKey('settings-cloud-sync'),
+          icon: AdaptiveIcons.cloud,
+          title: 'Cloud sync',
+          subtitle: syncSummary,
+          onTap: () => context.push(AppRoutes.settingsSync),
         ),
       ],
     );
@@ -232,15 +123,15 @@ class PrivacySection extends ConsumerWidget {
       showSettingsError(
         context,
         enabled
-            ? 'Could not enable App Lock right now'
-            : 'Could not disable App Lock right now',
+            ? 'Could not turn on app lock right now'
+            : 'Could not turn off app lock right now',
       );
       return;
     }
     if (!context.mounted) return;
     showSettingsSuccess(
       context,
-      enabled ? 'App lock enabled' : 'App lock disabled',
+      enabled ? 'App lock is on' : 'App lock is off',
     );
   }
 
@@ -252,7 +143,7 @@ class PrivacySection extends ConsumerWidget {
     if (enabled && ref.read(appLockEnabledProvider)) {
       showSettingsError(
         context,
-        'Disable App Lock before showing memory previews in widgets',
+        'Turn off app lock before showing memory text in widgets',
       );
       return;
     }
@@ -264,168 +155,8 @@ class PrivacySection extends ConsumerWidget {
     showSettingsSuccess(
       context,
       enabled
-          ? 'Widget previews enabled'
-          : 'Widget previews hidden for privacy',
+          ? 'Widgets can show memory text'
+          : 'Widgets keep your words private',
     );
-  }
-
-  Future<void> _configureSyncPassphrase(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    HapticFeedback.selectionClick();
-    final authorized = await authorizeSensitiveAction(
-      ref,
-      context,
-      'Authenticate to change your sync passphrase',
-    );
-    if (!authorized) return;
-    if (!context.mounted) return;
-    final passphrase = await _promptForPassphrase(
-      context,
-      title: 'Sync Passphrase',
-      message: 'Set or update the passphrase used to encrypt sync payloads.',
-      confirm: true,
-    );
-    if (passphrase == null || passphrase.isEmpty) {
-      return;
-    }
-
-    try {
-      await ref.read(syncCryptoServiceProvider).setPassphrase(passphrase);
-      ref.invalidate(syncPassphraseConfiguredProvider);
-      if (!context.mounted) return;
-      showSettingsSuccess(context, 'Sync passphrase saved');
-    } catch (e) {
-      if (!context.mounted) return;
-      showSettingsError(context, e.toString());
-    }
-  }
-
-  Future<String?> _promptForPassphrase(
-    BuildContext context, {
-    required String title,
-    required String message,
-    bool confirm = false,
-  }) async {
-    final passController = TextEditingController();
-    final confirmController = TextEditingController();
-
-    try {
-      if (PlatformUtils.isIOS) {
-        return await showCupertinoDialog<String>(
-          context: context,
-          builder: (dialogContext) => StatefulBuilder(
-            builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
-              title: Text(title),
-              content: Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Column(
-                  children: [
-                    Text(message),
-                    const SizedBox(height: 12),
-                    CupertinoTextField(
-                      controller: passController,
-                      placeholder: 'Passphrase',
-                      obscureText: true,
-                      onChanged: (_) => setDialogState(() {}),
-                    ),
-                    if (confirm) ...[
-                      const SizedBox(height: 8),
-                      CupertinoTextField(
-                        controller: confirmController,
-                        placeholder: 'Confirm passphrase',
-                        obscureText: true,
-                        onChanged: (_) => setDialogState(() {}),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                CupertinoDialogAction(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                CupertinoDialogAction(
-                  onPressed: () {
-                    final pass = passController.text.trim();
-                    if (pass.length < 8) {
-                      showSettingsError(
-                        context,
-                        'Passphrase must be at least 8 characters',
-                      );
-                      return;
-                    }
-                    if (confirm && pass != confirmController.text.trim()) {
-                      showSettingsError(context, 'Passphrases do not match');
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(pass);
-                  },
-                  child: const Text('Continue'),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      return await showDialog<String>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(message),
-              const SizedBox(height: 12),
-              TextField(
-                controller: passController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Passphrase'),
-              ),
-              if (confirm) ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: confirmController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm passphrase',
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                final pass = passController.text.trim();
-                if (pass.length < 8) {
-                  showSettingsError(
-                    context,
-                    'Passphrase must be at least 8 characters',
-                  );
-                  return;
-                }
-                if (confirm && pass != confirmController.text.trim()) {
-                  showSettingsError(context, 'Passphrases do not match');
-                  return;
-                }
-                Navigator.of(dialogContext).pop(pass);
-              },
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      passController.dispose();
-      confirmController.dispose();
-    }
   }
 }
