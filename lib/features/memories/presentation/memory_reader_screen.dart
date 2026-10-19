@@ -74,12 +74,14 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
     final topInset = MediaQuery.paddingOf(context).top;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final isIOS = PlatformUtils.isIOS;
+    final count = widget.args.entries.length;
 
     final body = Stack(
       children: [
         Semantics(
           label:
-              'Memory reader. Tap left for previous, right for next, center for controls.',
+              'Memory reader. Swipe or tap the edges for the previous or next memory, '
+              'tap the centre for controls.',
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTapUp: (details) => _handleReaderTap(context, details),
@@ -96,22 +98,34 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             ),
           ),
         ),
-        if (_showChrome)
-          Positioned(
-            top: topInset + 8,
-            left: 14,
-            child: _frostedIconButton(
+        // A thin line along the top: how far through the memories you are.
+        Positioned(
+          top: topInset + 2,
+          left: 20,
+          right: 20,
+          child: ReaderProgressLine(
+            index: _currentIndex,
+            count: count,
+            color: palette.onMedia,
+          ),
+        ),
+        Positioned(
+          top: topInset + 8,
+          left: 14,
+          child: _chrome(
+            _frostedIconButton(
               icon: isIOS ? CupertinoIcons.back : Icons.arrow_back,
               label: 'Back',
               hint: 'Returns to memories',
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
-        if (_showChrome)
-          Positioned(
-            top: topInset + 8,
-            right: 14,
-            child: Row(
+        ),
+        Positioned(
+          top: topInset + 8,
+          right: 14,
+          child: _chrome(
+            Row(
               children: [
                 _frostedIconButton(
                   icon: _layoutIcon(),
@@ -147,40 +161,79 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
               ],
             ),
           ),
-        if (_showChrome)
+        ),
+        // Edge hints: a quiet chevron where there is a memory to turn to.
+        if (_currentIndex > 0)
           Positioned(
-            bottom: bottomInset + 20,
             left: 0,
-            right: 0,
+            top: 0,
+            bottom: 0,
             child: Center(
-              child: Semantics(
-                label:
-                    'Memory ${_currentIndex + 1} of ${widget.args.entries.length}',
+              child: _chrome(
+                _edgeHint(
+                  icon: isIOS
+                      ? CupertinoIcons.chevron_left
+                      : Icons.chevron_left,
+                  label: 'Previous memory',
+                  onPressed: _goToPrevious,
+                  alignment: const Alignment(-0.7, 0),
+                ),
+              ),
+            ),
+          ),
+        if (_currentIndex < count - 1)
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: _chrome(
+                _edgeHint(
+                  icon: isIOS
+                      ? CupertinoIcons.chevron_right
+                      : Icons.chevron_right,
+                  label: 'Next memory',
+                  onPressed: _goToNext,
+                  alignment: const Alignment(0.7, 0),
+                ),
+              ),
+            ),
+          ),
+        Positioned(
+          bottom: bottomInset + 16,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: _chrome(
+              Semantics(
+                label: 'Memory ${_currentIndex + 1} of $count',
                 excludeSemantics: true,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 8,
+                    vertical: 7,
                   ),
                   decoration: BoxDecoration(
                     color: palette.mediaScrim.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: palette.onMedia.withValues(alpha: 0.25),
+                      color: palette.onMedia.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Text(
-                    '${_currentIndex + 1} / ${widget.args.entries.length}',
+                    '${_currentIndex + 1} of $count',
                     style: TextStyle(
                       color: palette.onMedia,
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                 ),
               ),
             ),
           ),
+        ),
       ],
     );
 
@@ -200,37 +253,28 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
       children: [
         _buildBackdrop(entry, resolvedMediaFuture),
         SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                18,
-                _hasPhoto(entry) ? 76 : 112,
-                18,
-                90,
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: switch (_layout) {
-                    ReaderLayout.immersive => _buildImmersiveCard(
-                      context,
-                      entry,
-                      resolvedMediaFuture,
-                    ),
-                    ReaderLayout.specimen => _buildSpecimenCard(
-                      context,
-                      entry,
-                      resolvedMediaFuture,
-                    ),
-                    ReaderLayout.poetic => _buildPoeticCard(
-                      context,
-                      entry,
-                      resolvedMediaFuture,
-                    ),
-                  },
+          child: ReaderPageScroll(
+            key: ValueKey('reader-page-${entry.id}-${entry.createdAt}'),
+            padding: const EdgeInsets.fromLTRB(32, 64, 32, 72),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: switch (_layout) {
+                ReaderLayout.immersive => _buildImmersiveCard(
+                  context,
+                  entry,
+                  resolvedMediaFuture,
                 ),
-              ),
+                ReaderLayout.specimen => _buildSpecimenCard(
+                  context,
+                  entry,
+                  resolvedMediaFuture,
+                ),
+                ReaderLayout.poetic => _buildPoeticCard(
+                  context,
+                  entry,
+                  resolvedMediaFuture,
+                ),
+              },
             ),
           ),
         ),
@@ -284,6 +328,13 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
       return 'A wordless fragment.';
     }
     return null;
+  }
+
+  /// A few words get room to breathe; a long story reads at book size.
+  double _bodySize(String body, {required double base}) {
+    if (body.length <= 60) return base + 6;
+    if (body.length <= 160) return base + 2;
+    return base;
   }
 
   TextStyle _serif(
@@ -359,8 +410,8 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
               Text(
                 body,
                 style: _serif(
-                  20,
-                  height: 1.65,
+                  _bodySize(body, base: 20),
+                  height: 1.6,
                   style: entry.type == EntryType.release || !entry.hasText
                       ? FontStyle.italic
                       : FontStyle.normal,
@@ -391,7 +442,14 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
     Future<String?>? resolvedMediaFuture,
   ) {
     final palette = context.palette;
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.5;
+    // Balance photo and words: a long story gives the photo a little less
+    // of the page so the first lines of text sit beside it on screen.
+    final size = MediaQuery.sizeOf(context);
+    final longText = (entry.text?.length ?? 0) > 280;
+    final maxHeight = (size.height * (longText ? 0.36 : 0.46)).clamp(
+      180.0,
+      size.width * 1.1,
+    );
     return Container(
       width: double.infinity,
       height: maxHeight,
@@ -569,7 +627,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                 body,
                 textAlign: TextAlign.center,
                 style: _serif(
-                  21,
+                  _bodySize(body, base: 21),
                   height: 1.8,
                   style: entry.type == EntryType.release || !entry.hasText
                       ? FontStyle.italic
@@ -599,6 +657,62 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
         color: context.palette.textSecondary,
         fontSize: 12.5,
         letterSpacing: 0.3,
+      ),
+    );
+  }
+
+  /// Fades reader controls in and out; instant under Reduce Motion.
+  Widget _chrome(Widget child) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return IgnorePointer(
+      ignoring: !_showChrome,
+      child: AnimatedOpacity(
+        opacity: _showChrome ? 1 : 0,
+        duration: reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        child: child,
+      ),
+    );
+  }
+
+  /// A small chevron at the page edge. The hit area is 44 wide and taller
+  /// than it looks, so it is easy to reach with a thumb.
+  Widget _edgeHint({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    required Alignment alignment,
+  }) {
+    final palette = context.palette;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 44,
+          height: 88,
+          child: Align(
+            alignment: alignment,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: palette.mediaScrim.withValues(alpha: 0.22),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 15,
+                color: palette.onMedia.withValues(alpha: 0.75),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -905,5 +1019,211 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
       if (MediaQuery.maybeAccessibleNavigationOf(context) ?? false) return;
       setState(() => _showChrome = false);
     });
+  }
+}
+
+/// A hairline that fills as you read through the memories.
+class ReaderProgressLine extends StatelessWidget {
+  final int index;
+  final int count;
+  final Color color;
+
+  const ReaderProgressLine({
+    super.key,
+    required this.index,
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 1) return const SizedBox.shrink();
+    final fraction = (index + 1) / count;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return ExcludeSemantics(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(1),
+        child: SizedBox(
+          height: 2,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: ColoredBox(color: color.withValues(alpha: 0.22)),
+              ),
+              TweenAnimationBuilder<double>(
+                tween: Tween(end: fraction),
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 320),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, _) => FractionallySizedBox(
+                  widthFactor: value,
+                  child: ColoredBox(color: color.withValues(alpha: 0.85)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One reader page: its content centred in the space when it is short, and
+/// scrollable when it is long, with a soft fade and a "more" chevron at the
+/// bottom edge while there is more to read.
+class ReaderPageScroll extends StatefulWidget {
+  final Widget child;
+  final EdgeInsets padding;
+
+  const ReaderPageScroll({
+    super.key,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+  });
+
+  @override
+  State<ReaderPageScroll> createState() => _ReaderPageScrollState();
+}
+
+class _ReaderPageScrollState extends State<ReaderPageScroll> {
+  final ScrollController _controller = ScrollController();
+  bool _moreBelow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_update);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _update());
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_update);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _update() {
+    if (!mounted || !_controller.hasClients) return;
+    final position = _controller.position;
+    final more = position.maxScrollExtent - position.pixels > 12;
+    if (more != _moreBelow) setState(() => _moreBelow = more);
+  }
+
+  void _scrollOn() {
+    if (!_controller.hasClients) return;
+    final position = _controller.position;
+    final target = (position.pixels + position.viewportDimension * 0.7).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.jumpTo(target);
+    } else {
+      _controller.animateTo(
+        target,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scroll = NotificationListener<ScrollMetricsNotification>(
+          onNotification: (_) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _update());
+            return false;
+          },
+          child: SingleChildScrollView(
+            controller: _controller,
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            padding: widget.padding,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: (constraints.maxHeight - widget.padding.vertical)
+                    .clamp(0.0, double.infinity),
+              ),
+              child: Center(child: widget.child),
+            ),
+          ),
+        );
+        return Stack(
+          children: [
+            ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (rect) => LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0, 0.03, _moreBelow ? 0.86 : 1, 1],
+                colors: [
+                  palette.textPrimary.withValues(alpha: 0.0),
+                  palette.textPrimary,
+                  palette.textPrimary,
+                  palette.textPrimary.withValues(alpha: _moreBelow ? 0 : 1),
+                ],
+              ).createShader(rect),
+              child: scroll,
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 56,
+              child: IgnorePointer(
+                ignoring: !_moreBelow,
+                child: AnimatedOpacity(
+                  key: const ValueKey('reader-more-hint'),
+                  opacity: _moreBelow ? 1 : 0,
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 240),
+                  child: Center(
+                    child: Semantics(
+                      button: true,
+                      label: 'More of this memory below',
+                      excludeSemantics: true,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _scrollOn,
+                        child: SizedBox(
+                          width: 64,
+                          height: 44,
+                          child: Center(
+                            child: Container(
+                              width: 40,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: palette.mediaScrim.withValues(
+                                  alpha: 0.4,
+                                ),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: Icon(
+                                PlatformUtils.isIOS
+                                    ? CupertinoIcons.chevron_down
+                                    : Icons.keyboard_arrow_down,
+                                size: 16,
+                                color: palette.onMedia,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
