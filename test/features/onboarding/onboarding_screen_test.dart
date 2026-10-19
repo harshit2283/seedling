@@ -95,9 +95,7 @@ void main() {
       find.byKey(const ValueKey('onboarding-intention')),
       'When I make my morning coffee',
     );
-    await tester.ensureVisible(find.text('Continue'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(
       prefs.getString(PrefsKeys.captureIntention),
@@ -138,6 +136,70 @@ void main() {
       find.byKey(const ValueKey('capture-text')),
     );
     expect(field.decoration?.hintText, 'What stayed with you?');
+  });
+
+  testWidgets('every page has a visible primary button', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    const titles = [
+      'Welcome to Seedling',
+      'Every memory is a seed',
+      'When do small moments find you?',
+      'Start with one memory',
+    ];
+    for (var i = 0; i < titles.length; i++) {
+      expect(find.text(titles[i]), findsOneWidget);
+      final primary = find.byKey(const ValueKey('onboarding-primary'));
+      expect(primary, findsOneWidget);
+      expect(tester.getRect(primary).bottom, lessThan(600));
+      if (i < titles.length - 1) {
+        expect(find.text('Next'), findsOneWidget);
+        expect(find.text('Skip'), findsOneWidget);
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
+      } else {
+        expect(find.text('Add your first memory'), findsOneWidget);
+        expect(find.text('Not now'), findsOneWidget);
+      }
+    }
+  });
+
+  testWidgets('with Reduce Motion the pages switch without animating', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: app(),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Next'));
+    // One frame is enough: the page jumps instead of sliding.
+    await tester.pump();
+    final title = find.text('Every memory is a seed');
+    expect(title, findsOneWidget);
+    final afterOneFrame = tester.getCenter(title);
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(title), afterOneFrame);
+  });
+
+  testWidgets('the intention example never truncates', (tester) async {
+    tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('onboarding-dot-2')));
+    await tester.pumpAndSettle();
+
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('onboarding-intention')),
+    );
+    expect(field.decoration?.hintText, onboardingIntentionHint);
+    expect(field.decoration?.hintMaxLines, greaterThanOrEqualTo(2));
+    expect(tester.takeException(), isNull);
   });
 
   test('captureHintFor trims trailing punctuation', () {

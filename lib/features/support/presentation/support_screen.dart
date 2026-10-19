@@ -20,6 +20,12 @@ import '../../../core/widgets/glass/glass_container.dart';
 /// placeholder account is ever shown. Links are copied to the clipboard
 /// rather than opened, which keeps Seedling free of any browser-launching
 /// dependency; swap [_openLink] for `url_launcher` if one is ever added.
+/// Shown under "Ways to help" while no donation link exists yet.
+const String donationLinksPendingNote =
+    'Donation links will appear here once they are set up. Until then, '
+    'everything above helps just as much. Links are copied, so you can '
+    'open them in your browser.';
+
 class SupportScreen extends StatelessWidget {
   const SupportScreen({
     super.key,
@@ -183,26 +189,52 @@ class _SupportBody extends StatelessWidget {
                 subtitle: 'Support ongoing care',
                 url: githubSponsorsUrl!,
               ),
-            const _LinkRow(
-              icon: Icons.star_border,
-              title: 'Star or contribute on GitHub',
-              subtitle: 'Read the code, fix a bug, share an idea',
+            _LinkRow(
+              icon: isIOS ? CupertinoIcons.star : Icons.star_border,
+              title: 'Star on GitHub',
+              subtitle: 'A star helps other people find Seedling',
               url: SupportLinks.repositoryUrl,
             ),
-            const _LinkRow(
-              icon: Icons.translate,
+            _LinkRow(
+              icon: isIOS
+                  ? CupertinoIcons.chevron_left_slash_chevron_right
+                  : Icons.code,
+              title: 'Contribute',
+              subtitle: 'Fix a bug, improve the docs, or share an idea',
+              url: SupportLinks.contributingUrl,
+            ),
+            _LinkRow(
+              icon: isIOS ? CupertinoIcons.ant : Icons.bug_report_outlined,
+              title: 'Report a bug',
+              subtitle: 'Tell us what went wrong, or what could be kinder',
+              url: SupportLinks.issuesUrl,
+            ),
+            _LinkRow(
+              icon: isIOS ? CupertinoIcons.globe : Icons.translate,
               title: 'Help translate',
               subtitle: 'Bring Seedling to your language',
               url: SupportLinks.translateUrl,
             ),
             _ActionRow(
-              icon: isIOS ? CupertinoIcons.chat_bubble : Icons.chat_outlined,
+              icon: isIOS ? CupertinoIcons.share : Icons.share_outlined,
+              trailingIcon: isIOS ? CupertinoIcons.share : Icons.share_outlined,
               title: 'Tell a friend',
               subtitle: 'Only if you think they\'d like it',
               onTap: () => _tellAFriend(context),
             ),
           ],
         ),
+        if (payWhatYouWantUrl == null && githubSponsorsUrl == null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
+            child: Text(
+              donationLinksPendingNote,
+              style: textTheme.bodySmall?.copyWith(
+                color: context.palette.textMuted,
+                height: 1.4,
+              ),
+            ),
+          ),
         const SizedBox(height: 16),
 
         _Card(
@@ -288,13 +320,17 @@ class _Card extends StatelessWidget {
           borderRadius: radius,
           opacity: 0.75,
           border: Border.all(color: context.palette.divider),
-          child: Padding(
-            padding: padded
-                ? const EdgeInsets.all(16)
-                : const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children,
+          // Transparent Material so row ripples draw above the glass.
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: padded
+                  ? const EdgeInsets.all(16)
+                  : const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
             ),
           ),
         ),
@@ -371,6 +407,9 @@ class _LinkRow extends StatelessWidget {
       subtitle: subtitle,
       onTap: () => _openLink(context, url),
       semanticsHint: 'Copies the link',
+      trailingIcon: PlatformUtils.isIOS
+          ? CupertinoIcons.doc_on_doc
+          : Icons.content_copy,
     );
   }
 }
@@ -382,6 +421,7 @@ class _ActionRow extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.semanticsHint,
+    this.trailingIcon,
   });
 
   final IconData icon;
@@ -389,6 +429,9 @@ class _ActionRow extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final String? semanticsHint;
+
+  /// Shows what a tap does (copy, share). Defaults to a chevron.
+  final IconData? trailingIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -425,7 +468,7 @@ class _ActionRow extends StatelessWidget {
                 ),
               ),
               Icon(
-                AdaptiveIcons.chevronRight,
+                trailingIcon ?? AdaptiveIcons.chevronRight,
                 size: 18,
                 color: context.palette.textMuted,
               ),

@@ -67,6 +67,10 @@ void main() {
     when(() => mockDb.getAllTrees()).thenReturn([]);
     when(() => mockDb.getEntriesBySyncUUIDs(any())).thenReturn([]);
     when(
+      () => mockDb.watchAllEntries(),
+    ).thenAnswer((_) => Stream.value(<Entry>[]));
+    when(() => mockDb.getEntry(any())).thenReturn(null);
+    when(
       () => mockRitualService.updateAfterEntry(any()),
     ).thenAnswer((_) async {});
   });
@@ -106,6 +110,10 @@ void main() {
   Widget buildTestWidget(Entry entry) {
     // Override the entries stream so the detail screen can find the entry
     when(() => mockDb.watchEntries()).thenAnswer((_) => Stream.value([entry]));
+    when(
+      () => mockDb.watchAllEntries(),
+    ).thenAnswer((_) => Stream.value([entry]));
+    when(() => mockDb.getEntry(entry.id)).thenReturn(entry);
 
     return ProviderScope(
       overrides: [
@@ -128,17 +136,17 @@ void main() {
       expect(find.text('The sunset was remarkable today'), findsOneWidget);
     });
 
-    testWidgets('renders entry type name in app bar', (tester) async {
+    testWidgets('leads with the date, never the type name', (tester) async {
       final entry = createTestEntry(
         type: EntryType.line,
         text: 'A quiet thought',
-      );
+      )..createdAt = DateTime(2024, 10, 12, 9, 30);
 
       await tester.pumpWidget(buildTestWidget(entry));
       await tester.pumpAndSettle();
 
-      // The type name appears in both the AppBar title and the type badge
-      expect(find.text('Line'), findsAtLeast(1));
+      expect(find.text('Saturday, 12\u00A0October\u00A02024'), findsOneWidget);
+      expect(find.text('Line'), findsNothing);
     });
 
     testWidgets('shows not found state for missing entry', (tester) async {
@@ -177,8 +185,8 @@ void main() {
       await tester.tap(editButton);
       await tester.pumpAndSettle();
 
-      // After tapping edit, the app bar title should change to "Edit Line"
-      expect(find.text('Edit Line'), findsOneWidget);
+      // After tapping edit, the bar says so
+      expect(find.text('Editing'), findsOneWidget);
 
       // A TextField should appear for editing
       expect(find.byType(TextField), findsOneWidget);

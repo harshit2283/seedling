@@ -36,14 +36,14 @@ void main() {
     ).thenReturn(entries.length);
   }
 
-  Widget host() => ProviderScope(
+  Widget host({int year = 2026, DateTime? now}) => ProviderScope(
     overrides: [
       databaseProvider.overrideWithValue(db),
       sharedPreferencesProvider.overrideWithValue(prefs),
     ],
     child: MaterialApp(
       theme: SeedlingTheme.dark,
-      home: const YearInReviewScreen(year: 2026),
+      home: YearInReviewScreen(year: year, now: now ?? DateTime(2026, 10, 19)),
     ),
   );
 
@@ -77,5 +77,78 @@ void main() {
 
     expect(find.text('Your year is still taking shape'), findsOneWidget);
     expect(find.textContaining('Nothing planted in 2026 yet'), findsOneWidget);
+  });
+
+  group('a finished year', () {
+    final now = DateTime(2026, 10, 19);
+
+    testWidgets('a quiet past year is told in the past tense', (tester) async {
+      stubEntries([
+        Entry.line(text: 'Roof in Porto')
+          ..id = 1
+          ..createdAt = DateTime(2025, 8, 14),
+        Entry.release(text: 'Being angry at Jordan')
+          ..id = 2
+          ..createdAt = DateTime(2025, 6, 20),
+      ]);
+      await tester.pumpWidget(host(year: 2025, now: now));
+      await tester.pump();
+
+      expect(find.text('Your 2025'), findsOneWidget);
+      expect(find.textContaining('taking shape'), findsNothing);
+      expect(find.textContaining('so far'), findsNothing);
+      expect(find.text('So far'), findsNothing);
+      expect(find.text('From 2025'), findsOneWidget);
+      expect(find.text('Roof in Porto'), findsOneWidget);
+      // Released memories were let go on purpose: never shown back.
+      expect(find.textContaining('Jordan'), findsNothing);
+    });
+
+    testWidgets('a full past year reads as finished', (tester) async {
+      tester.view.physicalSize = const Size(1800, 9000);
+      addTearDown(tester.view.reset);
+      stubEntries([
+        for (var i = 1; i <= 12; i++)
+          Entry.line(text: 'Walk by the river $i')
+            ..id = i
+            ..createdAt = DateTime(2025, i, 3),
+        Entry.release(text: 'Being angry at Jordan')
+          ..id = 99
+          ..createdAt = DateTime(2025, 6, 20),
+      ]);
+      await tester.pumpWidget(host(year: 2025, now: now));
+      await tester.pump();
+
+      expect(find.text('Your 2025'), findsOneWidget);
+      expect(find.text('You planted 13 memories'), findsOneWidget);
+      expect(find.textContaining('By December'), findsOneWidget);
+      expect(find.textContaining('taking shape'), findsNothing);
+      expect(find.textContaining('so far'), findsNothing);
+      expect(find.textContaining('Jordan'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Thank you for keeping 2025.'),
+        400,
+      );
+      expect(find.text('Thank you for keeping 2025.'), findsOneWidget);
+    });
+
+    testWidgets('the current year still says it is taking shape', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1800, 9000);
+      addTearDown(tester.view.reset);
+      stubEntries([
+        for (var i = 1; i <= 12; i++)
+          Entry.line(text: 'Morning $i')
+            ..id = i
+            ..createdAt = DateTime(2026, (i % 9) + 1, 3),
+      ]);
+      await tester.pumpWidget(host(year: 2026, now: now));
+      await tester.pump();
+
+      expect(find.text('Your 2026, so far'), findsOneWidget);
+      expect(find.textContaining('still taking shape'), findsOneWidget);
+      expect(find.textContaining('By December'), findsNothing);
+    });
   });
 }

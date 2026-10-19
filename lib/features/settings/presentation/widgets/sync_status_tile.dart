@@ -2,12 +2,12 @@ import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/sync/sync_backend.dart';
 import '../../../../core/services/sync/sync_models.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
+import 'settings_tiles.dart';
 
 // ---------------------------------------------------------------------------
 // Providers for Google Drive hardening features
@@ -36,15 +36,18 @@ class SyncStatusTile extends ConsumerWidget {
 
     final syncState = syncStateAsync.asData?.value ?? SyncState.disabled;
     final accountConnected = accountConnectedAsync.asData?.value ?? false;
-    final accountStatus = accountStatusAsync.asData?.value ?? 'Checking...';
+    final accountStatus = accountStatusAsync.asData?.value ?? 'Checking…';
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (Platform.isIOS) ...[
-          _buildProviderPicker(context, ref, providerType, isDark),
-          const SizedBox(height: 8),
-        ],
+        if (Platform.isIOS)
+          SettingsRow(
+            icon: CupertinoIcons.cloud,
+            title: 'Sync with',
+            value: providerType.label,
+            onTap: () => _showProviderPicker(context, ref, providerType),
+          ),
         _buildAccountRow(
           context,
           ref,
@@ -53,15 +56,21 @@ class SyncStatusTile extends ConsumerWidget {
           accountStatus,
           isDark,
         ),
-        const SizedBox(height: 8),
-        _buildToggle(context, ref, isEnabled, isDark),
-        if (isEnabled) ...[
-          const SizedBox(height: 8),
-          _buildStatusRow(context, syncState, isDark),
-          const SizedBox(height: 4),
-          _buildLastSyncRow(context, ref, isDark),
-          const SyncQuarantineNotice(),
-        ],
+        SettingsSwitchRow(
+          switchKey: const ValueKey('sync-device-switch'),
+          icon: Platform.isIOS ? CupertinoIcons.arrow_2_circlepath : Icons.sync,
+          title: 'Sync this device',
+          subtitle: isEnabled
+              ? _statusLine(ref, syncState)
+              : 'Connect an account and set a passphrase first',
+          value: isEnabled,
+          onChanged: (value) => _toggleSync(context, ref, value),
+        ),
+        if (isEnabled)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(32, 0, 16, 8),
+            child: SyncQuarantineNotice(),
+          ),
         // Android-only hardening UI
         if (Platform.isAndroid) ...[
           _buildLockedAccountRow(context, ref, isDark),
@@ -71,80 +80,21 @@ class SyncStatusTile extends ConsumerWidget {
     );
   }
 
-  Widget _buildToggle(
-    BuildContext context,
-    WidgetRef ref,
-    bool isEnabled,
-    bool isDark,
-  ) {
-    return Row(
-      children: [
-        Icon(
-          Platform.isIOS ? CupertinoIcons.cloud : Icons.cloud_queue,
-          color: isEnabled
-              ? context.palette.primary
-              : context.palette.textMuted,
-          size: 20,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Cloud sync',
-            style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
-          ),
-        ),
-        Platform.isIOS
-            ? CupertinoSwitch(
-                value: isEnabled,
-                activeTrackColor: context.palette.primaryFill,
-                onChanged: (value) => _toggleSync(context, ref, value),
-              )
-            : Switch(
-                value: isEnabled,
-                activeThumbColor: context.palette.primary,
-                onChanged: (value) => _toggleSync(context, ref, value),
-              ),
-      ],
-    );
-  }
-
-  Widget _buildProviderPicker(
-    BuildContext context,
-    WidgetRef ref,
-    SyncProviderType selected,
-    bool isDark,
-  ) {
-    return Row(
-      children: [
-        const Icon(CupertinoIcons.cloud, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Sync provider',
-            style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
-          ),
-        ),
-        CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => _showProviderPicker(context, ref, selected),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                selected.label,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: context.palette.primary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(CupertinoIcons.chevron_down, size: 14),
-            ],
-          ),
-        ),
-      ],
-    );
+  /// "Up to date · last synced 5m ago" and friends.
+  String _statusLine(WidgetRef ref, SyncState state) {
+    final lastSync = ref.watch(syncMetadataProvider).lastSyncTime;
+    final when = lastSync == null
+        ? 'not synced yet'
+        : 'last synced ${_formatTime(lastSync)}';
+    final label = switch (state) {
+      SyncState.idle => 'Up to date',
+      SyncState.pushing => 'Sending changes…',
+      SyncState.pulling => 'Fetching changes…',
+      SyncState.merging => 'Merging…',
+      SyncState.error => 'Sync hit a problem',
+      SyncState.disabled => 'Paused',
+    };
+    return '$label · $when';
   }
 
   Future<void> _showProviderPicker(
@@ -231,32 +181,27 @@ class SyncStatusTile extends ConsumerWidget {
     String status,
     bool isDark,
   ) {
-    final textColor = context.palette.textSecondary;
     final providerName =
         Platform.isIOS && providerType == SyncProviderType.cloudKit
-        ? 'CloudKit'
+        ? 'iCloud'
         : 'Google Drive';
+    final canToggle =
+        providerType == SyncProviderType.googleDrive || !Platform.isIOS;
 
-    return Padding(
-      padding: const EdgeInsets.only(left: 32),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '$providerName: ${isConnected ? status : 'Not connected'}',
-              style: TextStyle(fontSize: 12, color: textColor),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (providerType == SyncProviderType.googleDrive || !Platform.isIOS)
-            TextButton(
+    return SettingsRow(
+      icon: Platform.isIOS
+          ? CupertinoIcons.person_crop_circle
+          : Icons.person_outline,
+      title: providerName,
+      subtitle: isConnected ? status : 'Not connected',
+      showChevron: false,
+      trailing: canToggle
+          ? TextButton(
               onPressed: () =>
                   _toggleAccountConnection(context, ref, isConnected),
               child: Text(isConnected ? 'Disconnect' : 'Connect'),
-            ),
-        ],
-      ),
+            )
+          : null,
     );
   }
 
@@ -273,7 +218,7 @@ class SyncStatusTile extends ConsumerWidget {
     final textColor = context.palette.textSecondary;
 
     return Padding(
-      padding: const EdgeInsets.only(left: 32, top: 8),
+      padding: const EdgeInsets.fromLTRB(64, 0, 16, 8),
       child: Row(
         children: [
           Icon(Icons.lock_outline, size: 14, color: textColor),
@@ -288,7 +233,7 @@ class SyncStatusTile extends ConsumerWidget {
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
+              foregroundColor: context.palette.error,
               padding: EdgeInsets.zero,
               minimumSize: const Size(0, 32),
             ),
@@ -313,80 +258,21 @@ class SyncStatusTile extends ConsumerWidget {
         : '';
 
     return Padding(
-      padding: const EdgeInsets.only(left: 32, top: 6),
+      padding: const EdgeInsets.fromLTRB(64, 0, 16, 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline, size: 14, color: Colors.red),
+          Icon(Icons.error_outline, size: 14, color: context.palette.error),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               '$lastError$timeLabel',
-              style: const TextStyle(fontSize: 12, color: Colors.red),
+              style: TextStyle(fontSize: 12, color: context.palette.error),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStatusRow(BuildContext context, SyncState state, bool isDark) {
-    final (icon, label, color) = switch (state) {
-      SyncState.idle => (
-        Icons.check_circle_outline,
-        'Up to date',
-        context.palette.primary,
-      ),
-      SyncState.pushing => (
-        Icons.cloud_upload_outlined,
-        'Pushing...',
-        SeedlingColors.accentVoice,
-      ),
-      SyncState.pulling => (
-        Icons.cloud_download_outlined,
-        'Pulling...',
-        SeedlingColors.accentVoice,
-      ),
-      SyncState.merging => (
-        Icons.merge_type,
-        'Merging...',
-        SeedlingColors.accentVoice,
-      ),
-      SyncState.error => (Icons.error_outline, 'Sync error', Colors.red),
-      SyncState.disabled => (
-        Icons.cloud_off,
-        'Disabled',
-        context.palette.textMuted,
-      ),
-    };
-
-    return Padding(
-      padding: const EdgeInsets.only(left: 32),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: 13, color: color)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLastSyncRow(BuildContext context, WidgetRef ref, bool isDark) {
-    final metadata = ref.watch(syncMetadataProvider);
-    final lastSync = metadata.lastSyncTime;
-
-    final label = lastSync == null
-        ? 'Never synced'
-        : 'Last synced ${_formatTime(lastSync)}';
-
-    return Padding(
-      padding: const EdgeInsets.only(left: 32),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 12, color: context.palette.textMuted),
       ),
     );
   }
@@ -398,11 +284,7 @@ class SyncStatusTile extends ConsumerWidget {
   ) async {
     if (enabled && !ref.read(cloudSyncEnabledProvider)) {
       if (context.mounted) {
-        _showMessage(
-          context,
-          'Turn on Cloud sync (optional) in Settings first',
-          isError: true,
-        );
+        _showMessage(context, 'Allow cloud sync above first', isError: true);
       }
       return;
     }

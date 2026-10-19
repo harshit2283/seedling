@@ -2,12 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../app/theme/palette.dart';
 import '../../../core/presentation/seedling_iconography.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../data/models/ritual.dart';
+import 'widgets/ritual_patterns_sheet.dart';
 
 /// Screen for managing confirmed rituals — pause, archive, delete.
 class RitualsScreen extends ConsumerWidget {
@@ -20,10 +20,16 @@ class RitualsScreen extends ConsumerWidget {
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
         backgroundColor: CupertinoColors.systemGroupedBackground,
-        navigationBar: const CupertinoNavigationBar(
+        navigationBar: CupertinoNavigationBar(
           backgroundColor: CupertinoColors.systemGroupedBackground,
           border: null,
-          middle: Text('Rituals'),
+          middle: const Text('Rituals'),
+          previousPageTitle: 'Settings',
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => showRitualPatterns(context, ref),
+            child: const Text('Patterns'),
+          ),
         ),
         child: SafeArea(
           top: false,
@@ -37,7 +43,16 @@ class RitualsScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Rituals')),
+      appBar: AppBar(
+        title: const Text('Rituals'),
+        actions: [
+          IconButton(
+            tooltip: 'Look for patterns',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => showRitualPatterns(context, ref),
+          ),
+        ],
+      ),
       body: ritualsAsync.when(
         data: (rituals) => _buildList(context, ref, rituals),
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -80,19 +95,20 @@ class RitualsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Patterns become rituals once you confirm them in Settings.',
+                'Seedling quietly notices moments you return to. Confirm one '
+                'and it becomes a ritual.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: context.palette.textSecondary),
               ),
               const SizedBox(height: 16),
               PlatformUtils.isIOS
                   ? CupertinoButton.filled(
-                      onPressed: () => context.pop(),
-                      child: const Text('Back to Settings'),
+                      onPressed: () => showRitualPatterns(context, ref),
+                      child: const Text('Look for patterns'),
                     )
                   : FilledButton(
-                      onPressed: () => context.pop(),
-                      child: const Text('Back to Settings'),
+                      onPressed: () => showRitualPatterns(context, ref),
+                      child: const Text('Look for patterns'),
                     ),
             ],
           ),

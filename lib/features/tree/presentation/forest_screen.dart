@@ -1,335 +1,398 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../app/router.dart';
-import '../../../app/theme/colors.dart';
 import '../../../app/theme/palette.dart';
-import '../../../app/theme/typography.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../data/models/tree.dart';
+import '../../review/domain/review_generator.dart' show treeStageLabel;
+import '../domain/tree_personality.dart';
+import 'still_tree.dart';
 
-/// Forest view showing all yearly trees.
+/// Your forest: every year you have kept, each as a small portrait of that
+/// year's actual tree (same seed, same growth as it had on home). Finished
+/// years rest in late autumn; the current year shows today's season.
+/// Tapping a year opens its review.
 class ForestScreen extends ConsumerWidget {
-  const ForestScreen({super.key});
+  const ForestScreen({super.key, this.now});
+
+  /// Clock override for tests.
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trees = ref.watch(allTreesProvider);
     // Calm mode: the forest is still there, it just stops keeping score
-    // (no leaf totals, no growth-stage titles, no per-year counts).
+    // (no totals, no growth-stage names, no per-year counts).
     final calm = ref.watch(calmModeProvider);
-    final content = trees.isEmpty
-        ? _buildEmpty(context, calm: calm)
-        : _buildForest(context, trees, calm: calm);
+    final personality = ref.watch(treePersonalityProvider);
+    final today = now ?? DateTime.now();
+
+    final view = _ForestView(
+      trees: trees,
+      calm: calm,
+      today: today,
+      currentPersonality: personality,
+    );
+
+    // Safe area on both platforms: the back button and title never sit
+    // under the status bar or a notch; the list scrolls under the home
+    // indicator but ends above it.
+    final body = SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          const _TopBar(),
+          Expanded(child: view),
+        ],
+      ),
+    );
 
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
         backgroundColor: context.palette.background,
-        child: SafeArea(child: content),
+        child: Material(type: MaterialType.transparency, child: body),
       );
     }
-
-    return Scaffold(backgroundColor: context.palette.background, body: content);
+    return Scaffold(backgroundColor: context.palette.background, body: body);
   }
+}
 
-  Widget _buildEmpty(BuildContext context, {required bool calm}) {
-    return Column(
-      children: [
-        _buildTopBar(context, totalLeaves: calm ? null : 0),
-        Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                'Your forest will appear as the years grow.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: context.palette.textSecondary,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+class _TopBar extends StatelessWidget {
+  const _TopBar();
 
-  Widget _buildForest(
-    BuildContext context,
-    List<Tree> trees, {
-    required bool calm,
-  }) {
-    final latest = trees.first;
-    final totalLeaves = trees.fold<int>(
-      0,
-      (sum, tree) => sum + tree.entryCount,
-    );
-
-    return Column(
-      children: [
-        _buildTopBar(context, totalLeaves: calm ? null : totalLeaves),
-        const SizedBox(height: 30),
-        Text(
-          '${latest.year}',
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            color: context.palette.textPrimary,
-            fontFamily: SeedlingTypography.serifFamily,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        if (!calm)
-          Text(
-            _seasonSubtitle(latest.state),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: context.palette.secondary,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        const SizedBox(height: 8),
-        Text(
-          'Tap a year to open its review',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
-        ),
-        const SizedBox(height: 22),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Stack(
-              alignment: Alignment.center,
-              children: _buildCanopyCircles(context, trees, calm: calm),
-            ),
-          ),
-        ),
-        _buildTimeline(context, trees, calm: calm),
-      ],
-    );
-  }
-
-  /// [totalLeaves] is null in calm mode, which hides the count.
-  Widget _buildTopBar(BuildContext context, {required int? totalLeaves}) {
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).maybePop(),
             icon: Icon(AdaptiveIcons.back, color: context.palette.textPrimary),
             tooltip: 'Back',
           ),
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: context.palette.border),
-                  ),
-                  child: Text(
-                    'The Archive',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: context.palette.bark,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
+            child: Semantics(
+              header: true,
+              child: Text(
+                'Your forest',
+                textAlign: TextAlign.center,
+                style:
+                    (Theme.of(context).appBarTheme.titleTextStyle ??
+                            Theme.of(context).textTheme.titleLarge)
+                        ?.copyWith(color: context.palette.textPrimary),
+              ),
             ),
           ),
-          if (totalLeaves != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: context.palette.surfaceMuted,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '$totalLeaves leaves',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: context.palette.bark,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            )
-          else
-            // Keeps the title centred where the count used to sit.
-            const SizedBox(width: 48),
+          // Balances the back button so the title stays centred.
+          const SizedBox(width: 48),
         ],
       ),
     );
   }
+}
 
-  List<Widget> _buildCanopyCircles(
-    BuildContext context,
-    List<Tree> trees, {
-    required bool calm,
-  }) {
-    final visible = trees.take(5).toList();
-    const offsets = <Offset>[
-      Offset(0, 0),
-      Offset(-70, 30),
-      Offset(70, 32),
-      Offset(0, 74),
-      Offset(0, -54),
-    ];
-    return List<Widget>.generate(visible.length, (index) {
-      final tree = visible[index];
-      // In calm mode every year is the same size: size would be a score.
-      final size = calm ? 170.0 : 150.0 + tree.entryCount.clamp(0, 220) * 0.25;
-      final color = _stateColor(tree.state);
-      return Transform.translate(
-        offset: offsets[index],
-        child: Semantics(
-          button: true,
-          label: calm
-              ? '${tree.year}'
-              : '${tree.year}: ${_seasonSubtitle(tree.state)}, '
-                    '${tree.entryCount} memories',
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => context.push(AppRoutes.yearReviewRoute(tree.year)),
-              child: Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.45),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '${tree.year}',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: context.palette.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+class _ForestView extends StatelessWidget {
+  const _ForestView({
+    required this.trees,
+    required this.calm,
+    required this.today,
+    required this.currentPersonality,
+  });
+
+  final List<Tree> trees;
+  final bool calm;
+  final DateTime today;
+  final TreePersonality currentPersonality;
+
+  bool _isCurrent(Tree t) => t.year >= today.year;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    if (trees.isEmpty) {
+      return _FirstYear(tree: null, view: this, bottomInset: bottomInset);
+    }
+    final current = trees.where(_isCurrent).toList();
+    final past = trees.where((t) => !_isCurrent(t)).toList();
+    if (past.isEmpty) {
+      return _FirstYear(
+        tree: current.first,
+        view: this,
+        bottomInset: bottomInset,
+      );
+    }
+
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final total = trees.fold<int>(0, (sum, t) => sum + t.entryCount);
+    final years = trees.length;
+
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+            child: Text(
+              calm
+                  ? 'Every year you have kept, each with its own tree.'
+                  : '$total memories across $years years',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        if (current.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: _YearTile(tree: current.first, view: this, featured: true),
+            ),
+          ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+          sliver: SliverToBoxAdapter(
+            child: Semantics(
+              header: true,
+              child: Text(
+                'Past years',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: palette.textPrimary,
                 ),
               ),
             ),
           ),
         ),
-      );
-    });
-  }
-
-  Widget _buildTimeline(
-    BuildContext context,
-    List<Tree> trees, {
-    required bool calm,
-  }) {
-    return Container(
-      height: 82,
-      decoration: BoxDecoration(
-        color: Theme.of(context).dividerColor.withValues(alpha: 0.65),
-        border: Border(
-          top: BorderSide(
-            color: SeedlingColors.lightBark.withValues(alpha: 0.18),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset + 24),
+          sliver: SliverGrid.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.78,
+            ),
+            itemCount: past.length,
+            itemBuilder: (context, i) => _YearTile(tree: past[i], view: this),
           ),
         ),
-      ),
-      child: Center(
-        child: SizedBox(
-          height: 52,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            itemBuilder: (context, index) {
-              final tree = trees[index];
-              final isLatest = index == 0;
-              return Semantics(
-                button: true,
-                selected: isLatest,
-                label: calm
-                    ? '${tree.year}${isLatest ? ', current year' : ''}'
-                    : '${tree.year}, ${isLatest ? 'current year, ' : ''}'
-                          '${_seasonSubtitle(tree.state)}, '
-                          '${tree.entryCount} memories',
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () =>
-                        context.push(AppRoutes.yearReviewRoute(tree.year)),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: 48,
-                        minHeight: 48,
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${tree.year}',
-                              style: TextStyle(
-                                color: isLatest
-                                    ? context.palette.textPrimary
-                                    : context.palette.textMuted,
-                                fontSize: 11,
-                                fontWeight: isLatest
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Container(
-                              width: 20,
-                              height: 3,
-                              decoration: BoxDecoration(
-                                color: isLatest
-                                    ? context.palette.primary
-                                    : SeedlingColors.lightBark.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                          ],
+      ],
+    );
+  }
+}
+
+/// One year: its tree on a soft patch of sky, its year and stage beneath.
+class _YearTile extends StatelessWidget {
+  const _YearTile({
+    required this.tree,
+    required this.view,
+    this.featured = false,
+  });
+
+  final Tree tree;
+  final _ForestView view;
+  final bool featured;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final calm = view.calm;
+    final current = view._isCurrent(tree);
+    final stage = treeStageLabel(tree.state);
+    final label = calm ? '${tree.year}' : '${tree.year} · $stage';
+    final count = tree.entryCount == 1
+        ? '1 memory'
+        : '${tree.entryCount} memories';
+    final semantics = [
+      '${tree.year}',
+      if (current) 'this year',
+      if (!calm) stage,
+      if (!calm) count,
+      'Opens its year in review',
+    ].join(', ');
+
+    final art = LayoutBuilder(
+      builder: (context, c) {
+        final full = c.biggest.shortestSide;
+        // In calm mode every year is drawn the same size: size would be a
+        // score. Otherwise young trees stay small, as they were.
+        final side = calm ? full : stillTreeExtent(tree.state, full);
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox.square(
+            dimension: side,
+            child: StillTree.forYear(
+              year: tree.year,
+              state: tree.state,
+              progress: tree.progressToNextStage,
+              night: palette.isDark,
+              personality: current ? view.currentPersonality : null,
+              now: view.today,
+            ),
+          ),
+        );
+      },
+    );
+
+    return Semantics(
+      button: true,
+      label: semantics,
+      excludeSemantics: true,
+      child: Material(
+        color: palette.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: SeedlingRadius.card,
+          side: BorderSide(color: palette.divider),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            context.push(AppRoutes.yearReviewRoute(tree.year));
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: featured ? 0 : 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        palette.primaryContainer.withValues(
+                          alpha: palette.isDark ? 0.18 : 0.45,
                         ),
-                      ),
+                        palette.card,
+                      ],
                     ),
                   ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                    child: featured
+                        ? SizedBox(
+                            height: calm
+                                ? 230
+                                : stillTreeExtent(
+                                    tree.state,
+                                    230,
+                                  ).clamp(150.0, 230.0),
+                            child: art,
+                          )
+                        : art,
+                  ),
                 ),
-              );
-            },
-            separatorBuilder: (context, index) => const SizedBox(width: 18),
-            itemCount: trees.length,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                child: Column(
+                  crossAxisAlignment: featured
+                      ? CrossAxisAlignment.center
+                      : CrossAxisAlignment.start,
+                  children: [
+                    if (featured)
+                      Text(
+                        'This year',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: palette.primary,
+                        ),
+                      ),
+                    Text(
+                      label,
+                      style:
+                          (featured
+                                  ? theme.textTheme.titleLarge
+                                  : theme.textTheme.titleSmall)
+                              ?.copyWith(color: palette.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (!calm) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        count,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
 
-  Color _stateColor(TreeState state) {
-    return switch (state) {
-      TreeState.seed => SeedlingColors.seed,
-      TreeState.sprout => SeedlingColors.sprout,
-      TreeState.sapling => SeedlingColors.sapling,
-      TreeState.youngTree => SeedlingColors.youngTree,
-      TreeState.matureTree => SeedlingColors.matureTree,
-      TreeState.ancientTree => SeedlingColors.ancientTree,
-    };
-  }
+/// The first year (or none yet): one tree, and a calm word about how the
+/// forest grows.
+class _FirstYear extends StatelessWidget {
+  const _FirstYear({
+    required this.tree,
+    required this.view,
+    required this.bottomInset,
+  });
 
-  String _seasonSubtitle(TreeState state) {
-    return switch (state) {
-      TreeState.seed => 'The Planting Season',
-      TreeState.sprout => 'The Seeding',
-      TreeState.sapling => 'The Growth',
-      TreeState.youngTree => 'The Branching',
-      TreeState.matureTree => 'The Flourish',
-      TreeState.ancientTree => 'The Deep Roots',
-    };
+  final Tree? tree;
+  final _ForestView view;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final tree = this.tree;
+    final year = tree?.year ?? view.today.year;
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, bottomInset + 32),
+      children: [
+        if (tree != null)
+          Center(
+            child: SizedBox(
+              width: 260,
+              child: _YearTile(tree: tree, view: view, featured: true),
+            ),
+          ),
+        const SizedBox(height: 32),
+        Text(
+          tree == null
+              ? 'Your forest begins with your first memory.'
+              : 'Your forest starts here.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: palette.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'When $year closes, its tree will rest here, and a new seed '
+          'will be planted for the year ahead. Year by year, a forest.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: palette.textSecondary,
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
   }
 }

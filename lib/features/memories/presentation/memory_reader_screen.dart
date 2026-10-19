@@ -11,6 +11,9 @@ import '../../../app/theme/palette.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/media/file_storage_service.dart';
 import '../../../data/models/entry.dart';
+import 'entry_detail_screen.dart' show keepsakeDateLine, yearsAgoLabel;
+import 'widgets/keepsake_memory_card.dart'
+    show keepsakeSerif, keepsakeSerifFallback;
 import 'widgets/voice_player.dart';
 
 class MemoryReaderArgs {
@@ -200,7 +203,12 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 112, 18, 90),
+              padding: EdgeInsets.fromLTRB(
+                18,
+                _hasPhoto(entry) ? 76 : 112,
+                18,
+                90,
+              ),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 760),
@@ -208,13 +216,18 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                     ReaderLayout.immersive => _buildImmersiveCard(
                       context,
                       entry,
+                      resolvedMediaFuture,
                     ),
                     ReaderLayout.specimen => _buildSpecimenCard(
                       context,
                       entry,
                       resolvedMediaFuture,
                     ),
-                    ReaderLayout.poetic => _buildPoeticCard(context, entry),
+                    ReaderLayout.poetic => _buildPoeticCard(
+                      context,
+                      entry,
+                      resolvedMediaFuture,
+                    ),
                   },
                 ),
               ),
@@ -236,52 +249,192 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
 
   String _mediaCacheKey(Entry entry) => '${entry.id}:${entry.mediaPath ?? ''}';
 
-  Widget _buildImmersiveCard(BuildContext context, Entry entry) {
-    return Container(
+  bool _hasPhoto(Entry entry) =>
+      entry.hasMedia &&
+      (entry.type == EntryType.photo || entry.type == EntryType.object);
+
+  bool _hasTitle(Entry entry) => (entry.title ?? '').isNotEmpty;
+
+  /// The heading for a page: the memory's own title, or its date when it
+  /// has none. Never the entry type.
+  String _heading(Entry entry) => _hasTitle(entry)
+      ? entry.title!
+      : DateFormat('d MMMM y', _locale).format(entry.createdAt);
+
+  /// The quiet line above the heading: the date when the title leads,
+  /// otherwise the time (and "2 years ago" for older memories).
+  String _kicker(Entry entry) {
+    if (_hasTitle(entry)) {
+      return keepsakeDateLine(entry.createdAt, locale: _locale);
+    }
+    return [
+      DateFormat.EEEE(_locale).format(entry.createdAt),
+      DateFormat.jm(_locale).format(entry.createdAt),
+      ?yearsAgoLabel(entry.createdAt, DateTime.now()),
+    ].join('  ·  ');
+  }
+
+  String? get _locale => Localizations.maybeLocaleOf(context)?.toLanguageTag();
+
+  /// The memory's words, or null when there are none to show. A wordless
+  /// fragment says so; a photo without words lets the photo speak.
+  String? _body(Entry entry) {
+    if (entry.hasText) return entry.text!;
+    if (entry.type == EntryType.fragment && !entry.hasMedia) {
+      return 'A wordless fragment.';
+    }
+    return null;
+  }
+
+  TextStyle _serif(
+    double size, {
+    required Color color,
+    FontWeight weight = FontWeight.w400,
+    double height = 1.25,
+    FontStyle style = FontStyle.normal,
+  }) => TextStyle(
+    fontFamily: keepsakeSerif,
+    fontFamilyFallback: keepsakeSerifFallback,
+    fontSize: size,
+    fontWeight: weight,
+    height: height,
+    fontStyle: style,
+    color: color,
+  );
+
+  Widget _buildImmersiveCard(
+    BuildContext context,
+    Entry entry,
+    Future<String?>? resolvedMediaFuture,
+  ) {
+    final palette = context.palette;
+    final body = _body(entry);
+    final card = Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: context.palette.card.withValues(alpha: 0.94),
+        color: palette.card.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: context.palette.shadow,
+            color: palette.shadow,
             blurRadius: 28,
             offset: const Offset(0, 16),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
+        padding: const EdgeInsets.fromLTRB(24, 22, 24, 26),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_showMetadata) ...[
-              _buildMetadataHeader(entry),
-              const SizedBox(height: 12),
+              Text(
+                _kicker(entry),
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontSize: 13.5,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(height: 10),
             ],
-            Text(
-              (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
-              style: TextStyle(
-                color: context.palette.textPrimary,
-                fontSize: 30,
-                fontWeight: FontWeight.w700,
-                height: 1.15,
+            Semantics(
+              header: true,
+              child: Text(
+                _heading(entry),
+                style: _serif(
+                  _hasTitle(entry) ? 30 : 26,
+                  weight: _hasTitle(entry) ? FontWeight.w600 : FontWeight.w400,
+                  height: 1.18,
+                  color: palette.textPrimary,
+                ),
               ),
             ),
-            const SizedBox(height: 18),
-            Text(
-              entry.hasText
-                  ? entry.text!
-                  : 'A preserved moment from your living tree.',
-              style: TextStyle(
-                color: context.palette.textPrimary.withValues(alpha: 0.9),
-                fontSize: 20,
-                height: 1.7,
-                fontStyle: entry.type == EntryType.release
-                    ? FontStyle.italic
-                    : FontStyle.normal,
+            if (entry.type == EntryType.voice && entry.mediaPath != null) ...[
+              const SizedBox(height: 18),
+              _buildResolvedVoicePlayer(entry, resolvedMediaFuture),
+            ],
+            if (body != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                body,
+                style: _serif(
+                  20,
+                  height: 1.65,
+                  style: entry.type == EntryType.release || !entry.hasText
+                      ? FontStyle.italic
+                      : FontStyle.normal,
+                  color: palette.textPrimary.withValues(alpha: 0.9),
+                ),
               ),
-            ),
+            ],
           ],
+        ),
+      ),
+    );
+
+    if (!_hasPhoto(entry)) return card;
+
+    // Photo memories lead with the photo itself, framed like a print.
+    return Column(
+      children: [
+        _buildFramedPhoto(context, entry, resolvedMediaFuture),
+        const SizedBox(height: 18),
+        card,
+      ],
+    );
+  }
+
+  Widget _buildFramedPhoto(
+    BuildContext context,
+    Entry entry,
+    Future<String?>? resolvedMediaFuture,
+  ) {
+    final palette = context.palette;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.5;
+    return Container(
+      width: double.infinity,
+      height: maxHeight,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: palette.mediaScrim.withValues(alpha: 0.3),
+            blurRadius: 30,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox.expand(
+          child: FutureBuilder<String?>(
+            future: resolvedMediaFuture,
+            builder: (context, snapshot) {
+              final path = snapshot.data;
+              if (path == null) {
+                return ColoredBox(
+                  color: palette.mediaScrim.withValues(alpha: 0.2),
+                );
+              }
+              return Semantics(
+                image: true,
+                label: entry.title != null ? '${entry.title} photo' : 'Photo',
+                child: Image.file(
+                  File(path),
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  cacheWidth:
+                      (MediaQuery.sizeOf(context).width *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .round(),
+                  errorBuilder: (context, error, stack) => ColoredBox(
+                    color: palette.mediaScrim.withValues(alpha: 0.2),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -336,114 +489,117 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
               _buildResolvedSpecimenImage(entry, resolvedMediaFuture),
             ],
             const SizedBox(height: 14),
-            Text(
-              (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
-              style: TextStyle(
-                color: context.palette.textPrimary,
-                fontSize: 27,
-                fontWeight: FontWeight.w700,
-                height: 1.2,
+            Semantics(
+              header: true,
+              child: Text(
+                _heading(entry),
+                style: _serif(
+                  _hasTitle(entry) ? 27 : 24,
+                  weight: _hasTitle(entry) ? FontWeight.w600 : FontWeight.w400,
+                  height: 1.2,
+                  color: context.palette.textPrimary,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              entry.hasText
-                  ? entry.text!
-                  : 'A preserved moment from your living tree.',
-              style: TextStyle(
-                color: context.palette.textPrimary.withValues(alpha: 0.88),
-                fontSize: 18,
-                height: 1.65,
-                fontStyle: entry.type == EntryType.release
-                    ? FontStyle.italic
-                    : FontStyle.normal,
+            if (_body(entry) != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _body(entry)!,
+                style: _serif(
+                  18,
+                  height: 1.65,
+                  style: entry.type == EntryType.release || !entry.hasText
+                      ? FontStyle.italic
+                      : FontStyle.normal,
+                  color: context.palette.textPrimary.withValues(alpha: 0.88),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPoeticCard(BuildContext context, Entry entry) {
-    return Container(
+  Widget _buildPoeticCard(
+    BuildContext context,
+    Entry entry,
+    Future<String?>? resolvedMediaFuture,
+  ) {
+    final palette = context.palette;
+    final body = _body(entry);
+    final card = Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: context.palette.card.withValues(alpha: 0.9),
+        color: palette.card.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(28),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(26, 30, 26, 34),
         child: Column(
           children: [
-            if (_showMetadata)
+            if (_showMetadata) ...[
               Text(
-                DateFormat('MMMM d').format(entry.createdAt),
-                style: TextStyle(
-                  color: context.palette.textSecondary,
-                  fontSize: 15,
-                  fontStyle: FontStyle.italic,
+                _kicker(entry),
+                textAlign: TextAlign.center,
+                style: _serif(
+                  15,
+                  style: FontStyle.italic,
+                  color: palette.textSecondary,
                 ),
               ),
-            const SizedBox(height: 24),
-            Text(
-              (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: context.palette.textPrimary,
-                fontSize: 34,
-                fontWeight: FontWeight.w600,
-                height: 1.1,
+              const SizedBox(height: 20),
+            ],
+            Semantics(
+              header: true,
+              child: Text(
+                _heading(entry),
+                textAlign: TextAlign.center,
+                style: _serif(
+                  _hasTitle(entry) ? 32 : 26,
+                  weight: _hasTitle(entry) ? FontWeight.w600 : FontWeight.w400,
+                  height: 1.15,
+                  color: palette.textPrimary,
+                ),
               ),
             ),
-            const SizedBox(height: 22),
-            Text(
-              entry.hasText
-                  ? entry.text!
-                  : 'A preserved moment from your living tree.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: context.palette.textPrimary.withValues(alpha: 0.85),
-                fontSize: 21,
-                height: 1.8,
-                fontStyle: entry.type == EntryType.release
-                    ? FontStyle.italic
-                    : FontStyle.normal,
+            if (body != null) ...[
+              const SizedBox(height: 22),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: _serif(
+                  21,
+                  height: 1.8,
+                  style: entry.type == EntryType.release || !entry.hasText
+                      ? FontStyle.italic
+                      : FontStyle.normal,
+                  color: palette.textPrimary.withValues(alpha: 0.85),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
+    if (!_hasPhoto(entry)) return card;
+    return Column(
+      children: [
+        _buildFramedPhoto(context, entry, resolvedMediaFuture),
+        const SizedBox(height: 18),
+        card,
+      ],
+    );
   }
 
   Widget _buildMetadataHeader(Entry entry) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: context.palette.surfaceMuted,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            entry.typeName,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: context.palette.textSecondary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          DateFormat('MMMM d, y').format(entry.createdAt),
-          style: TextStyle(
-            color: context.palette.textSecondary,
-            fontSize: 12,
-            letterSpacing: 0.3,
-          ),
-        ),
-      ],
+    return Text(
+      _kicker(entry),
+      style: TextStyle(
+        color: context.palette.textSecondary,
+        fontSize: 12.5,
+        letterSpacing: 0.3,
+      ),
     );
   }
 

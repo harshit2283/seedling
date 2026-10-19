@@ -52,7 +52,11 @@ class FromYourTreeCard extends ConsumerWidget {
                 if (onOpen != null) {
                   onOpen!(memory.entry);
                 } else {
-                  context.push(AppRoutes.entryRoute(memory.entry.id));
+                  context.push(
+                    memory.reason == ResurfaceReason.onThisDay
+                        ? AppRoutes.onThisDayEntryRoute(memory.entry.id)
+                        : AppRoutes.entryRoute(memory.entry.id),
+                  );
                 }
               },
               onDismiss: () {

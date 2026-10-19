@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../app/theme/colors.dart';
 import '../../../app/theme/palette.dart';
 import '../../../app/theme/radius.dart';
 import '../../../core/presentation/seedling_iconography.dart';
@@ -38,7 +37,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
           alpha: 0.9,
         ),
         border: null,
-        middle: const Text('Theme Insights'),
+        middle: const Text('Themes'),
         leading: CupertinoNavigationBarBackButton(
           color: context.palette.primary,
           onPressed: () => Navigator.of(context).pop(),
@@ -59,7 +58,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
   ) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Theme Insights'),
+        title: const Text('Themes'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -89,18 +88,18 @@ class ThemeInsightsScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Summary card
         _buildSummaryCard(context, stats),
-        const SizedBox(height: 24),
-        // Theme distribution header
-        Text(
-          'Theme Distribution',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        const SizedBox(height: 28),
+        Semantics(
+          header: true,
+          child: Text(
+            'How your memories are spread',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
         ),
         const SizedBox(height: 16),
-        // Theme bars
         ...activeThemes.map(
           (entry) => _buildThemeBar(
             context,
@@ -109,18 +108,14 @@ class ThemeInsightsScreen extends ConsumerWidget {
             stats.totalEntries,
           ),
         ),
-        const SizedBox(height: 24),
-        // Suggestions section
-        if (stats.underrepresentedThemes.isNotEmpty) ...[
-          Text(
-            'Explore New Themes',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          _buildSuggestionsCard(context, stats.underrepresentedThemes),
-        ],
+        const SizedBox(height: 16),
+        Text(
+          'Themes are guessed on this device from the words you use. '
+          'There is no right mix.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
+        ),
         const SizedBox(height: 40),
       ],
     );
@@ -147,7 +142,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Start capturing memories to see\ntheme insights here.',
+              'As your tree grows, the themes\nin your memories will show here.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: context.palette.textSecondary,
               ),
@@ -160,95 +155,45 @@ class ThemeInsightsScreen extends ConsumerWidget {
   }
 
   Widget _buildSummaryCard(BuildContext context, MemoryCollectionStats stats) {
+    final dominant = stats.dominantTheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color:
-            Theme.of(context).cardTheme.color ??
-            Theme.of(context).colorScheme.surface,
+        color: context.palette.card,
         borderRadius: SeedlingRadius.card,
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(color: context.palette.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: context.palette.primaryContainer.withValues(
-                    alpha: 0.5,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  PlatformUtils.isIOS
-                      ? CupertinoIcons.chart_pie
-                      : Icons.pie_chart,
-                  color: context.palette.primary,
-                  size: 24,
-                ),
+          if (dominant != null) ...[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _getThemeColor(
+                  context,
+                  dominant,
+                ).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${stats.totalEntries} memories',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      '${stats.entriesPerWeek.toStringAsFixed(1)} per week average',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.palette.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+              child: Icon(
+                SeedlingIconography.themeIcon(dominant),
+                color: _getThemeColor(context, dominant),
+                size: 22,
               ),
-            ],
-          ),
-          if (stats.dominantTheme != null) ...[
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text(
-                  'Most captured theme:',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: context.palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getThemeColor(
-                      stats.dominantTheme!,
-                    ).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    stats.dominantTheme!.displayName,
-                    style: TextStyle(
-                      color: _getThemeColor(stats.dominantTheme!),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ],
             ),
+            const SizedBox(width: 16),
           ],
+          Expanded(
+            child: Text(
+              dominant == null
+                  ? 'Your memories hold a little of everything.'
+                  : '${dominant.displayName} shows up most often in your '
+                        'memories.',
+              style: textTheme.bodyLarge?.copyWith(height: 1.4),
+            ),
+          ),
         ],
       ),
     );
@@ -261,7 +206,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
     int total,
   ) {
     final percentage = total > 0 ? count / total : 0.0;
-    final color = _getThemeColor(theme);
+    final color = _getThemeColor(context, theme);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -298,9 +243,9 @@ class ThemeInsightsScreen extends ConsumerWidget {
                 ],
               ),
               Text(
-                '$count (${(percentage * 100).toStringAsFixed(0)}%)',
+                '${(percentage * 100).round()}%',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: context.palette.textSecondary,
+                  color: context.palette.textMuted,
                 ),
               ),
             ],
@@ -310,7 +255,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
           Container(
             height: 8,
             decoration: BoxDecoration(
-              color: Theme.of(context).dividerColor,
+              color: context.palette.surfaceMuted,
               borderRadius: BorderRadius.circular(4),
             ),
             child: FractionallySizedBox(
@@ -329,103 +274,6 @@ class ThemeInsightsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSuggestionsCard(BuildContext context, List<MemoryTheme> themes) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.palette.primaryContainer.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.palette.primaryContainer),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                PlatformUtils.isIOS
-                    ? CupertinoIcons.lightbulb
-                    : Icons.lightbulb_outline,
-                color: context.palette.primary,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Consider capturing more:',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: context.palette.primary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: themes.take(5).map((theme) {
-              final color = _getThemeColor(theme);
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: SeedlingRadius.card,
-                  border: Border.all(color: color.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      SeedlingIconography.themeIcon(theme),
-                      size: 13,
-                      color: color,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      theme.displayName,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getThemeColor(MemoryTheme theme) {
-    switch (theme) {
-      case MemoryTheme.family:
-        return SeedlingColors.themeFamily;
-      case MemoryTheme.friends:
-        return SeedlingColors.themeFriends;
-      case MemoryTheme.work:
-        return SeedlingColors.themeWork;
-      case MemoryTheme.nature:
-        return SeedlingColors.themeNature;
-      case MemoryTheme.gratitude:
-        return SeedlingColors.themeGratitude;
-      case MemoryTheme.reflection:
-        return SeedlingColors.themeReflection;
-      case MemoryTheme.travel:
-        return SeedlingColors.themeTravel;
-      case MemoryTheme.creativity:
-        return SeedlingColors.themeCreativity;
-      case MemoryTheme.health:
-        return SeedlingColors.themeHealth;
-      case MemoryTheme.food:
-        return SeedlingColors.themeFood;
-      case MemoryTheme.moments:
-        return SeedlingColors.themeMoments;
-    }
-  }
+  Color _getThemeColor(BuildContext context, MemoryTheme theme) =>
+      context.palette.themeColor(theme.name);
 }

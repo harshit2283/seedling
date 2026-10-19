@@ -18,6 +18,9 @@ class SupportLinks {
   /// Where to report a bug or suggest an idea.
   static const String issuesUrl = '$repositoryUrl/issues';
 
+  /// The privacy policy, kept next to the code (PRIVACY.md).
+  static const String privacyPolicyUrl = '$repositoryUrl/blob/main/PRIVACY.md';
+
   /// How to contribute code, docs, or translations.
   static const String contributingUrl =
       '$repositoryUrl/blob/main/CONTRIBUTING.md';

@@ -1,3 +1,8 @@
+// Real PBKDF2 (210k iterations) runs several times per test; give it room
+// when the whole suite runs in parallel.
+@Timeout(Duration(minutes: 3))
+library;
+
 import 'dart:convert';
 import 'dart:typed_data';
 

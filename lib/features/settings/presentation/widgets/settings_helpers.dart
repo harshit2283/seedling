@@ -3,256 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/palette.dart';
-import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/storage/storage_usage_service.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
 import 'storage_breakdown_donut.dart';
-
-/// Shared icon box used across all settings sections (iOS).
-Widget buildSettingsIconBox(
-  BuildContext context,
-  IconData icon,
-  Color color, {
-  bool isLight = false,
-  bool isDanger = false,
-}) {
-  Color bgColor;
-  if (isDanger) {
-    bgColor = context.palette.error.withValues(alpha: 0.15);
-  } else if (isLight) {
-    bgColor = Theme.of(context).dividerColor;
-  } else {
-    bgColor = context.palette.primaryContainer.withValues(alpha: 0.5);
-  }
-
-  return Container(
-    width: 32,
-    height: 32,
-    decoration: BoxDecoration(
-      color: bgColor,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Icon(icon, color: color, size: 18),
-  );
-}
-
-/// Material section wrapper with title header and rounded card.
-Widget buildMaterialSection(
-  BuildContext context, {
-  required String title,
-  required List<Widget> children,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: Theme.of(context).textTheme.bodySmall?.color,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color:
-              Theme.of(context).cardTheme.color ??
-              Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).dividerColor),
-        ),
-        child: Column(
-          children: [
-            for (int i = 0; i < children.length; i++) ...[
-              children[i],
-              if (i < children.length - 1) const Divider(height: 1, indent: 56),
-            ],
-          ],
-        ),
-      ),
-    ],
-  );
-}
-
-/// Material info tile (non-interactive).
-Widget buildMaterialInfoTile(
-  BuildContext context, {
-  required IconData icon,
-  required String title,
-  required String subtitle,
-}) {
-  return Padding(
-    padding: const EdgeInsets.all(16),
-    child: Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: context.palette.primaryContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: context.palette.primary, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: context.palette.textMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-/// Material switch tile.
-Widget buildMaterialSwitchTile(
-  BuildContext context, {
-  required IconData icon,
-  required String title,
-  required String subtitle,
-  required bool value,
-  required ValueChanged<bool> onChanged,
-}) {
-  return Padding(
-    padding: const EdgeInsets.all(16),
-    child: Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: context.palette.primaryContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: context.palette.primary, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: context.palette.textMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Switch(
-          value: value,
-          activeTrackColor: context.palette.primaryFill,
-          onChanged: onChanged,
-        ),
-      ],
-    ),
-  );
-}
-
-/// Material action tile with chevron and optional loading indicator.
-Widget buildMaterialActionTile(
-  BuildContext context, {
-  required IconData icon,
-  required String title,
-  required String subtitle,
-  required VoidCallback onTap,
-  bool enabled = true,
-  bool isDanger = false,
-  bool isLoading = false,
-}) {
-  final iconColor = isDanger
-      ? context.palette.error
-      : context.palette.textSecondary;
-  final bgColor = isDanger
-      ? context.palette.error.withValues(alpha: 0.15)
-      : Theme.of(context).dividerColor;
-
-  return Opacity(
-    opacity: enabled && !isLoading ? 1.0 : 0.5,
-    child: InkWell(
-      onTap: enabled && !isLoading ? onTap : null,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: context.palette.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isLoading)
-              const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            else if (enabled)
-              Icon(
-                AdaptiveIcons.chevronRight,
-                color: context.palette.textMuted,
-                size: 20,
-              ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
 
 /// Show a gentle, non-blocking success message (toast on iOS, snackbar on
 /// Android) with a light tap. Successes never need a modal "OK".
@@ -396,7 +151,7 @@ void showStorageDetails(BuildContext context, StorageUsage storage) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Storage Breakdown'),
+        title: const Text('Storage'),
         content: body,
         actions: [
           CupertinoDialogAction(
@@ -410,7 +165,7 @@ void showStorageDetails(BuildContext context, StorageUsage storage) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Storage Breakdown'),
+        title: const Text('Storage'),
         content: body,
         actions: [
           TextButton(

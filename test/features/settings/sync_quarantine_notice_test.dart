@@ -6,26 +6,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/app/theme/palette.dart';
 import 'package:seedling/app/theme/seedling_theme.dart';
 import 'package:seedling/core/services/providers.dart';
-import 'package:seedling/core/services/sync/sync_metadata.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
 import 'package:seedling/features/settings/presentation/widgets/sync_status_tile.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-Future<SyncMetadata> _metadataWith(int quarantined) async {
-  SharedPreferences.setMockInitialValues({});
-  final prefs = await SharedPreferences.getInstance();
-  final metadata = SyncMetadata(prefs, namespace: 'googleDrive');
-  await metadata.setQuarantinedRecords([
-    for (var i = 0; i < quarantined; i++)
-      {'syncUUID': '00000000-0000-4000-8000-00000000000$i'},
-  ]);
-  return metadata;
+/// The engine as the tile sees it: only its quarantine count matters.
+class _Engine extends Mock implements SyncEngine {
+  _Engine(this.count);
+  int count;
+
+  @override
+  int get quarantineCount => count;
 }
 
-Widget _host(SyncMetadata metadata) {
+Future<_Engine> _metadataWith(int quarantined) async => _Engine(quarantined);
+
+Widget _host(_Engine engine) {
   return ProviderScope(
     overrides: [
-      syncMetadataProvider.overrideWithValue(metadata),
+      syncEngineProvider.overrideWithValue(engine),
       syncStateProvider.overrideWith((ref) => Stream.value(SyncState.idle)),
     ],
     child: MaterialApp(
@@ -91,7 +91,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          syncMetadataProvider.overrideWithValue(metadata),
+          syncEngineProvider.overrideWithValue(metadata),
           syncStateProvider.overrideWith((ref) => states.stream),
         ],
         child: MaterialApp(
@@ -105,7 +105,7 @@ void main() {
     expect(find.text(syncQuarantineMessage(2)), findsOneWidget);
 
     // A later pull reads them all: the notice goes away.
-    await metadata.setQuarantinedRecords(const []);
+    metadata.count = 0;
     states.add(SyncState.merging);
     await tester.pump();
     states.add(SyncState.idle);

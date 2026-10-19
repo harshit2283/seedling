@@ -6,16 +6,17 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
-import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../core/presentation/seedling_iconography.dart';
 import '../../../../core/services/ai/models/memory_theme.dart';
+import '../../../tree/domain/tree_personality.dart';
+import '../../../tree/presentation/still_tree.dart';
 import '../../domain/review_generator.dart';
 
 /// A privacy-safe shareable card for the year-in-review.
 ///
-/// Contains only aggregate stats (year, tree state, entry count, dominant
-/// theme label). No actual memory content is included. Uses
+/// Contains only the year's tree and aggregate stats (stage, count,
+/// dominant theme label). No actual memory content is included. Uses
 /// [RepaintBoundary] + [toImage()] + share_plus to generate and share a PNG.
 class ShareableCard extends StatefulWidget {
   final YearReviewData reviewData;
@@ -24,11 +25,23 @@ class ShareableCard extends StatefulWidget {
   /// Calm mode: the card shows the year and its theme, not a score.
   final bool calm;
 
+  /// Whether the year is over ("My 2025") or still growing ("2026, so far").
+  final bool finished;
+
+  /// The tree's personality (current year only; finished years rest plain).
+  final TreePersonality? personality;
+
+  /// Clock override for tests.
+  final DateTime? now;
+
   const ShareableCard({
     super.key,
     required this.reviewData,
     required this.isDark,
     this.calm = false,
+    this.finished = false,
+    this.personality,
+    this.now,
   });
 
   @override
@@ -76,100 +89,94 @@ class _ShareableCardState extends State<ShareableCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = widget.isDark;
+    final palette = context.palette;
     final data = widget.reviewData;
+    final finished = widget.finished;
 
     return Column(
       children: [
-        // The card to capture.
+        // The card to capture. Aggregate only: no memory text or photos.
         RepaintBoundary(
           key: _repaintKey,
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark
-                    ? [SeedlingColors.surfaceDark, const Color(0xFF1E2E1E)]
-                    : [
-                        SeedlingColors.creamPaper,
-                        context.palette.primaryContainer.withValues(alpha: 0.4),
-                      ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color.alphaBlend(
+                    palette.primaryContainer.withValues(alpha: 0.35),
+                    palette.surface,
+                  ),
+                  palette.surface,
+                ],
               ),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: context.palette.divider),
+              border: Border.all(color: palette.divider),
             ),
             child: Column(
               children: [
-                // Year
                 Text(
-                  '${data.year}',
-                  style: theme.textTheme.displayLarge?.copyWith(
-                    color: context.palette.primary,
+                  finished ? 'My ${data.year}' : '${data.year}, so far',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: palette.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
-
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: (context.palette.primary).withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.park_outlined,
-                    size: 38,
-                    color: context.palette.primary,
+                const SizedBox(height: 4),
+                SizedBox.square(
+                  dimension: stillTreeExtent(data.treeState, 220),
+                  child: StillTree.forYear(
+                    year: data.year,
+                    state: data.treeState,
+                    progress: data.treeProgress,
+                    night: palette.isDark,
+                    personality: widget.personality,
+                    now: widget.now,
                   ),
                 ),
-                const SizedBox(height: 8),
-
                 if (!widget.calm) ...[
-                  // Tree state
+                  const SizedBox(height: 8),
                   Text(
                     data.treeStateLabel,
-                    style: theme.textTheme.headlineMedium,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: palette.textPrimary,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-
-                  // Entry count
+                  const SizedBox(height: 2),
                   Text(
-                    '${data.totalEntries} memories planted',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: context.palette.textSecondary,
+                    '${data.totalEntries} memories',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: palette.textSecondary,
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-
-                // Dominant theme
-                if (data.dominantTheme != null)
+                if (data.dominantTheme != null) ...[
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         SeedlingIconography.themeIcon(data.dominantTheme!),
-                        size: 20,
-                        color: context.palette.textPrimary,
+                        size: 16,
+                        color: palette.primary,
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        data.dominantTheme!.displayName,
-                        style: theme.textTheme.titleMedium,
+                        'A year of ${data.dominantTheme!.displayName.toLowerCase()}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: palette.textSecondary,
+                        ),
                       ),
                     ],
                   ),
-
-                const SizedBox(height: 16),
-
-                // Seedling branding (subtle)
+                ],
+                const SizedBox(height: 18),
                 Text(
                   'Seedling',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: context.palette.textMuted,
+                    color: palette.textMuted,
                     letterSpacing: 2,
                   ),
                 ),
@@ -188,7 +195,7 @@ class _ShareableCardState extends State<ShareableCard> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator.adaptive(strokeWidth: 2),
                   )
                 : const Icon(Icons.share_outlined, size: 18),
             label: Text(_isSharing ? 'Preparing...' : 'Share your year'),
