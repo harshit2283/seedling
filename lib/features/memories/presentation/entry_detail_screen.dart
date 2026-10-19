@@ -93,6 +93,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
   /// bar turns solid and shows a short date.
   bool _scrolledPastHeader = false;
 
+  /// How solid the top bar is, 0 (clear) to 1: clear only while the hero
+  /// photo is under it, filling in as soon as the page's words scroll
+  /// beneath, so the bar's icons never sit on top of text.
+  double _barFill = 0;
+
   /// Resolved media paths, one future per stored path, so rebuilds never
   /// flash a spinner.
   final Map<String, Future<String?>> _mediaFutures = {};
@@ -298,14 +303,34 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       MediaQuery.viewPaddingOf(context).top +
       (PlatformUtils.isIOS ? 44 : kToolbarHeight);
 
+  /// Scroll distance over which the bar fills in.
+  static const double _barFadeDistance = 24;
+
+  /// The bar fill for a scroll offset of [pixels]. Over a hero photo the
+  /// bar stays clear until the photo's bottom edge reaches it; without one,
+  /// content is under the bar as soon as the page moves.
+  double _barFillFor(double pixels, Entry entry) {
+    if (_hasHero(entry)) {
+      final heroUnderBarUntil =
+          _heroHeight(context, entry) - _barExtent(context);
+      final start = heroUnderBarUntil - _barFadeDistance;
+      return ((pixels - start) / _barFadeDistance).clamp(0.0, 1.0);
+    }
+    return (pixels / (_barFadeDistance / 2)).clamp(0.0, 1.0);
+  }
+
   bool _onScroll(ScrollUpdateNotification n, Entry entry) {
     if (n.metrics.axis != Axis.vertical || n.depth != 0) return false;
     final threshold = _hasHero(entry)
         ? _heroHeight(context, entry) - _barExtent(context)
         : 72.0;
     final past = n.metrics.pixels > threshold;
-    if (past != _scrolledPastHeader) {
-      setState(() => _scrolledPastHeader = past);
+    final fill = _barFillFor(n.metrics.pixels, entry);
+    if (past != _scrolledPastHeader || (fill - _barFill).abs() > 0.001) {
+      setState(() {
+        _scrolledPastHeader = past;
+        _barFill = fill;
+      });
     }
     return false;
   }
@@ -332,6 +357,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                 setState(() {
                   _currentEntryId = pages[index].id;
                   _scrolledPastHeader = false;
+                  _barFill = 0;
                 });
                 HapticFeedback.selectionClick();
               }
@@ -387,7 +413,8 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       );
     }
 
-    final overMedia = _hasHero(entry) && !_scrolledPastHeader;
+    // White icons only while the photo is what sits under them.
+    final overMedia = _hasHero(entry) && _barFill < 0.5;
     final fg = overMedia
         ? palette.onMedia
         : (PlatformUtils.isIOS ? palette.primary : palette.textPrimary);
@@ -396,9 +423,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     final barTitle = _isEditMode
         ? 'Editing'
         : DateFormat.yMMMd(locale).format(entry.createdAt);
-    final barColor = overMedia
-        ? palette.background.withValues(alpha: 0)
-        : palette.background.withValues(alpha: _scrolledPastHeader ? 0.86 : 0);
+    // iOS blurs behind a translucent bar; Android has no blur, so its bar
+    // fills in nearly solid.
+    final barColor = palette.background.withValues(
+      alpha: _barFill * (PlatformUtils.isIOS ? 0.88 : 0.97),
+    );
     final overlayStyle = overMedia || palette.isDark
         ? SystemUiOverlayStyle.light
         : SystemUiOverlayStyle.dark;
@@ -428,7 +457,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
             navigationBar: CupertinoNavigationBar(
               automaticBackgroundVisibility: false,
               backgroundColor: barColor,
-              border: _scrolledPastHeader
+              border: _barFill >= 1
                   ? Border(
                       bottom: BorderSide(color: palette.divider, width: 0.5),
                     )
@@ -724,12 +753,14 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       children: [
         Icon(AdaptiveIcons.leaf, size: 16, color: palette.primary),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: _serif(
-            17,
-            style: FontStyle.italic,
-            color: palette.inkFor(palette.primary),
+        Flexible(
+          child: Text(
+            label,
+            style: _serif(
+              17,
+              style: FontStyle.italic,
+              color: palette.inkFor(palette.primary),
+            ),
           ),
         ),
       ],
@@ -1030,9 +1061,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
           color: palette.textSecondary,
         ),
         const SizedBox(width: 8),
-        Text(
-          'Link a memory',
-          style: TextStyle(fontSize: 15, color: palette.textSecondary),
+        Flexible(
+          child: Text(
+            'Link a memory',
+            style: TextStyle(fontSize: 15, color: palette.textSecondary),
+          ),
         ),
       ],
     );
@@ -1359,9 +1392,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                     ),
             ),
             const SizedBox(width: 8),
-            Text(
-              'Listening…',
-              style: TextStyle(fontSize: 14, color: palette.textSecondary),
+            Flexible(
+              child: Text(
+                'Listening…',
+                style: TextStyle(fontSize: 14, color: palette.textSecondary),
+              ),
             ),
           ],
         ),
@@ -1377,9 +1412,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
           color: palette.textSecondary,
         ),
         const SizedBox(width: 8),
-        Text(
-          'Transcribe',
-          style: TextStyle(fontSize: 15, color: palette.textSecondary),
+        Flexible(
+          child: Text(
+            'Transcribe',
+            style: TextStyle(fontSize: 15, color: palette.textSecondary),
+          ),
         ),
       ],
     );

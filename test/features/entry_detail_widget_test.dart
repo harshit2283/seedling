@@ -1,14 +1,17 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:seedling/core/platform/platform_utils.dart';
 import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/ritual/ritual_service.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/memories/presentation/entry_detail_screen.dart';
+import 'package:seedling/features/memories/presentation/widgets/keepsake_memory_card.dart';
 
 class MockObjectBoxDatabase extends Mock implements ObjectBoxDatabase {}
 
@@ -225,5 +228,95 @@ void main() {
         findsOneWidget,
       );
     });
+
+    group('top bar over scrolling words', () {
+      String longText() => List.filled(
+        40,
+        'The light on the kitchen floor this morning was soft and long.',
+      ).join(' ');
+
+      Future<void> scrollBy(WidgetTester tester, double dy) async {
+        await tester.drag(find.byType(Scrollable).first, Offset(0, -dy));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('Android: clear at rest, filled once words go under', (
+        tester,
+      ) async {
+        final entry = createTestEntry(text: longText());
+        await tester.pumpWidget(buildTestWidget(entry));
+        await tester.pumpAndSettle();
+        Color bar() =>
+            tester.widget<AppBar>(find.byType(AppBar)).backgroundColor!;
+        expect(bar().a, 0);
+
+        // Previously the bar stayed clear for the first 72px of scroll, so
+        // the share/edit/delete icons sat right on top of the text.
+        await scrollBy(tester, 30);
+        expect(bar().a, greaterThan(0.9));
+      });
+
+      testWidgets('iOS: translucent palette fill once words go under', (
+        tester,
+      ) async {
+        PlatformUtils.debugIsIOSOverride = true;
+        addTearDown(() => PlatformUtils.debugIsIOSOverride = null);
+        final entry = createTestEntry(text: longText());
+        await tester.pumpWidget(buildTestWidget(entry));
+        await tester.pumpAndSettle();
+        Color bar() => tester
+            .widget<CupertinoNavigationBar>(find.byType(CupertinoNavigationBar))
+            .backgroundColor!;
+        expect(bar().a, 0);
+
+        await scrollBy(tester, 30);
+        expect(bar().a, greaterThan(0.8));
+        expect(bar().a, lessThan(1.0), reason: 'blurred, not opaque');
+      });
+    });
+
+    testWidgets('no overflow at 320pt with text scale 1.6', (tester) async {
+      tester.view.physicalSize = const Size(640, 1688);
+      tester.view.devicePixelRatio = 2;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final entry = createTestEntry(
+        type: EntryType.object,
+        title: "Grandma's ring",
+        text: 'She wore it every day.',
+      );
+      await tester.pumpWidget(buildTestWidget(entry));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Link a memory'), 200);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('keepsake rows grow with large text (no bottom overflow)', (
+    tester,
+  ) async {
+    final entries = [
+      for (var i = 0; i < 3; i++)
+        Entry.photo(mediaPath: '/nowhere/photos/$i.jpg', text: 'Photo $i')
+          ..id = i + 1,
+    ];
+    for (final scale in [1.0, 1.6, 2.0]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            child: Scaffold(
+              body: Column(
+                children: [KeepsakeMemoryRow(entries: entries, onOpen: (_) {})],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'scale $scale');
+    }
   });
 }

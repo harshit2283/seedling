@@ -12,8 +12,17 @@ import '../../../../data/models/entry.dart';
 /// Width of a [KeepsakeMemoryCard]; rows of them use [keepsakeRowHeight].
 const double keepsakeCardWidth = 132;
 
-/// Height a horizontal row of [KeepsakeMemoryCard]s needs.
+/// Height a horizontal row of [KeepsakeMemoryCard]s needs at the default
+/// text size; see [keepsakeRowHeightFor] for larger text.
 const double keepsakeRowHeight = 178;
+
+/// Height a row of cards needs with [scaler]: the 120pt panel, the gap, a
+/// caption line and the date line, both of which grow with the text size.
+double keepsakeRowHeightFor(TextScaler scaler) {
+  final lines = scaler.scale(13) * 1.3 + scaler.scale(12) * 1.4;
+  final needed = (120 + 8 + lines + 2).ceilToDouble();
+  return needed > keepsakeRowHeight ? needed : keepsakeRowHeight;
+}
 
 /// Serif family for keepsake surfaces (dates, titles, memory text).
 ///
@@ -232,7 +241,7 @@ class KeepsakeMemoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: keepsakeRowHeight,
+      height: keepsakeRowHeightFor(MediaQuery.textScalerOf(context)),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: padding,
