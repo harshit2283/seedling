@@ -130,7 +130,7 @@ void main() {
 
       // Before entering text, the save button label should exist but hint
       // should reflect the placeholder state.
-      expect(find.text('SAVE MEMORY'), findsOneWidget);
+      expect(find.text('Save memory'), findsOneWidget);
 
       // Enter text to enable saving
       final textField = find.byType(TextField);

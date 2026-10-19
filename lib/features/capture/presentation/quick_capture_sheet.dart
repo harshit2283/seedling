@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/haptic_service.dart';
@@ -154,7 +155,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                 decoration: BoxDecoration(
                   color: PlatformUtils.isIOS
                       ? CupertinoColors.systemGrey3
-                      : SeedlingColors.lightBark,
+                      : context.palette.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -206,10 +207,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: SeedlingColors.error.withValues(alpha: 0.12),
+                    color: context.palette.error.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: SeedlingColors.error.withValues(alpha: 0.4),
+                      color: context.palette.error.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Row(
@@ -217,14 +218,14 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                       Icon(
                         AdaptiveIcons.error,
                         size: 18,
-                        color: SeedlingColors.error,
+                        color: context.palette.error,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _saveError!,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: SeedlingColors.error),
+                              ?.copyWith(color: context.palette.error),
                         ),
                       ),
                     ],
@@ -243,7 +244,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                     child: Text(
                       _canSave() ? 'Ready to save this memory' : _getSaveHint(),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: SeedlingColors.textMuted,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ),
@@ -256,13 +257,14 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                         : 'Save memory',
                     child: CupertinoButton(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 10,
+                        horizontal: 20,
+                        vertical: 12,
                       ),
+                      minimumSize: const Size(44, 44),
                       color: _canSave()
-                          ? SeedlingColors.forestGreen
-                          : Theme.of(context).dividerColor,
-                      borderRadius: BorderRadius.circular(12),
+                          ? context.palette.primaryFill
+                          : context.palette.surfaceMuted,
+                      borderRadius: SeedlingRadius.button,
                       onPressed: _canSave()
                           ? () {
                               HapticFeedback.selectionClick();
@@ -273,14 +275,13 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                             }
                           : null,
                       child: Text(
-                        _sealAsCapsule ? 'SAVE CAPSULE' : 'SAVE MEMORY',
+                        _sealAsCapsule ? 'Seal capsule' : 'Save memory',
                         style: TextStyle(
                           color: _canSave()
-                              ? Colors.white
-                              : SeedlingColors.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6,
+                              ? context.palette.onPrimaryFill
+                              : context.palette.textSecondary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -296,9 +297,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
     // Wrap with glass effect on iOS
     return GlassSheet(
-      backgroundColor:
-          Theme.of(context).cardTheme.color ??
-          Theme.of(context).colorScheme.surface,
+      backgroundColor: context.palette.surface,
       opacity: PlatformUtils.isIOS ? 0.85 : 1.0,
       child: content,
     );
@@ -385,7 +384,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           color: CupertinoColors.placeholderText,
           fontSize: 16,
         ),
-        style: const TextStyle(fontSize: 16, color: SeedlingColors.textPrimary),
+        style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
         decoration: const BoxDecoration(color: Colors.transparent),
         padding: EdgeInsets.zero,
         onChanged: (_) => setState(() {}),
@@ -404,7 +403,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         hintText: _getHintText(),
         hintStyle: Theme.of(
           context,
-        ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
+        ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
         border: InputBorder.none,
         filled: false,
       ),
@@ -446,35 +445,35 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         EntryType.line,
         AdaptiveIcons.quote,
         'Line',
-        SeedlingColors.accentLine,
+        context.palette.accentLine,
         mode: CaptureMode.text,
       ),
       'fragment': () => _buildTypeButton(
         EntryType.fragment,
         AdaptiveIcons.sparkles,
         'Fragment',
-        SeedlingColors.accentFragment,
+        context.palette.accentFragment,
         mode: CaptureMode.text,
       ),
       'photo': () => _buildTypeButton(
         EntryType.photo,
         AdaptiveIcons.photo,
         'Photo',
-        SeedlingColors.accentPhoto,
+        context.palette.accentPhoto,
         mode: CaptureMode.photo,
       ),
       'voice': () => _buildTypeButton(
         EntryType.voice,
         AdaptiveIcons.mic,
         'Voice',
-        SeedlingColors.accentVoice,
+        context.palette.accentVoice,
         mode: CaptureMode.voice,
       ),
       'object': () => _buildTypeButton(
         EntryType.object,
         AdaptiveIcons.category,
         'Object',
-        SeedlingColors.accentObject,
+        context.palette.accentObject,
         mode: CaptureMode.object,
       ),
       'release': () => _buildReleaseButton(),
@@ -491,139 +490,55 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     final isRelease = _selectedType == EntryType.release;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Semantics(
-        button: true,
-        selected: isRelease,
-        label: 'Let Go mode',
-        hint: 'For releasing something you want to leave behind',
-        child: GestureDetector(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            setState(() {
-              _selectedType = EntryType.release;
-              _captureMode = CaptureMode.text;
-            });
-            _focusNode.requestFocus();
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isRelease
-                  ? SeedlingColors.accentRelease.withValues(alpha: 0.15)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isRelease
-                    ? SeedlingColors.accentRelease
-                    : Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                width: isRelease ? 2 : 1,
-              ),
-            ),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: isRelease ? 1.0 : 0.5,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    AdaptiveIcons.wind,
-                    color: isRelease
-                        ? SeedlingColors.accentRelease
-                        : SeedlingColors.textMuted,
-                    size: 22,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Let Go',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: isRelease ? FontWeight.w600 : FontWeight.w400,
-                      color: isRelease
-                          ? SeedlingColors.accentRelease
-                          : SeedlingColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+      child: EntryTypeButton(
+        icon: AdaptiveIcons.wind,
+        label: 'Let Go',
+        color: context.palette.accentRelease,
+        isSelected: isRelease,
+        semanticLabel: 'Let Go mode',
+        semanticHint: 'For releasing something you want to leave behind',
+        onTap: () {
+          setState(() {
+            _selectedType = EntryType.release;
+            _captureMode = CaptureMode.text;
+          });
+          _focusNode.requestFocus();
+        },
       ),
     );
   }
 
   Widget _buildCapsuleButton() {
     final isCapsule = _sealAsCapsule;
-    final capsuleColor = SeedlingColors.themeGratitude;
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Semantics(
-        button: true,
-        selected: isCapsule,
-        label: isCapsule ? 'Capsule mode enabled' : 'Enable capsule mode',
-        hint: 'Adds an unlock date before this memory can be opened',
-        child: GestureDetector(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            setState(() {
-              _sealAsCapsule = !_sealAsCapsule;
-              if (!_sealAsCapsule) {
-                _capsuleUnlockDate = null;
-              }
-            });
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isCapsule
-                  ? capsuleColor.withValues(alpha: 0.15)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isCapsule
-                    ? capsuleColor
-                    : Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                width: isCapsule ? 2 : 1,
-              ),
-            ),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: isCapsule ? 1.0 : 0.5,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    CupertinoIcons.lock_shield,
-                    size: 20,
-                    color: isCapsule ? capsuleColor : SeedlingColors.textMuted,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Capsule',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: isCapsule ? FontWeight.w600 : FontWeight.w400,
-                      color: isCapsule
-                          ? capsuleColor
-                          : SeedlingColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+      child: EntryTypeButton(
+        icon: PlatformUtils.isIOS
+            ? CupertinoIcons.lock_shield
+            : Icons.lock_clock_outlined,
+        label: 'Capsule',
+        color: context.palette.accentGold,
+        isSelected: isCapsule,
+        semanticLabel: isCapsule
+            ? 'Capsule mode enabled'
+            : 'Enable capsule mode',
+        semanticHint: 'Adds an unlock date before this memory can be opened',
+        onTap: () {
+          setState(() {
+            _sealAsCapsule = !_sealAsCapsule;
+            if (!_sealAsCapsule) {
+              _capsuleUnlockDate = null;
+            }
+          });
+        },
       ),
     );
   }
 
   Widget _buildCapsuleControls() {
     final selectedDate = _capsuleUnlockDate;
-    final textColor = SeedlingColors.textPrimary;
-    final accent = SeedlingColors.themeGratitude;
+    final textColor = context.palette.textPrimary;
+    final accent = context.palette.accentGold;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -640,7 +555,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               Icon(CupertinoIcons.lock_shield, size: 16, color: accent),
               const SizedBox(width: 8),
               Text(
-                'Sealed Capsule',
+                'Sealed capsule',
                 style: TextStyle(
                   color: textColor,
                   fontWeight: FontWeight.w600,
@@ -653,7 +568,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           Row(
             children: [
               _buildCapsuleDateChip(
-                label: '1 Month',
+                label: '1 month',
                 onTap: () => setState(
                   () => _capsuleUnlockDate = DateTime.now().add(
                     const Duration(days: 30),
@@ -663,7 +578,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               ),
               const SizedBox(width: 8),
               _buildCapsuleDateChip(
-                label: '1 Year',
+                label: '1 year',
                 onTap: () => setState(
                   () => _capsuleUnlockDate = DateTime.now().add(
                     const Duration(days: 365),
@@ -689,8 +604,8 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                 : 'Unlocks on ${_formatCapsuleDate(selectedDate)}',
             style: TextStyle(
               color: selectedDate == null
-                  ? SeedlingColors.textMuted
-                  : SeedlingColors.themeGratitude,
+                  ? context.palette.textSecondary
+                  : context.palette.inkFor(accent),
               fontSize: 12,
               fontWeight: selectedDate == null
                   ? FontWeight.w400
@@ -712,29 +627,33 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       selected: active,
       label: 'Capsule unlock $label',
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: active
-                ? SeedlingColors.themeGratitude.withValues(alpha: 0.2)
-                : Theme.of(context).cardTheme.color ??
-                      Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(14),
+                ? context.palette.accentGold.withValues(alpha: 0.2)
+                : context.palette.card,
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: active
-                  ? SeedlingColors.themeGratitude
+                  ? context.palette.accentGold
                   : Theme.of(context).dividerColor,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               color: active
-                  ? SeedlingColors.themeGratitude
-                  : SeedlingColors.textSecondary,
+                  ? context.palette.inkFor(context.palette.accentGold)
+                  : context.palette.textSecondary,
               fontWeight: active ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
@@ -857,25 +776,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       };
     }
 
-    switch (_captureMode) {
-      case CaptureMode.voice:
-        return _sealAsCapsule
-            ? 'Tap SAVE CAPSULE to save'
-            : 'Tap SAVE MEMORY to save';
-      case CaptureMode.photo:
-        return _sealAsCapsule
-            ? 'Tap SAVE CAPSULE to save'
-            : 'Tap SAVE MEMORY to save';
-      case CaptureMode.object:
-        return _sealAsCapsule
-            ? 'Tap SAVE CAPSULE to save'
-            : 'Tap SAVE MEMORY to save';
-      default:
-        if (_sealAsCapsule) {
-          return 'Tap SAVE CAPSULE to save';
-        }
-        return 'Tap SAVE MEMORY to save';
-    }
+    return _sealAsCapsule ? 'Ready to seal when you are' : 'Ready when you are';
   }
 
   bool _canSave() {
@@ -1101,9 +1002,7 @@ class _SaveHairline extends StatelessWidget {
       child: LinearProgressIndicator(
         minHeight: 2,
         backgroundColor: Colors.transparent,
-        valueColor: const AlwaysStoppedAnimation<Color>(
-          SeedlingColors.forestGreen,
-        ),
+        valueColor: AlwaysStoppedAnimation<Color>(context.palette.primary),
       ),
     );
   }
