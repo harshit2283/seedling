@@ -105,11 +105,17 @@ class Entry {
   // Cloud Sync Fields (Phase 5)
   // ============================================================================
 
-  /// UUID for cross-device sync identification
+  /// UUID for cross-device sync identification.
+  ///
+  /// Indexed (not @Unique: legacy stores may hold duplicates, and a unique
+  /// constraint would make those stores fail to open). Sync merge and manual
+  /// link resolution look entries up by this on every record.
+  @Index()
   String? syncUUID;
 
   /// When this entry was last modified (for sync conflict resolution)
   @Property(type: PropertyType.date)
+  @Index()
   DateTime? modifiedAt;
 
   /// Device identifier that last modified this entry
@@ -147,6 +153,34 @@ class Entry {
     this.modifiedAt,
     this.deviceId,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  /// A field-for-field copy (persisted fields plus [decryptionFailed]).
+  /// The database uses this so the objects it caches are never the ones
+  /// callers hold and mutate.
+  Entry copy() => Entry(
+    id: id,
+    createdAt: createdAt,
+    typeIndex: typeIndex,
+    text: text,
+    mediaPath: mediaPath,
+    title: title,
+    context: context,
+    mood: mood,
+    tags: tags,
+    isReleased: isReleased,
+    isDeleted: isDeleted,
+    deletedAt: deletedAt,
+    detectedTheme: detectedTheme,
+    connectionIds: connectionIds,
+    manualLinkIds: manualLinkIds,
+    sentimentScore: sentimentScore,
+    lastAnalyzedAt: lastAnalyzedAt,
+    capsuleUnlockDate: capsuleUnlockDate,
+    transcription: transcription,
+    syncUUID: syncUUID,
+    modifiedAt: modifiedAt,
+    deviceId: deviceId,
+  )..decryptionFailed = decryptionFailed;
 
   /// Create a LINE entry - text that stayed with you
   factory Entry.line({String? text, String? context, String? mood}) {
@@ -265,7 +299,12 @@ class Entry {
   // AI Helper Methods (Phase 4)
   // ============================================================================
 
-  /// Get list of connected entry IDs
+  /// Get list of connected entry IDs.
+  ///
+  /// Transient: this is a view over [connectionIds]. When ObjectBox persisted
+  /// it, the stored value was parsed from the *encrypted* string (always
+  /// empty) and its setter ran after [connectionIds] on every load, wiping it.
+  @Transient()
   List<int> get connectedIds {
     if (connectionIds == null || connectionIds!.isEmpty) return [];
     return connectionIds!

@@ -1,99 +1,54 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
+import 'dart:isolate';
 import 'package:archive/archive.dart';
-import 'package:cryptography/cryptography.dart';
+import 'package:cryptography/cryptography.dart'
+    show SecretBoxAuthenticationError;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../data/models/entry.dart';
 import '../error_reporter.dart';
+import '../media/file_storage_service.dart';
+import 'backup_codec.dart';
+import 'export_cleanup.dart';
+import 'export_models.dart';
+import 'journal_import.dart';
+import 'markdown_export.dart';
 
-/// Result of an export operation
-class ExportResult {
-  final bool success;
-  final String? filePath;
-  final String? error;
+export 'export_models.dart';
+export 'journal_import.dart' show JournalImport, JournalImportSource;
 
-  const ExportResult.success(this.filePath) : success = true, error = null;
-  const ExportResult.failure(this.error) : success = false, filePath = null;
-}
+/// Presents the platform share sheet for [file]. Injectable for tests.
+typedef ShareFileFn =
+    Future<void> Function(XFile file, {String? subject, Rect? origin});
 
-/// Result of an encrypted import operation
-class ImportResult {
-  final bool success;
-  final String? error;
-  final int importedEntries;
-  final int importedMediaFiles;
-  final int skippedDuplicates;
-  final List<String> warnings;
-
-  const ImportResult.success({
-    required this.importedEntries,
-    required this.importedMediaFiles,
-    this.skippedDuplicates = 0,
-    this.warnings = const [],
-  }) : success = true,
-       error = null;
-
-  const ImportResult.failure(this.error)
-    : success = false,
-      importedEntries = 0,
-      importedMediaFiles = 0,
-      skippedDuplicates = 0,
-      warnings = const [];
-}
-
-/// Preview metadata for an encrypted backup.
-class EncryptedBackupPreview {
-  final int entryCount;
-  final int mediaCount;
-  final int version;
-  final DateTime? exportedAt;
-  final bool integrityVerified;
-  final String? kdf;
-  final int? iterations;
-
-  const EncryptedBackupPreview({
-    required this.entryCount,
-    required this.mediaCount,
-    required this.version,
-    this.exportedAt,
-    this.integrityVerified = false,
-    this.kdf,
-    this.iterations,
-  });
-}
-
-/// Fully loaded encrypted backup payload.
-class LoadedEncryptedBackup {
-  final EncryptedBackupPreview preview;
-  final List<Map<String, dynamic>> entries;
-  final Map<String, List<int>> mediaFiles;
-  final List<String> warnings;
-
-  const LoadedEncryptedBackup({
-    required this.preview,
-    required this.entries,
-    required this.mediaFiles,
-    this.warnings = const [],
-  });
+Future<void> _defaultShareFile(
+  XFile file, {
+  String? subject,
+  Rect? origin,
+}) async {
+  await Share.shareXFiles(
+    [file],
+    subject: subject,
+    sharePositionOrigin: origin,
+  );
 }
 
 /// Service for exporting user data
 class ExportService {
-  static const _encryptedBackupVersion = 1;
-  static const _pbkdf2Iterations = 120000;
-  static const _payloadSignatureAlgorithm = 'hmac-sha256';
-  static const int _maxEncryptedBackupBytes = 300 * 1024 * 1024;
-  static const int _maxArchiveEntries = 12000;
-  static const int _maxArchiveBytes = 800 * 1024 * 1024;
-
   final ErrorReporter _errorReporter;
+  final ShareFileFn _shareFile;
+  final int _kdfIterations;
 
-  ExportService({ErrorReporter? errorReporter})
-    : _errorReporter = errorReporter ?? const ErrorReporter();
+  ExportService({
+    ErrorReporter? errorReporter,
+    ShareFileFn? shareFile,
+    @visibleForTesting int kdfIterations = BackupCodec.pbkdf2Iterations,
+  }) : _errorReporter = errorReporter ?? const ErrorReporter(),
+       _shareFile = shareFile ?? _defaultShareFile,
+       _kdfIterations = kdfIterations;
 
   /// Export entries as JSON file
   Future<ExportResult> exportToJson(List<Entry> entries) async {
@@ -146,6 +101,82 @@ class ExportService {
     }
   }
 
+  /// Export every memory as an open, human-readable Markdown archive: one
+  /// `.md` file per memory (YAML front matter + body) under
+  /// `memories/<year>/<month>/`, still-sealed capsules under `capsules/`,
+  /// media under `media/`, and an `index.md`. Opens in any Markdown editor
+  /// or as an Obsidian vault, and imports back into Seedling.
+  ///
+  /// Media paths are resolved on this isolate (path_provider needs the
+  /// platform channel); building and zipping run in a background isolate,
+  /// streaming media from disk instead of loading it all into memory.
+  Future<ExportResult> exportToMarkdown(
+    List<Entry> entries,
+    String mediaBasePath, {
+    DateTime? now,
+  }) async {
+    try {
+      final exportedAt = now ?? DateTime.now();
+      final baseDir = mediaBasePath.trim().isEmpty
+          ? null
+          : Directory(mediaBasePath);
+      final items = <MarkdownExportItem>[];
+      for (final entry in entries) {
+        String? mediaPath;
+        if (entry.hasMedia && baseDir != null) {
+          mediaPath = await FileStorageService.resolveMediaPath(
+            entry.mediaPath,
+            baseDir: baseDir,
+          );
+          if (mediaPath != null && !await _isInside(mediaPath, baseDir.path)) {
+            mediaPath = null;
+          }
+        }
+        items.add(
+          MarkdownExportItem.fromEntry(
+            entry,
+            resolvedMediaPath: mediaPath,
+            now: exportedAt,
+          ),
+        );
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = exportedAt.toIso8601String().replaceAll(':', '-');
+      final filePath = '${tempDir.path}/seedling_markdown_$timestamp.zip';
+      await _runMarkdownExport(items, exportedAt, filePath);
+      return ExportResult.success(filePath);
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'ExportService.exportToMarkdown',
+      );
+      return const ExportResult.failure('Could not create Markdown export');
+    }
+  }
+
+  static Future<bool> _isInside(String path, String base) async {
+    try {
+      final resolvedBase = await Directory(base).resolveSymbolicLinks();
+      final resolved = await File(path).resolveSymbolicLinks();
+      return resolved.startsWith('$resolvedBase${Platform.pathSeparator}');
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  static Future<void> _runMarkdownExport(
+    List<MarkdownExportItem> items,
+    DateTime exportedAt,
+    String outputPath,
+  ) {
+    return Isolate.run(() {
+      final plan = buildMarkdownExport(items, exportedAt: exportedAt);
+      writeMarkdownExportZip(plan, outputPath);
+    });
+  }
+
   /// Export entries and media as encrypted backup payload.
   Future<ExportResult> exportEncryptedBackup(
     List<Entry> entries,
@@ -163,32 +194,11 @@ class ExportService {
       if (zipBytes == null) {
         return const ExportResult.failure('Failed to encode ZIP file');
       }
-      final salt = _randomBytes(16);
-      final nonce = _randomBytes(12);
-      final key = await _deriveKey(passphrase, salt);
-      final algorithm = AesGcm.with256bits();
-      final secretBox = await algorithm.encrypt(
-        zipBytes,
-        secretKey: key,
-        nonce: nonce,
-      );
-
-      final payload = <String, dynamic>{
-        'version': _encryptedBackupVersion,
-        'kdf': 'pbkdf2-sha256',
-        'iterations': _pbkdf2Iterations,
-        'salt': base64Encode(salt),
-        'nonce': base64Encode(secretBox.nonce),
-        'mac': base64Encode(secretBox.mac.bytes),
-        'ciphertext': base64Encode(secretBox.cipherText),
-        'sigAlg': _payloadSignatureAlgorithm,
-      };
-      payload['signature'] = await _computePayloadSignature(payload, key);
-
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final filePath = '${tempDir.path}/seedling_backup_$timestamp.seedling';
-      await File(filePath).writeAsString(jsonEncode(payload));
+      // KDF + AES-GCM + base64 take seconds; keep them off the UI isolate.
+      await _runEncrypt(zipBytes, passphrase, _kdfIterations, filePath);
       return ExportResult.success(filePath);
     } catch (e, st) {
       _errorReporter.report(
@@ -229,8 +239,14 @@ class ExportService {
       final mediaPath = entry.mediaPath;
       if (mediaPath == null || mediaPath.isEmpty) continue;
       if (!hasValidMediaBasePath) continue;
-      final mediaFile = File(mediaPath);
-      if (!await mediaFile.exists()) continue;
+      // Stored paths go stale when iOS moves the app container; re-anchor
+      // them on the current media directory instead of silently skipping.
+      final resolvedPath = await FileStorageService.resolveMediaPath(
+        mediaPath,
+        baseDir: Directory(resolvedMediaBasePath),
+      );
+      if (resolvedPath == null) continue;
+      final mediaFile = File(resolvedPath);
       final resolvedFilePath = await mediaFile.resolveSymbolicLinks();
       if (!resolvedFilePath.startsWith(
         '$resolvedMediaBasePath${Platform.pathSeparator}',
@@ -309,143 +325,77 @@ class ExportService {
   }
 
   /// Load and decrypt an encrypted backup, returning full payload data.
+  ///
+  /// File read, KDF, decryption and ZIP decoding all run in a background
+  /// isolate so the UI keeps animating while a large backup unlocks.
   Future<LoadedEncryptedBackup> loadEncryptedBackup(
     String filePath, {
     required String passphrase,
-  }) async {
-    final file = File(filePath);
-    if (!await file.exists()) {
-      throw const FormatException('Backup file not found');
-    }
-
-    final fileSize = await file.length();
-    if (fileSize > _maxEncryptedBackupBytes) {
-      throw const FormatException('Backup file is too large');
-    }
-
-    final payloadString = await file.readAsString();
-    final payload = jsonDecode(payloadString) as Map<String, dynamic>;
-    final decryptResult = await _decryptPayloadBytes(payload, passphrase);
-    final decryptedZip = decryptResult.bytes;
-    final archive = ZipDecoder().decodeBytes(decryptedZip, verify: true);
-    _validateArchive(archive);
-
-    final entriesFile = archive.files.firstWhere(
-      (f) => f.name == 'entries.json',
-      orElse: () => throw const FormatException('entries.json missing'),
-    );
-
-    final entriesPayload = utf8.decode(entriesFile.content as List<int>);
-    final parsed = jsonDecode(entriesPayload) as Map<String, dynamic>;
-    final rawEntries = (parsed['entries'] as List<dynamic>? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
-
-    final exportedAtRaw = parsed['exportedAt'] as String?;
-    final warnings = <String>[];
-    if (!decryptResult.integrityVerified) {
-      warnings.add('integrity_not_verified');
-    }
-    final preview = EncryptedBackupPreview(
-      entryCount: rawEntries.length,
-      mediaCount: archive.files
-          .where((f) => f.name.startsWith('media/'))
-          .length,
-      version: (payload['version'] as int?) ?? 0,
-      exportedAt: exportedAtRaw == null
-          ? null
-          : DateTime.tryParse(exportedAtRaw),
-      integrityVerified: decryptResult.integrityVerified,
-      kdf: payload['kdf'] as String?,
-      iterations: payload['iterations'] as int?,
-    );
-
-    final mediaFiles = <String, List<int>>{};
-    for (final file in archive.files.where(
-      (f) => f.name.startsWith('media/'),
-    )) {
-      mediaFiles[file.name] = file.content as List<int>;
-    }
-
-    return LoadedEncryptedBackup(
-      preview: preview,
-      entries: rawEntries,
-      mediaFiles: mediaFiles,
-      warnings: warnings,
-    );
+  }) {
+    return _runLoadEncrypted(filePath, passphrase);
   }
 
   /// Load a plain ZIP archive (with HTML + JSON) and return parsed payload.
-  Future<LoadedEncryptedBackup> loadZipArchive(String filePath) async {
-    final file = File(filePath);
-    if (!await file.exists()) {
-      throw const FormatException('Archive file not found');
-    }
+  Future<LoadedEncryptedBackup> loadZipArchive(String filePath) {
+    return _runLoadZip(filePath);
+  }
 
-    final zipBytes = await file.readAsBytes();
-    final archive = ZipDecoder().decodeBytes(zipBytes, verify: true);
-    _validateArchive(archive);
-
-    final entriesFile = archive.files.firstWhere(
-      (f) => f.name == 'entries.json',
-      orElse: () => throw const FormatException('entries.json missing'),
-    );
-
-    final entriesPayload = utf8.decode(entriesFile.content as List<int>);
-    final parsed = jsonDecode(entriesPayload) as Map<String, dynamic>;
-    final rawEntries = (parsed['entries'] as List<dynamic>? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
-
-    Map<String, dynamic> manifest = const {};
-    final manifestFiles = archive.files.where((f) => f.name == 'manifest.json');
-    if (manifestFiles.isNotEmpty) {
-      try {
-        manifest =
-            jsonDecode(utf8.decode(manifestFiles.first.content as List<int>))
-                as Map<String, dynamic>;
-      } catch (e, st) {
-        _errorReporter.report(
-          e,
-          stack: st,
-          context: 'ExportService.loadZipArchive.manifest',
-        );
-        manifest = const {};
-      }
-    }
-
-    final mediaFiles = <String, List<int>>{};
-    for (final file in archive.files.where(
-      (f) => f.name.startsWith('media/'),
-    )) {
-      mediaFiles[file.name] = file.content as List<int>;
-    }
-
-    final warnings = <String>[];
-    if (manifest['format'] != null &&
-        manifest['format'] != 'seedling-archive') {
-      warnings.add('unknown_archive_format');
-    }
-
-    final preview = EncryptedBackupPreview(
-      entryCount: rawEntries.length,
-      mediaCount: mediaFiles.length,
-      version: (manifest['version'] as int?) ?? 1,
-      exportedAt: DateTime.tryParse(
-        manifest['exportedAt'] as String? ??
-            (parsed['exportedAt'] as String? ?? ''),
+  // Static so the isolate closures never capture `this`.
+  static Future<void> _runEncrypt(
+    List<int> zipBytes,
+    String passphrase,
+    int iterations,
+    String outputPath,
+  ) {
+    return Isolate.run(
+      () => writeEncryptedBackupFile(
+        zipBytes: zipBytes,
+        passphrase: passphrase,
+        iterations: iterations,
+        outputPath: outputPath,
       ),
-      integrityVerified: false,
-      kdf: null,
-      iterations: null,
     );
+  }
 
-    return LoadedEncryptedBackup(
-      preview: preview,
-      entries: rawEntries,
-      mediaFiles: mediaFiles,
-      warnings: warnings,
-    );
+  static Future<LoadedEncryptedBackup> _runLoadEncrypted(
+    String filePath,
+    String passphrase,
+  ) {
+    return Isolate.run(() => readEncryptedBackupFile(filePath, passphrase));
+  }
+
+  static Future<LoadedEncryptedBackup> _runLoadZip(String filePath) {
+    return Isolate.run(() => readZipArchiveFile(filePath));
+  }
+
+  /// Parses a Day One JSON export ZIP or a Seedling Markdown export ZIP.
+  ///
+  /// Media is extracted, size-bounded, into a fresh staging directory in the
+  /// temp folder; call [discardJournalImport] when done (the startup sweep
+  /// removes any left behind). Runs in a background isolate.
+  Future<JournalImport> loadJournalArchive(String zipPath) async {
+    final tempDir = await getTemporaryDirectory();
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final staging = '${tempDir.path}/$importStagingPrefix$stamp';
+    try {
+      return await Isolate.run(() => readJournalArchive(zipPath, staging));
+    } catch (_) {
+      await _deleteDirectory(staging);
+      rethrow;
+    }
+  }
+
+  /// Deletes the staged media of [import].
+  Future<void> discardJournalImport(JournalImport import) =>
+      _deleteDirectory(import.stagingDirectory);
+
+  static Future<void> _deleteDirectory(String path) async {
+    try {
+      final dir = Directory(path);
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } catch (e) {
+      debugPrint('Could not delete import staging "$path": $e');
+    }
   }
 
   /// Share an exported file
@@ -454,15 +404,34 @@ class ExportService {
     String? subject,
     Rect? sharePositionOrigin,
   }) async {
-    final xFile = XFile(filePath);
-    final safeSharePositionOrigin = _normalizeSharePositionOrigin(
-      sharePositionOrigin,
-    );
-    await Share.shareXFiles(
-      [xFile],
+    await _shareFile(
+      XFile(filePath),
       subject: subject ?? 'Seedling Export',
-      sharePositionOrigin: safeSharePositionOrigin,
+      origin: _normalizeSharePositionOrigin(sharePositionOrigin),
     );
+  }
+
+  /// Shares an exported file, then deletes it whether or not sharing
+  /// succeeded. Exports are plaintext copies of the user's memories in the
+  /// temp/cache directory; they must not outlive the share sheet.
+  ///
+  /// Safe on both platforms: iOS completes the share before this returns, and
+  /// share_plus on Android hands the receiver its own staged copy (which the
+  /// startup sweep removes later).
+  Future<void> shareAndDelete(
+    String filePath, {
+    String? subject,
+    Rect? sharePositionOrigin,
+  }) async {
+    try {
+      await shareFile(
+        filePath,
+        subject: subject,
+        sharePositionOrigin: sharePositionOrigin,
+      );
+    } finally {
+      await deleteExportArtifact(filePath);
+    }
   }
 
   /// Convert entries to JSON-serializable map
@@ -521,131 +490,6 @@ class ExportService {
     }
   }
 
-  Future<SecretKey> _deriveKey(
-    String passphrase,
-    List<int> salt, {
-    int iterations = _pbkdf2Iterations,
-  }) async {
-    final pbkdf2 = Pbkdf2(
-      macAlgorithm: Hmac.sha256(),
-      iterations: iterations,
-      bits: 256,
-    );
-    return pbkdf2.deriveKey(
-      secretKey: SecretKey(utf8.encode(passphrase)),
-      nonce: salt,
-    );
-  }
-
-  List<int> _randomBytes(int length) {
-    final random = Random.secure();
-    return List<int>.generate(length, (_) => random.nextInt(256));
-  }
-
-  Future<_DecryptResult> _decryptPayloadBytes(
-    Map<String, dynamic> payload,
-    String passphrase,
-  ) async {
-    final version = payload['version'] as int?;
-    if (version != _encryptedBackupVersion) {
-      throw const FormatException('Unsupported backup version');
-    }
-
-    final iterations = payload['iterations'] as int?;
-    if (iterations == null || iterations < 100000) {
-      throw const FormatException('Invalid backup metadata');
-    }
-
-    final salt = base64Decode(payload['salt'] as String);
-    final nonce = base64Decode(payload['nonce'] as String);
-    final macBytes = base64Decode(payload['mac'] as String);
-    final ciphertext = base64Decode(payload['ciphertext'] as String);
-
-    if (salt.length != 16 || nonce.length != 12 || macBytes.length != 16) {
-      throw const FormatException('Invalid backup encryption metadata');
-    }
-
-    final key = await _deriveKey(passphrase, salt, iterations: iterations);
-    final algorithm = AesGcm.with256bits();
-    final bytes = await algorithm.decrypt(
-      SecretBox(ciphertext, nonce: nonce, mac: Mac(macBytes)),
-      secretKey: key,
-    );
-    final integrityVerified = await _verifyPayloadSignature(payload, key);
-    return _DecryptResult(bytes: bytes, integrityVerified: integrityVerified);
-  }
-
-  void _validateArchive(Archive archive) {
-    if (archive.files.length > _maxArchiveEntries) {
-      throw const FormatException('Backup archive contains too many files');
-    }
-
-    var totalBytes = 0;
-    for (final file in archive.files) {
-      final name = file.name;
-      if (_isUnsafeArchivePath(name)) {
-        throw const FormatException('Unsafe backup path detected');
-      }
-
-      totalBytes += file.size;
-      if (totalBytes > _maxArchiveBytes) {
-        throw const FormatException('Backup archive is too large');
-      }
-    }
-  }
-
-  bool _isUnsafeArchivePath(String path) {
-    if (path.contains('..')) return true;
-    if (path.startsWith('/') || path.startsWith('\\')) return true;
-    if (path.contains(':')) return true;
-    return false;
-  }
-
-  String _canonicalPayloadString(Map<String, dynamic> payload) {
-    return [
-      payload['version']?.toString() ?? '',
-      payload['kdf']?.toString() ?? '',
-      payload['iterations']?.toString() ?? '',
-      payload['salt']?.toString() ?? '',
-      payload['nonce']?.toString() ?? '',
-      payload['mac']?.toString() ?? '',
-      payload['ciphertext']?.toString() ?? '',
-      payload['sigAlg']?.toString() ?? '',
-    ].join('|');
-  }
-
-  Future<String> _computePayloadSignature(
-    Map<String, dynamic> payload,
-    SecretKey key,
-  ) async {
-    final canonical = _canonicalPayloadString(payload);
-    final mac = await Hmac.sha256().calculateMac(
-      utf8.encode(canonical),
-      secretKey: key,
-    );
-    return base64Encode(mac.bytes);
-  }
-
-  Future<bool> _verifyPayloadSignature(
-    Map<String, dynamic> payload,
-    SecretKey key,
-  ) async {
-    final signature = payload['signature'] as String?;
-    final sigAlg = payload['sigAlg'] as String?;
-    if (signature == null || signature.isEmpty) {
-      // Backward-compatible with older backups before signatures were added.
-      return false;
-    }
-    if (sigAlg != _payloadSignatureAlgorithm) {
-      throw const FormatException('Unsupported backup integrity algorithm');
-    }
-    final expected = await _computePayloadSignature(payload, key);
-    if (expected != signature) {
-      throw const FormatException('Backup integrity check failed');
-    }
-    return true;
-  }
-
   Rect? _normalizeSharePositionOrigin(Rect? rect) {
     if (rect == null) return null;
     final isFinite =
@@ -659,13 +503,6 @@ class ExportService {
     }
     return rect;
   }
-}
-
-class _DecryptResult {
-  final List<int> bytes;
-  final bool integrityVerified;
-
-  const _DecryptResult({required this.bytes, required this.integrityVerified});
 }
 
 /// Payload sent to the ZIP-build isolate. Holds pre-resolved entry metadata,

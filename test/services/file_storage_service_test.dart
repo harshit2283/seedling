@@ -78,4 +78,41 @@ void main() {
     expect(deleted, isFalse);
     expect(await outsideFile.exists(), isTrue);
   });
+
+  group('stale container paths (iOS moves the app container)', () {
+    const staleRoot =
+        '/var/mobile/Containers/Data/Application/OLD-UUID/Library/'
+        'Application Support/media';
+
+    test('deleteFile re-anchors a stale absolute path', () async {
+      final real = File(await service.generatePhotoPath());
+      await real.writeAsString('pixels');
+      final name = real.uri.pathSegments.last;
+
+      final deleted = await service.deleteFile('$staleRoot/photos/$name');
+
+      expect(deleted, isTrue);
+      expect(await real.exists(), isFalse);
+    });
+
+    test('fileExists and getFileSize re-anchor stale paths', () async {
+      final real = File(await service.generateVoicePath());
+      await real.writeAsString('12345');
+      final name = real.uri.pathSegments.last;
+      final stale = '$staleRoot/voices/$name';
+
+      expect(await service.fileExists(stale), isTrue);
+      expect(await service.getFileSize(stale), 5);
+    });
+
+    test('a stale path never escapes the media directory', () async {
+      final outside = File('${tempDir.path}/photos/escape.jpg');
+      await outside.create(recursive: true);
+
+      final deleted = await service.deleteFile('/elsewhere/photos/escape.jpg');
+
+      expect(deleted, isFalse);
+      expect(await outside.exists(), isTrue);
+    });
+  });
 }

@@ -94,11 +94,6 @@
           "type": 10
         },
         {
-          "id": "17:4822441182230169529",
-          "name": "connectedIds",
-          "type": 27
-        },
-        {
           "id": "18:7049565280661572356",
           "name": "capsuleUnlockDate",
           "indexId": "3:5594065671377155778",
@@ -113,12 +108,16 @@
         {
           "id": "20:5287589025787022643",
           "name": "syncUUID",
-          "type": 9
+          "indexId": "4:8635589592904350413",
+          "type": 9,
+          "flags": 2048
         },
         {
           "id": "21:2626856446788976910",
           "name": "modifiedAt",
-          "type": 10
+          "indexId": "5:6316197321341892688",
+          "type": 10,
+          "flags": 8
         },
         {
           "id": "22:3618374170569244160",
@@ -233,14 +232,16 @@
     }
   ],
   "lastEntityId": "3:8814026308694728405",
-  "lastIndexId": "3:5594065671377155778",
+  "lastIndexId": "5:6316197321341892688",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
   "modelVersionParserMinimum": 5,
   "retiredEntityUids": [],
   "retiredIndexUids": [],
-  "retiredPropertyUids": [],
+  "retiredPropertyUids": [
+    4822441182230169529
+  ],
   "retiredRelationUids": [],
   "version": 1
 }

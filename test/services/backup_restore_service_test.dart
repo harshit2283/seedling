@@ -140,4 +140,149 @@ void main() {
     expect(result.skippedDuplicates, 1);
     expect(saved, isEmpty);
   });
+
+  group('imports never overwrite or duplicate', () {
+    BackupRestoreService service() =>
+        BackupRestoreService(database: database, fileStorage: fileStorage);
+
+    LoadedEncryptedBackup loadedWith(
+      List<Map<String, dynamic>> entries, {
+      Map<String, String> staged = const {},
+    }) => LoadedEncryptedBackup(
+      preview: EncryptedBackupPreview(
+        entryCount: entries.length,
+        mediaCount: staged.length,
+        version: 1,
+      ),
+      entries: entries,
+      mediaFiles: const {},
+      mediaFilePaths: staged,
+    );
+
+    test('same instant written as UTC matches a local-time entry', () async {
+      final instant = DateTime.utc(2021, 5, 1, 10);
+      when(
+        () => database.getAllEntries(),
+      ).thenReturn([Entry.line(text: 'Hello')..createdAt = instant.toLocal()]);
+
+      final result = await service().restore(
+        loadedWith([
+          {
+            'type': 'line',
+            'createdAt': '2021-05-01T10:00:00Z',
+            'text': 'Hello',
+          },
+        ]),
+        mode: BackupImportMode.merge,
+      );
+
+      expect(result.skippedDuplicates, 1);
+      expect(saved, isEmpty);
+    });
+
+    test('an entry whose syncUUID already exists is skipped, not '
+        'duplicated', () async {
+      when(
+        () => database.getAllEntries(),
+      ).thenReturn([Entry.line(text: 'original wording')..syncUUID = 'uuid-1']);
+
+      final result = await service().restore(
+        loadedWith([
+          {
+            'type': 'line',
+            'createdAt': '2021-05-01T10:00:00Z',
+            'text': 'edited elsewhere',
+            'syncUUID': 'uuid-1',
+          },
+        ]),
+        mode: BackupImportMode.merge,
+      );
+
+      expect(result.skippedDuplicates, 1);
+      expect(saved, isEmpty);
+    });
+
+    test('memories in the trash are not resurrected by a merge', () async {
+      when(() => database.getAllEntries()).thenReturn([]);
+      when(() => database.getDeletedEntries()).thenReturn([
+        Entry.line(text: 'let go')
+          ..createdAt = DateTime.utc(2021, 5, 1)
+          ..isDeleted = true,
+      ]);
+
+      final result = await service().restore(
+        loadedWith([
+          {
+            'type': 'line',
+            'createdAt': '2021-05-01T00:00:00Z',
+            'text': 'let go',
+          },
+        ]),
+        mode: BackupImportMode.merge,
+      );
+      expect(result.skippedDuplicates, 1);
+    });
+
+    test('copies media staged on disk', () async {
+      final staged = File('${tempDir.path}/staged.jpg')
+        ..writeAsBytesSync([5, 6, 7]);
+      when(() => database.getAllEntries()).thenReturn([]);
+
+      final result = await service().restore(
+        loadedWith(
+          [
+            {
+              'type': 'photo',
+              'createdAt': '2021-05-01T10:00:00Z',
+              'mediaPath': 'photos/abc.jpg',
+            },
+          ],
+          staged: {'photos/abc.jpg': staged.path},
+        ),
+        mode: BackupImportMode.merge,
+      );
+
+      expect(result.importedMediaFiles, 1);
+      expect(File(saved.single.mediaPath!).readAsBytesSync(), [5, 6, 7]);
+    });
+
+    test('preview counts new memories and duplicates without writing', () {
+      when(() => database.getAllEntries()).thenReturn([
+        Entry.line(text: 'known')..createdAt = DateTime.utc(2021, 1, 1),
+      ]);
+      final preview = service().preview(
+        loadedWith(
+          [
+            {
+              'type': 'line',
+              'createdAt': '2021-01-01T00:00:00Z',
+              'text': 'known',
+            },
+            {
+              'type': 'line',
+              'createdAt': '2021-01-02T00:00:00Z',
+              'text': 'new',
+            },
+            {
+              'type': 'line',
+              'createdAt': '2021-01-02T00:00:00Z',
+              'text': 'new',
+            },
+            {
+              'type': 'photo',
+              'createdAt': '2021-01-03T00:00:00Z',
+              'mediaPath': 'p.jpg',
+            },
+          ],
+          staged: {'p.jpg': '/staged/p.jpg'},
+        ),
+      );
+
+      expect(preview.total, 4);
+      expect(preview.duplicates, 2);
+      expect(preview.newEntries, 2);
+      expect(preview.mediaFiles, 1);
+      verifyNever(() => database.saveEntry(any()));
+    });
+  });
 }

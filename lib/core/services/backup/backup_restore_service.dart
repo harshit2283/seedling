@@ -22,14 +22,56 @@ class BackupRestoreService {
   final ObjectBoxDatabase _database;
   final FileStorageService _fileStorage;
 
+  /// Counts what a merge of [loaded] would add, without writing anything.
+  ImportPreview preview(LoadedEncryptedBackup loaded) {
+    final known = _knownIdentities();
+    var duplicates = 0;
+    var media = 0;
+    for (final entryMap in loaded.entries) {
+      if (known.isDuplicate(entryMap)) {
+        duplicates++;
+        continue;
+      }
+      known.add(entryMap);
+      final mediaPath = entryMap['mediaPath'] as String?;
+      if (mediaPath != null &&
+          (loaded.mediaFiles.containsKey(mediaPath) ||
+              loaded.mediaFilePaths.containsKey(mediaPath))) {
+        media++;
+      }
+    }
+    return ImportPreview(
+      total: loaded.entries.length,
+      duplicates: duplicates,
+      mediaFiles: media,
+    );
+  }
+
+  /// Fingerprints and sync identities of everything already stored,
+  /// including the 30-day trash (a deliberately deleted memory must not
+  /// reappear on the next import).
+  _KnownIdentities _knownIdentities() {
+    final existing = [
+      ..._database.getAllEntries(),
+      ..._database.getDeletedEntries(),
+    ];
+    return _KnownIdentities(
+      fingerprints: existing.map(entryFingerprint).toSet(),
+      syncUUIDs: existing
+          .map((e) => e.syncUUID)
+          .whereType<String>()
+          .where((u) => u.isNotEmpty)
+          .toSet(),
+    );
+  }
+
   Future<ImportResult> restore(
     LoadedEncryptedBackup loaded, {
     required BackupImportMode mode,
   }) async {
-    final existingEntries = mode == BackupImportMode.merge
-        ? _database.getAllEntries()
-        : <Entry>[];
-    final seenFingerprints = existingEntries.map(entryFingerprint).toSet();
+    final known = mode == BackupImportMode.merge
+        ? _knownIdentities()
+        : _KnownIdentities(fingerprints: {}, syncUUIDs: {});
 
     if (mode == BackupImportMode.replace) {
       // Stage deletion: soft-delete existing entries instead of destroying
@@ -38,7 +80,6 @@ class BackupRestoreService {
       for (final entry in existing) {
         await _database.softDeleteEntry(entry.id);
       }
-      seenFingerprints.clear();
     }
 
     var importedEntries = 0;
@@ -47,16 +88,17 @@ class BackupRestoreService {
     final warnings = [...loaded.warnings];
 
     for (final entryMap in loaded.entries) {
-      final fingerprint = mapFingerprint(entryMap);
-      if (mode == BackupImportMode.merge &&
-          seenFingerprints.contains(fingerprint)) {
+      // Merge never overwrites: an entry whose content or sync identity is
+      // already present is skipped. (Within one import, duplicates are
+      // skipped in either mode.)
+      if (known.isDuplicate(entryMap)) {
         skippedDuplicates++;
         continue;
       }
 
       final restoredMediaPath = await _restoreMediaForEntry(
         entryMap: entryMap,
-        mediaFiles: loaded.mediaFiles,
+        loaded: loaded,
       );
       if (restoredMediaPath == null && entryMap['mediaPath'] != null) {
         warnings.add('missing_media');
@@ -69,7 +111,7 @@ class BackupRestoreService {
         restoredMediaPath: restoredMediaPath,
       );
       await _database.saveEntry(entry);
-      seenFingerprints.add(fingerprint);
+      known.add(entryMap);
       importedEntries++;
     }
 
@@ -171,14 +213,16 @@ class BackupRestoreService {
 
   Future<String?> _restoreMediaForEntry({
     required Map<String, dynamic> entryMap,
-    required Map<String, List<int>> mediaFiles,
+    required LoadedEncryptedBackup loaded,
   }) async {
     final rawMediaPath = entryMap['mediaPath'] as String?;
     if (rawMediaPath == null || rawMediaPath.isEmpty) {
       return null;
     }
-    final bytes = mediaFiles[rawMediaPath];
-    if (bytes == null) {
+    final bytes = loaded.mediaFiles[rawMediaPath];
+    final stagedPath = loaded.mediaFilePaths[rawMediaPath];
+    final staged = stagedPath == null ? null : File(stagedPath);
+    if (bytes == null && (staged == null || !await staged.exists())) {
       return null;
     }
 
@@ -197,7 +241,11 @@ class BackupRestoreService {
         targetPath = await _fileStorage.generatePhotoPath(extension: extension);
     }
 
-    await File(targetPath).writeAsBytes(bytes, flush: true);
+    if (bytes != null) {
+      await File(targetPath).writeAsBytes(bytes, flush: true);
+    } else {
+      await staged!.copy(targetPath);
+    }
     return targetPath;
   }
 
@@ -220,21 +268,52 @@ class BackupRestoreService {
     return RegExp(r'^[A-Za-z0-9]{1,8}$').hasMatch(ext) ? ext : 'bin';
   }
 
+  /// Normalises a timestamp to a UTC instant so the same moment matches
+  /// whether it was written as local time, UTC or with an offset.
+  static String _instant(String? raw) {
+    final parsed = DateTime.tryParse(raw ?? '');
+    return parsed == null ? (raw ?? '') : parsed.toUtc().toIso8601String();
+  }
+
   static String entryFingerprint(Entry entry) {
-    final createdAt = entry.createdAt.toIso8601String();
+    final createdAt = entry.createdAt.toUtc().toIso8601String();
     final type = entry.type.name;
     final text = (entry.text ?? '').trim().toLowerCase();
     final title = (entry.title ?? '').trim().toLowerCase();
-    final capsule = entry.capsuleUnlockDate?.toIso8601String() ?? '';
+    final capsule = entry.capsuleUnlockDate?.toUtc().toIso8601String() ?? '';
     return '$createdAt|$type|$text|$title|$capsule';
   }
 
   static String mapFingerprint(Map<String, dynamic> map) {
-    final createdAt = (map['createdAt'] as String?) ?? '';
+    final createdAt = _instant(map['createdAt'] as String?);
     final type = (map['type'] as String?) ?? '';
     final text = ((map['text'] as String?) ?? '').trim().toLowerCase();
     final title = ((map['title'] as String?) ?? '').trim().toLowerCase();
-    final capsule = (map['capsuleUnlockDate'] as String?) ?? '';
+    final rawCapsule = map['capsuleUnlockDate'] as String?;
+    final capsule = rawCapsule == null || rawCapsule.isEmpty
+        ? ''
+        : _instant(rawCapsule);
     return '$createdAt|$type|$text|$title|$capsule';
+  }
+}
+
+class _KnownIdentities {
+  _KnownIdentities({required this.fingerprints, required this.syncUUIDs});
+
+  final Set<String> fingerprints;
+  final Set<String> syncUUIDs;
+
+  bool isDuplicate(Map<String, dynamic> entryMap) {
+    final uuid = entryMap['syncUUID'];
+    if (uuid is String && uuid.isNotEmpty && syncUUIDs.contains(uuid)) {
+      return true;
+    }
+    return fingerprints.contains(BackupRestoreService.mapFingerprint(entryMap));
+  }
+
+  void add(Map<String, dynamic> entryMap) {
+    fingerprints.add(BackupRestoreService.mapFingerprint(entryMap));
+    final uuid = entryMap['syncUUID'];
+    if (uuid is String && uuid.isNotEmpty) syncUUIDs.add(uuid);
   }
 }

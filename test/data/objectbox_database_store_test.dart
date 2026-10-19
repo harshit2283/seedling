@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/security/at_rest_encryption_service.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
+import 'package:seedling/data/models/sync_id.dart';
 
 Future<ObjectBoxDatabase?> _tryOpen(Directory dir) async {
   try {
@@ -83,5 +84,128 @@ void main() {
     expect(store.currentTree!.entryCount, countBefore - 1);
     await store.restoreEntry(saved.id);
     expect(store.currentTree!.entryCount, countBefore);
+  });
+
+  test('tree counts follow isDeleted on every write path', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    final base = store.currentTree!.entryCount;
+    // Arrives already in the trash (e.g. from sync): must not count.
+    await store.saveEntry(Entry.line(text: 'trashed')..isDeleted = true);
+    expect(store.currentTree!.entryCount, base);
+
+    final live = await store.saveEntry(Entry.line(text: 'live'));
+    expect(store.currentTree!.entryCount, base + 1);
+
+    // Sync applies remote deletes/restores through updateEntry.
+    store.updateEntry(store.getEntry(live.id)!..isDeleted = true);
+    expect(store.currentTree!.entryCount, base);
+    store.updateEntry(store.getEntry(live.id)!..isDeleted = false);
+    expect(store.currentTree!.entryCount, base + 1);
+
+    // Saving an already-saved entry again is not a new entry.
+    await store.saveEntry(store.getEntry(live.id)!);
+    expect(store.currentTree!.entryCount, base + 1);
+  });
+
+  test("updateEntry leaves the caller's object readable", () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    final saved = await store.saveEntry(Entry.line(text: 'first light'));
+    final held = store.getEntry(saved.id)!;
+    held.text = 'first light, edited';
+    held.title = 'dawn';
+    store.updateEntry(held);
+
+    // The object the caller still holds must stay plaintext.
+    expect(held.text, 'first light, edited');
+    expect(held.title, 'dawn');
+    // And the stored copy round-trips.
+    expect(store.getEntry(saved.id)!.text, 'first light, edited');
+    expect(store.getEntry(saved.id)!.title, 'dawn');
+  });
+
+  test('manual links resolve to memories from previous years', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    const oldId = '6f1c2a34-5b6d-4e7f-8a9b-0c1d2e3f4a5b';
+    const newId = '7a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+    await store.saveEntry(
+      Entry.line(text: 'last summer')
+        ..createdAt = DateTime(DateTime.now().year - 1, 7, 1)
+        ..syncUUID = oldId,
+    );
+    await store.saveEntry(Entry.line(text: 'today')..syncUUID = newId);
+
+    final linked = store.getEntriesBySyncUUIDs([oldId, newId]);
+    expect(linked.map((e) => e.text), containsAll(['last summer', 'today']));
+    expect(store.getEntryBySyncUUID(oldId)!.text, 'last summer');
+  });
+
+  test('connectionIds survive a reopen', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    final saved = await store.saveEntry(
+      Entry.line(text: 'river walk')..connectionIds = '3,7',
+    );
+    store.close();
+    final reopened = await ObjectBoxDatabase.openForTesting(
+      directory: dir.path,
+      encryptionService: AtRestEncryptionService(),
+    );
+    db = reopened;
+    expect(reopened.getEntry(saved.id)!.connectionIds, '3,7');
+  });
+
+  test('saveEntry assigns a v4 syncUUID when missing', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    final saved = await store.saveEntry(Entry.line(text: 'no id yet'));
+    expect(SyncId.isValid(saved.syncUUID), isTrue);
+    expect(store.getEntry(saved.id)!.syncUUID, saved.syncUUID);
+  });
+
+  test('legacy base36 link ids are migrated without breaking links', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    // What the old link editor wrote: a base36 timestamp id.
+    const legacyId = 'lq3x9k2abc';
+    final target = await store.saveEntry(
+      Entry.line(text: 'the old bench')..syncUUID = legacyId,
+    );
+    final source = await store.saveEntry(
+      Entry.line(text: 'walked past it')..manualLinkIds = legacyId,
+    );
+    store.close();
+
+    final reopened = await ObjectBoxDatabase.openForTesting(
+      directory: dir.path,
+      encryptionService: AtRestEncryptionService(),
+    );
+    db = reopened;
+
+    final migratedId = reopened.getEntry(target.id)!.syncUUID;
+    expect(SyncId.isValid(migratedId), isTrue);
+    final links = reopened.getEntry(source.id)!.manualLinkList;
+    expect(links, [migratedId]);
+    expect(reopened.getEntriesBySyncUUIDs(links).single.text, 'the old bench');
   });
 }

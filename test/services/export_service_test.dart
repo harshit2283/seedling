@@ -5,6 +5,7 @@ import 'package:seedling/data/models/entry.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -250,5 +251,107 @@ void main() {
     if (file.existsSync()) {
       file.deleteSync();
     }
+  });
+
+  test('exportToZip includes media whose stored path went stale', () async {
+    final mediaRoot = await Directory.systemTemp.createTemp('export_media');
+    try {
+      final photo = File('${mediaRoot.path}/photos/abc.jpg')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync([1, 2, 3]);
+      expect(photo.existsSync(), isTrue);
+      final entry = Entry.photo(
+        mediaPath:
+            '/var/mobile/Containers/Data/Application/OLD/Library/'
+            'Application Support/media/photos/abc.jpg',
+      )..id = 7;
+
+      final service = ExportService();
+      final result = await service.exportToZip([entry], mediaRoot.path);
+      expect(result.success, isTrue);
+
+      final archive = ZipDecoder().decodeBytes(
+        File(result.filePath!).readAsBytesSync(),
+      );
+      final media = archive.files.where(
+        (f) => f.name == 'media/photos/abc.jpg',
+      );
+      expect(media, hasLength(1));
+      expect(media.first.content, [1, 2, 3]);
+      File(result.filePath!).deleteSync();
+    } finally {
+      mediaRoot.deleteSync(recursive: true);
+    }
+  });
+
+  group('encrypted backup KDF hardening', () {
+    test('new backups use 600k PBKDF2 iterations', () async {
+      final service = ExportService();
+      final result = await service.exportEncryptedBackup(
+        [Entry.line(text: 'kdf')],
+        '',
+        passphrase: 'a strong passphrase',
+      );
+      expect(result.success, isTrue);
+      final file = File(result.filePath!);
+      final payload = jsonDecode(file.readAsStringSync()) as Map;
+      expect(payload['iterations'], 600000);
+      file.deleteSync();
+    });
+
+    test(
+      'import rejects an absurd iteration count without running the KDF',
+      () async {
+        final service = ExportService(kdfIterations: 100000);
+        final result = await service.exportEncryptedBackup(
+          [Entry.line(text: 'kdf')],
+          '',
+          passphrase: 'a strong passphrase',
+        );
+        final file = File(result.filePath!);
+        final payload = jsonDecode(file.readAsStringSync()) as Map;
+        payload['iterations'] = 2000000000;
+        file.writeAsStringSync(jsonEncode(payload));
+
+        final sw = Stopwatch()..start();
+        await expectLater(
+          service.loadEncryptedBackup(
+            file.path,
+            passphrase: 'a strong passphrase',
+          ),
+          throwsA(isA<FormatException>()),
+        );
+        expect(sw.elapsed, lessThan(const Duration(seconds: 5)));
+        file.deleteSync();
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+
+    test('unlocking runs off the UI isolate', () async {
+      final service = ExportService(kdfIterations: 300000);
+      final result = await service.exportEncryptedBackup(
+        [Entry.line(text: 'responsive')],
+        '',
+        passphrase: 'a strong passphrase',
+      );
+      final path = result.filePath!;
+
+      var ticks = 0;
+      final timer = Timer.periodic(
+        const Duration(milliseconds: 10),
+        (_) => ticks++,
+      );
+      final sw = Stopwatch()..start();
+      final loaded = await service.loadEncryptedBackup(
+        path,
+        passphrase: 'a strong passphrase',
+      );
+      timer.cancel();
+      expect(loaded.entries, hasLength(1));
+      // The event loop kept turning while the KDF ran: roughly one tick per
+      // 10ms. A main-isolate KDF would starve the timer completely.
+      expect(ticks, greaterThan(sw.elapsedMilliseconds ~/ 40));
+      File(path).deleteSync();
+    });
   });
 }

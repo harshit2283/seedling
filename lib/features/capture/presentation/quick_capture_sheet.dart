@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,7 @@ import '../../../app/theme/radius.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/haptic_service.dart';
+import '../../../core/services/media/draft_media_tracker.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
@@ -99,6 +102,11 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   bool _sealAsCapsule = false;
   DateTime? _capsuleUnlockDate;
 
+  // Media captured into this draft; files not saved are deleted.
+  late final DraftMediaTracker _draftMedia = DraftMediaTracker(
+    () => ref.read(fileStorageServiceProvider).deleteFile,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -119,9 +127,25 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
   @override
   void dispose() {
+    _releaseUnsavedMedia();
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// Deletes media captured into a draft that was never saved. If a save is
+  /// still in flight, waits for it so a file that is being saved survives.
+  void _releaseUnsavedMedia() {
+    final pendingSave = _saveFuture;
+    if (pendingSave != null) {
+      unawaited(
+        pendingSave.then((saved) {
+          if (!saved) return _draftMedia.discard();
+        }),
+      );
+    } else if (!_wasExplicitlySaved) {
+      unawaited(_draftMedia.discard());
+    }
   }
 
   @override
@@ -318,7 +342,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           child: PhotoCaptureContent(
             initialPhotoPath: _photoPath,
             text: _photoText,
-            onPhotoPathChanged: (path) => setState(() => _photoPath = path),
+            onPhotoPathChanged: (path) {
+              unawaited(_draftMedia.update(previous: _photoPath, next: path));
+              setState(() => _photoPath = path);
+            },
             onTextChanged: (text) => _photoText = text,
           ),
         );
@@ -330,7 +357,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
             initialVoicePath: _voicePath,
             initialDuration: _voiceDuration,
             text: _voiceText,
-            onVoicePathChanged: (path) => setState(() => _voicePath = path),
+            onVoicePathChanged: (path) {
+              unawaited(_draftMedia.update(previous: _voicePath, next: path));
+              setState(() => _voicePath = path);
+            },
             onDurationChanged: (duration) => _voiceDuration = duration,
             onTextChanged: (text) => _voiceText = text,
           ),
@@ -343,8 +373,12 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
             initialPhotoPath: _objectPhotoPath,
             initialTitle: _objectTitle,
             initialStory: _objectStory,
-            onPhotoPathChanged: (path) =>
-                setState(() => _objectPhotoPath = path),
+            onPhotoPathChanged: (path) {
+              unawaited(
+                _draftMedia.update(previous: _objectPhotoPath, next: path),
+              );
+              setState(() => _objectPhotoPath = path);
+            },
             onTitleChanged: (title) => _objectTitle = title,
             onStoryChanged: (story) => _objectStory = story,
           ),
@@ -857,6 +891,13 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     }
   }
 
+  static String? _mediaPathOf(CaptureIntent? intent) => switch (intent) {
+    PhotoCapture(:final mediaPath) => mediaPath,
+    VoiceCapture(:final mediaPath) => mediaPath,
+    ObjectCapture(:final mediaPath) => mediaPath,
+    _ => null,
+  };
+
   Future<bool> _performSaveEntry({bool fromDismiss = false}) async {
     // Bulletproof: if already explicitly saved, never save again
     if (_wasExplicitlySaved) return true;
@@ -881,6 +922,8 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       if (intent != null) {
         await creator.create(intent);
       }
+      // Keep the saved file; drop media captured in other modes.
+      unawaited(_draftMedia.commit(_mediaPathOf(intent)));
 
       if (_sealAsCapsule) {
         await HapticService.onCapsuleCreated();

@@ -21,7 +21,8 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         "syncUUID", "typeIndex", "createdAt", "modifiedAt",
         "text", "title", "context", "mood", "tags",
         "isDeleted", "deletedAt", "detectedTheme", "sentimentScore",
-        "capsuleUnlockDate", "transcription", "mediaPath", "deviceId"
+        "capsuleUnlockDate", "transcription", "mediaPath", "deviceId",
+        "manualLinkIds", "syncEncryptionVersion", "syncEncryptionSalt"
     ]
     private static let assetFieldAllowlist: Set<String> = ["mediaAsset"]
 
@@ -73,6 +74,21 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
             let args = call.arguments as? [String: Any]
             let changeTokenBase64 = args?["changeToken"] as? String
             fetchChanges(changeTokenBase64: changeTokenBase64, result: result)
+
+        case "readKeyring":
+            readKeyring(result: result)
+
+        case "publishKeyring":
+            guard let args = call.arguments as? [String: Any],
+                  let kdfSalt = args["kdfSalt"] as? String, !kdfSalt.isEmpty else {
+                result(FlutterError(
+                    code: "INVALID_ARGS",
+                    message: "publishKeyring requires kdfSalt",
+                    details: nil
+                ))
+                return
+            }
+            publishKeyring(kdfSalt: kdfSalt, result: result)
 
         case "downloadAsset":
             guard let args = call.arguments as? [String: Any],
@@ -201,6 +217,57 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                 }
             }
         }
+    }
+
+    // MARK: - Keyring (per-user key-derivation salt)
+
+    /// One record holds the account's random PBKDF2 salt so every device
+    /// derives the same sync key without the salt being app-wide.
+    private let keyringRecordType = "SeedlingKeyring"
+    private var keyringRecordID: CKRecord.ID { CKRecord.ID(recordName: "seedling-keyring-v1") }
+
+    /// Returns the stored salt, or nil when no keyring exists yet.
+    private func readKeyring(result: @escaping FlutterResult) {
+        privateDB.fetch(withRecordID: keyringRecordID) { record, error in
+            DispatchQueue.main.async {
+                if let ckError = error as? CKError, ckError.code == .unknownItem {
+                    result(nil)
+                    return
+                }
+                if let error = error {
+                    self.handleCKError(error, result: result)
+                    return
+                }
+                result(record?["kdfSalt"] as? String)
+            }
+        }
+    }
+
+    /// Creates the keyring with `kdfSalt` unless one exists, then returns the
+    /// salt in effect. Saving a brand-new CKRecord whose ID already exists
+    /// fails with `.serverRecordChanged`, so the first device wins atomically.
+    private func publishKeyring(kdfSalt: String, result: @escaping FlutterResult) {
+        let record = CKRecord(recordType: keyringRecordType, recordID: keyringRecordID)
+        record["kdfSalt"] = kdfSalt as CKRecordValue
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        operation.savePolicy = .ifServerRecordUnchanged
+        operation.modifyRecordsCompletionBlock = { [weak self] _, _, error in
+            guard let self = self else { return }
+            if let ckError = error as? CKError {
+                let partial = ckError.partialErrorsByItemID?[self.keyringRecordID] as? CKError
+                let code = partial?.code ?? ckError.code
+                if code != .serverRecordChanged {
+                    DispatchQueue.main.async { self.handleCKError(ckError, result: result) }
+                    return
+                }
+            } else if let error = error {
+                DispatchQueue.main.async { self.handleCKError(error, result: result) }
+                return
+            }
+            // Created, or someone else's already exists: report what is stored.
+            self.readKeyring(result: result)
+        }
+        privateDB.add(operation)
     }
 
     // MARK: - deleteRecord
@@ -620,6 +687,17 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         if let v = args["deviceId"] as? String { record["deviceId"] = v as CKRecordValue }
         else { record["deviceId"] = nil }
 
+        if let v = args["manualLinkIds"] as? String { record["manualLinkIds"] = v as CKRecordValue }
+        else { record["manualLinkIds"] = nil }
+
+        // Encryption envelope written by the Dart layer. Without these the
+        // encrypted fields can never be decrypted on another device (the
+        // per-push salt is needed to derive the key), so they must round-trip.
+        if let v = args["syncEncryptionSalt"] as? String { record["syncEncryptionSalt"] = v as CKRecordValue }
+        else { record["syncEncryptionSalt"] = nil }
+        if let v = args["syncEncryptionVersion"] as? Int { record["syncEncryptionVersion"] = v as CKRecordValue }
+        else { record["syncEncryptionVersion"] = nil }
+
         // Int fields
         if let v = args["typeIndex"] as? Int { record["typeIndex"] = v as CKRecordValue }
 
@@ -682,6 +760,16 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         dict["transcription"] = record["transcription"] as? String ?? NSNull()
         dict["mediaPath"] = record["mediaPath"] as? String ?? NSNull()
         dict["deviceId"] = record["deviceId"] as? String ?? NSNull()
+        // Only present when the record carried it, so older records that never
+        // synced links don't clear local ones.
+        if let links = record["manualLinkIds"] as? String {
+            dict["manualLinkIds"] = links
+        }
+        dict["syncEncryptionSalt"] = record["syncEncryptionSalt"] as? String ?? NSNull()
+        // Absent (not null) when missing: Dart rejects unversioned records.
+        if let version = record["syncEncryptionVersion"] as? Int {
+            dict["syncEncryptionVersion"] = version
+        }
 
         // Int fields
         dict["typeIndex"] = record["typeIndex"] as? Int ?? 0
