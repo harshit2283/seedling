@@ -25,7 +25,9 @@ void main() {
     expect(find.text('No account needed.'), findsOneWidget);
     expect(find.text('Nothing locked behind payment.'), findsOneWidget);
     expect(find.text('What it is never for'), findsOneWidget);
-    expect(find.text('Star or contribute on GitHub'), findsOneWidget);
+    expect(find.text('Star on GitHub'), findsOneWidget);
+    expect(find.text('Contribute'), findsOneWidget);
+    expect(find.text('Report a bug'), findsOneWidget);
     expect(find.text('Help translate'), findsOneWidget);
     expect(find.text('Tell a friend'), findsOneWidget);
   });
@@ -37,6 +39,8 @@ void main() {
     );
     expect(find.text('Pay what you want'), findsNothing);
     expect(find.text('GitHub Sponsors'), findsNothing);
+    // An honest line instead of an empty promise.
+    expect(find.text(donationLinksPendingNote), findsOneWidget);
   });
 
   testWidgets('shows donation rows once real links exist', (tester) async {
@@ -49,6 +53,37 @@ void main() {
     );
     expect(find.text('Pay what you want'), findsOneWidget);
     expect(find.text('GitHub Sponsors'), findsOneWidget);
+    expect(find.text(donationLinksPendingNote), findsNothing);
+  });
+
+  testWidgets('each help row copies its own link', (tester) async {
+    final copied = <String?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String?);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await _pump(tester, const SupportScreen());
+    for (final row in ['Contribute', 'Report a bug', 'Help translate']) {
+      await tester.tap(find.text(row));
+      await tester.pump();
+    }
+    expect(copied, [
+      SupportLinks.contributingUrl,
+      SupportLinks.issuesUrl,
+      SupportLinks.translateUrl,
+    ]);
+    await tester.pumpAndSettle(const Duration(seconds: 4));
   });
 
   test('source link points at the real repository', () {
@@ -92,7 +127,7 @@ void main() {
     );
 
     await _pump(tester, const SupportScreen());
-    await tester.tap(find.text('Star or contribute on GitHub'));
+    await tester.tap(find.text('Star on GitHub'));
     await tester.pump();
 
     expect(copied, SupportLinks.repositoryUrl);
