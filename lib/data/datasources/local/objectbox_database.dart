@@ -463,6 +463,9 @@ class ObjectBoxDatabase {
     entry.modifiedAt = DateTime.now();
     _encryptEntryFields(entry);
     _entryBox.put(entry);
+    // Callers keep using the object they passed in (e.g. the detail screen),
+    // so hand it back as plaintext, exactly like saveEntry does.
+    _decryptEntryFields(entry);
     _invalidateEntryCaches();
     _emitEntries();
   }

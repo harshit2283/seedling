@@ -84,4 +84,24 @@ void main() {
     await store.restoreEntry(saved.id);
     expect(store.currentTree!.entryCount, countBefore);
   });
+
+  test("updateEntry leaves the caller's object readable", () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    final saved = await store.saveEntry(Entry.line(text: 'first light'));
+    final held = store.getEntry(saved.id)!;
+    held.text = 'first light, edited';
+    held.title = 'dawn';
+    store.updateEntry(held);
+
+    // The object the caller still holds must stay plaintext.
+    expect(held.text, 'first light, edited');
+    expect(held.title, 'dawn');
+    // And the stored copy round-trips.
+    expect(store.getEntry(saved.id)!.text, 'first light, edited');
+    expect(store.getEntry(saved.id)!.title, 'dawn');
+  });
 }
