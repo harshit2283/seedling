@@ -1,6 +1,13 @@
 // Golden regressions for the tree illustration. Inputs are pinned (seed,
-// season, Reduce Motion) so renders are deterministic.
-// Update with: flutter test --update-goldens test/features/tree_illustration_golden_test.dart
+// season, Reduce Motion, no text) so renders are deterministic.
+//
+// The goldens contain no text (showGrowthDetails: false), so they don't
+// depend on fonts or typography. They are compared on Linux only, where they
+// were generated and where CI (ubuntu-latest) runs; other hosts rasterise
+// anti-aliased edges differently.
+// Update (on Linux) with:
+//   flutter test --update-goldens test/features/tree_illustration_golden_test.dart
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -52,6 +59,7 @@ Widget _tree(TreeState state, Season season, {required bool dark}) {
                 season: season,
                 seed: 2026,
                 memoryLights: 3,
+                showGrowthDetails: false,
               ),
             ),
           ),
@@ -80,14 +88,18 @@ void main() {
   ];
   for (final (state, season, dark) in cases) {
     final name = '${state.name}_${season.name}_${dark ? 'dark' : 'light'}';
-    testWidgets('tree illustration: $name', (tester) async {
-      await tester.pumpWidget(_tree(state, season, dark: dark));
-      await tester.pump();
-      await expectLater(
-        find.byKey(_key),
-        matchesGoldenFile('goldens/tree_$name.png'),
-      );
-    });
+    testWidgets(
+      'tree illustration: $name',
+      (tester) async {
+        await tester.pumpWidget(_tree(state, season, dark: dark));
+        await tester.pump();
+        await expectLater(
+          find.byKey(_key),
+          matchesGoldenFile('goldens/tree_$name.png'),
+        );
+      },
+      skip: !Platform.isLinux,
+    );
   }
 
   test('the same seed always grows the same tree', () {
