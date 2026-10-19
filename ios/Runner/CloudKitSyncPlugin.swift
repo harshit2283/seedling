@@ -24,7 +24,22 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
     private let recordType = "SeedlingEntry"
     private let fileRecordType = "SeedlingFile"
     private let zoneID = CKRecordZone.ID(zoneName: "SeedlingSync", ownerName: CKCurrentUserDefaultName)
-    private var zoneReady = false
+
+    /// Whether the custom zone is known to exist. Read and written from
+    /// CloudKit callback queues, so guarded by a lock.
+    private let zoneLock = NSLock()
+    private var _zoneReady = false
+    private var zoneReady: Bool {
+        get { zoneLock.lock(); defer { zoneLock.unlock() }; return _zoneReady }
+        set { zoneLock.lock(); _zoneReady = newValue; zoneLock.unlock() }
+    }
+
+    /// Per-request and whole-operation timeouts. CloudKit's default resource
+    /// timeout is 7 days, which would outlive the Dart-side timeout and keep
+    /// working on files Dart has already given up on.
+    private let requestTimeout: TimeInterval = 60
+    private let metadataTimeout: TimeInterval = 120
+    private let transferTimeout: TimeInterval = 600
 
     // MARK: - Plugin Registration
 
@@ -74,6 +89,13 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                 return
             }
             fsWrite(id: id, name: name, sourcePath: sourcePath, result: result)
+
+        case "fsExists":
+            guard let id = args["id"] as? String else {
+                invalidArgs(call.method, result)
+                return
+            }
+            fsExists(id: id, result: result)
 
         case "fsDelete":
             guard let id = args["id"] as? String else {
@@ -150,103 +172,78 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
 
     // MARK: - Legacy records (read-only migration)
 
-    /// Full fetch: query all SeedlingEntry records (used on first sync)
+    /// Reads every legacy `SeedlingEntry` record (default zone). A missing
+    /// record type means there is no legacy data. Records that fail to load
+    /// make the whole call fail (Dart retries next pull) instead of being
+    /// dropped silently.
     private func fetchAllRecords(result: @escaping FlutterResult) {
-        let query = CKQuery(
-            recordType: recordType,
-            predicate: NSPredicate(value: true)
-        )
-        query.sortDescriptors = [NSSortDescriptor(key: "modifiedAt", ascending: false)]
-
-        var allRecords: [[String: Any]] = []
-
-        let operation = CKQueryOperation(query: query)
-        operation.resultsLimit = CKQueryOperation.maximumResults
-
-        operation.recordMatchedBlock = { [weak self] recordID, recordResult in
-            guard let self = self else { return }
-            switch recordResult {
-            case .success(let record):
-                allRecords.append(self.recordToDict(record))
-            case .failure(_):
-                break
-            }
-        }
-
-        operation.queryResultBlock = { [weak self] operationResult in
-            guard let self = self else { return }
-            switch operationResult {
-            case .success(let cursor):
-                if let cursor = cursor {
-                    // More results available, fetch them
-                    self.fetchRemainingRecords(
-                        cursor: cursor,
-                        accumulated: allRecords,
-                        result: result
-                    )
-                } else {
-                    // All records fetched
-                    DispatchQueue.main.async {
-                        result([
-                            "records": allRecords,
-                            "deletedUUIDs": [] as [String],
-                            "changeToken": NSNull()
-                        ] as [String: Any])
-                    }
-                }
-            case .failure(let error):
-                DispatchQueue.main.async {
-                    self.handleCKError(error, result: result)
-                }
-            }
-        }
-
-        privateDB.add(operation)
+        fetchLegacyPage(cursor: nil, accumulated: [], result: result)
     }
 
-    /// Continue fetching paginated query results
-    private func fetchRemainingRecords(
-        cursor: CKQueryOperation.Cursor,
+    private func fetchLegacyPage(
+        cursor: CKQueryOperation.Cursor?,
         accumulated: [[String: Any]],
         result: @escaping FlutterResult
     ) {
-        var allRecords = accumulated
-
-        let operation = CKQueryOperation(cursor: cursor)
+        let operation: CKQueryOperation
+        if let cursor = cursor {
+            operation = CKQueryOperation(cursor: cursor)
+        } else {
+            // No sort descriptor: it would need a sortable index in production.
+            let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+            operation = CKQueryOperation(query: query)
+        }
         operation.resultsLimit = CKQueryOperation.maximumResults
+        configure(operation, resource: metadataTimeout)
 
-        operation.recordMatchedBlock = { [weak self] recordID, recordResult in
+        let lock = NSLock()
+        var records = accumulated
+        var failures = 0
+
+        operation.recordMatchedBlock = { [weak self] _, recordResult in
             guard let self = self else { return }
+            lock.lock()
+            defer { lock.unlock() }
             switch recordResult {
             case .success(let record):
-                allRecords.append(self.recordToDict(record))
+                records.append(self.recordToDict(record))
             case .failure(_):
-                break
+                failures += 1
             }
         }
 
         operation.queryResultBlock = { [weak self] operationResult in
             guard let self = self else { return }
+            lock.lock()
+            let page = records
+            let failed = failures
+            lock.unlock()
             switch operationResult {
-            case .success(let nextCursor):
-                if let nextCursor = nextCursor {
-                    self.fetchRemainingRecords(
-                        cursor: nextCursor,
-                        accumulated: allRecords,
-                        result: result
-                    )
+            case .success(let next):
+                if failed > 0 {
+                    DispatchQueue.main.async {
+                        result(FlutterError(
+                            code: "LEGACY_PARTIAL",
+                            message: "\(failed) legacy record(s) could not be loaded.",
+                            details: nil
+                        ))
+                    }
+                } else if let next = next {
+                    self.fetchLegacyPage(cursor: next, accumulated: page, result: result)
                 } else {
                     DispatchQueue.main.async {
-                        result([
-                            "records": allRecords,
-                            "deletedUUIDs": [] as [String],
-                            "changeToken": NSNull()
-                        ] as [String: Any])
+                        result(["records": page] as [String: Any])
                     }
                 }
             case .failure(let error):
-                DispatchQueue.main.async {
-                    self.handleCKError(error, result: result)
+                let code = (error as? CKError)?.code
+                if code == .unknownItem || code == .invalidArguments {
+                    // Record type never existed in this container: no legacy data.
+                    DispatchQueue.main.async {
+                        result(["records": [] as [[String: Any]]] as [String: Any])
+                    }
+                } else {
+                    DispatchQueue.main.async { self.handleCKError(error, result: result) }
                 }
             }
         }
@@ -256,8 +253,46 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
 
     // MARK: - File store (custom zone)
 
-    /// Creates the `SeedlingSync` zone once per launch (saving an existing
-    /// zone is a no-op).
+    private func configure(_ operation: CKOperation, resource: TimeInterval) {
+        operation.configuration.timeoutIntervalForRequest = requestTimeout
+        operation.configuration.timeoutIntervalForResource = resource
+    }
+
+    private func fileRecordID(_ id: String) -> CKRecord.ID {
+        return CKRecord.ID(recordName: id, zoneID: zoneID)
+    }
+
+    private static let zoneGoneCodes: Set<CKError.Code> = [.zoneNotFound, .userDeletedZone]
+
+    /// The CKError code for `id`, looking inside partial failures.
+    private func errorCode(_ error: Error?, for id: CKRecord.ID? = nil) -> CKError.Code? {
+        guard let ckError = error as? CKError else { return nil }
+        if ckError.code == .partialFailure, let partial = ckError.partialErrorsByItemID {
+            if let id = id, let itemError = partial[id] as? CKError {
+                return itemError.code
+            }
+            if let first = partial.values.first as? CKError {
+                return first.code
+            }
+        }
+        return ckError.code
+    }
+
+    /// Forget that the zone exists when CloudKit says it is gone, so the next
+    /// call recreates it.
+    private func noteZoneError(_ error: Error?, for id: CKRecord.ID? = nil) {
+        if let code = errorCode(error, for: id), Self.zoneGoneCodes.contains(code) {
+            zoneReady = false
+        }
+    }
+
+    private func isMissing(_ error: Error?, for id: CKRecord.ID) -> Bool {
+        guard let code = errorCode(error, for: id) else { return false }
+        return code == .unknownItem || Self.zoneGoneCodes.contains(code)
+    }
+
+    /// Creates the `SeedlingSync` zone if needed (saving an existing zone is
+    /// a no-op).
     private func ensureZone(_ completion: @escaping (Error?) -> Void) {
         if zoneReady {
             completion(nil)
@@ -267,6 +302,7 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
             recordZonesToSave: [CKRecordZone(zoneID: zoneID)],
             recordZoneIDsToDelete: nil
         )
+        configure(operation, resource: metadataTimeout)
         operation.modifyRecordZonesCompletionBlock = { [weak self] _, _, error in
             if error == nil {
                 self?.zoneReady = true
@@ -276,21 +312,30 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         privateDB.add(operation)
     }
 
-    private func fileRecordID(_ id: String) -> CKRecord.ID {
-        return CKRecord.ID(recordName: id, zoneID: zoneID)
+    private func fileInfo(_ record: CKRecord) -> [String: Any]? {
+        guard let name = record["name"] as? String else { return nil }
+        var info: [String: Any] = ["id": record.recordID.recordName, "name": name]
+        if let created = record.creationDate {
+            info["createdAt"] = Int64(created.timeIntervalSince1970 * 1000)
+        }
+        return info
     }
 
-    /// Lists `[{id, name}]` for every file whose name starts with `prefix`.
-    /// A zone-changes fetch from no token returns every record in the zone,
-    /// so no queryable index is needed; only the `name` key is downloaded.
+    /// Lists `[{id, name, createdAt}]` for files whose name starts with
+    /// `prefix`. A zone-changes fetch from no token returns every record in
+    /// the zone without needing a queryable index; only `name` is
+    /// downloaded. Used for pulls and maintenance only - single files are
+    /// looked up by id (`fsExists`).
     private func fsList(prefix: String, result: @escaping FlutterResult) {
         ensureZone { [weak self] error in
             guard let self = self else { return }
             if let error = error {
+                self.noteZoneError(error)
                 DispatchQueue.main.async { self.handleCKError(error, result: result) }
                 return
             }
-            var files: [[String: String]] = []
+            let lock = NSLock()
+            var files: [[String: Any]] = []
             let configuration = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
             configuration.previousServerChangeToken = nil
             configuration.desiredKeys = ["name"]
@@ -298,75 +343,114 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                 recordZoneIDs: [self.zoneID],
                 configurationsByRecordZoneID: [self.zoneID: configuration]
             )
+            self.configure(operation, resource: self.metadataTimeout)
             operation.fetchAllChanges = true
             operation.recordChangedBlock = { record in
-                if record.recordType == self.fileRecordType,
-                   let name = record["name"] as? String,
-                   name.hasPrefix(prefix) {
-                    files.append(["id": record.recordID.recordName, "name": name])
-                }
+                guard record.recordType == self.fileRecordType,
+                      let info = self.fileInfo(record),
+                      let name = info["name"] as? String,
+                      name.hasPrefix(prefix) else { return }
+                lock.lock()
+                files.append(info)
+                lock.unlock()
             }
             operation.fetchRecordZoneChangesCompletionBlock = { error in
+                if let code = self.errorCode(error), Self.zoneGoneCodes.contains(code) {
+                    // Zone gone: nothing to list; it is recreated on write.
+                    self.zoneReady = false
+                    DispatchQueue.main.async { result([] as [[String: Any]]) }
+                    return
+                }
                 DispatchQueue.main.async {
                     if let error = error {
                         self.handleCKError(error, result: result)
                         return
                     }
-                    result(files)
+                    lock.lock()
+                    let snapshot = files
+                    lock.unlock()
+                    result(snapshot)
                 }
             }
             self.privateDB.add(operation)
         }
     }
 
-    /// Copies file `id` to `destinationPath`. Returns false if it doesn't exist.
+    /// `{id, name, createdAt}` for file `id`, or nil if it doesn't exist.
+    private func fsExists(id: String, result: @escaping FlutterResult) {
+        let recordID = fileRecordID(id)
+        let operation = CKFetchRecordsOperation(recordIDs: [recordID])
+        operation.desiredKeys = ["name"]
+        configure(operation, resource: metadataTimeout)
+        operation.fetchRecordsCompletionBlock = { [weak self] records, error in
+            guard let self = self else { return }
+            self.noteZoneError(error, for: recordID)
+            if let record = records?[recordID] {
+                let info = self.fileInfo(record)
+                DispatchQueue.main.async { result(info) }
+                return
+            }
+            if error == nil || self.isMissing(error, for: recordID) {
+                DispatchQueue.main.async { result(nil) }
+                return
+            }
+            DispatchQueue.main.async { self.handleCKError(error!, result: result) }
+        }
+        privateDB.add(operation)
+    }
+
+    /// Copies file `id` to `destinationPath`; returns false if it doesn't
+    /// exist. The asset is copied inside the completion block: CloudKit only
+    /// guarantees the downloaded file while the block runs, and copying on
+    /// the main thread would block the UI for large files.
     private func fsRead(id: String, destinationPath: String, result: @escaping FlutterResult) {
         guard isPathWithinAllowedSandbox(destinationPath) else {
             invalidArgs("fsRead", result)
             return
         }
-        privateDB.fetch(withRecordID: fileRecordID(id)) { record, error in
-            DispatchQueue.main.async {
-                if let ckError = error as? CKError,
-                   ckError.code == .unknownItem || ckError.code == .zoneNotFound {
-                    result(false)
-                    return
+        let recordID = fileRecordID(id)
+        let operation = CKFetchRecordsOperation(recordIDs: [recordID])
+        configure(operation, resource: transferTimeout)
+        operation.fetchRecordsCompletionBlock = { [weak self] records, error in
+            guard let self = self else { return }
+            self.noteZoneError(error, for: recordID)
+            guard let record = records?[recordID] else {
+                if error == nil || self.isMissing(error, for: recordID) {
+                    DispatchQueue.main.async { result(false) }
+                } else {
+                    DispatchQueue.main.async { self.handleCKError(error!, result: result) }
                 }
-                if let error = error {
-                    self.handleCKError(error, result: result)
-                    return
+                return
+            }
+            guard let asset = record["data"] as? CKAsset, let assetURL = asset.fileURL else {
+                DispatchQueue.main.async { result(false) }
+                return
+            }
+            let destination = URL(fileURLWithPath: destinationPath)
+            do {
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true,
+                    attributes: nil
+                )
+                if FileManager.default.fileExists(atPath: destinationPath) {
+                    try FileManager.default.removeItem(at: destination)
                 }
-                guard let asset = record?["data"] as? CKAsset,
-                      let assetURL = asset.fileURL else {
-                    result(false)
-                    return
-                }
-                let destination = URL(fileURLWithPath: destinationPath)
-                do {
-                    try FileManager.default.createDirectory(
-                        at: destination.deletingLastPathComponent(),
-                        withIntermediateDirectories: true,
-                        attributes: nil
-                    )
-                    if FileManager.default.fileExists(atPath: destinationPath) {
-                        try FileManager.default.removeItem(at: destination)
-                    }
-                    try FileManager.default.copyItem(at: assetURL, to: destination)
-                    result(true)
-                } catch {
-                    result(FlutterError(
-                        code: "COPY_ERROR",
-                        message: error.localizedDescription,
-                        details: nil
-                    ))
+                try FileManager.default.copyItem(at: assetURL, to: destination)
+                DispatchQueue.main.async { result(true) }
+            } catch {
+                let message = error.localizedDescription
+                DispatchQueue.main.async {
+                    result(FlutterError(code: "COPY_ERROR", message: message, details: nil))
                 }
             }
         }
+        privateDB.add(operation)
     }
 
     /// Creates or replaces file `id`. Each file has a single writer (a
-    /// device's own log) or is immutable (media, keyring), so overwriting
-    /// with `.allKeys` is safe and needs no change tag.
+    /// device's own log) or is written once per id (media, keyring), so
+    /// overwriting with `.allKeys` is safe and needs no change tag.
     private func fsWrite(id: String, name: String, sourcePath: String, result: @escaping FlutterResult) {
         guard isPathWithinAllowedSandbox(sourcePath),
               FileManager.default.fileExists(atPath: sourcePath) else {
@@ -376,15 +460,19 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         ensureZone { [weak self] error in
             guard let self = self else { return }
             if let error = error {
+                self.noteZoneError(error)
                 DispatchQueue.main.async { self.handleCKError(error, result: result) }
                 return
             }
-            let record = CKRecord(recordType: self.fileRecordType, recordID: self.fileRecordID(id))
+            let recordID = self.fileRecordID(id)
+            let record = CKRecord(recordType: self.fileRecordType, recordID: recordID)
             record["name"] = name as CKRecordValue
             record["data"] = CKAsset(fileURL: URL(fileURLWithPath: sourcePath))
             let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
             operation.savePolicy = .allKeys
+            self.configure(operation, resource: self.transferTimeout)
             operation.modifyRecordsCompletionBlock = { _, _, error in
+                self.noteZoneError(error, for: recordID)
                 DispatchQueue.main.async {
                     if let error = error {
                         self.handleCKError(error, result: result)
@@ -397,23 +485,24 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         }
     }
 
-    /// Deletes file `id`; a file that is already gone counts as deleted, so a
-    /// retried delete can never jam the push queue.
+    /// Deletes file `id`; a file (or zone) that is already gone counts as
+    /// deleted, so a retried delete can never jam the push queue.
     private func fsDelete(id: String, result: @escaping FlutterResult) {
-        privateDB.delete(withRecordID: fileRecordID(id)) { _, error in
+        let recordID = fileRecordID(id)
+        let operation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: [recordID])
+        configure(operation, resource: metadataTimeout)
+        operation.modifyRecordsCompletionBlock = { [weak self] _, _, error in
+            guard let self = self else { return }
+            self.noteZoneError(error, for: recordID)
             DispatchQueue.main.async {
-                if let ckError = error as? CKError,
-                   ckError.code == .unknownItem || ckError.code == .zoneNotFound {
+                if error == nil || self.isMissing(error, for: recordID) {
                     result(true)
                     return
                 }
-                if let error = error {
-                    self.handleCKError(error, result: result)
-                    return
-                }
-                result(true)
+                self.handleCKError(error!, result: result)
             }
         }
+        privateDB.add(operation)
     }
 
     // MARK: - Helpers
@@ -610,6 +699,14 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                     details: nil
                 ))
             }
+
+        case .serviceUnavailable:
+            let retryAfter = ckError.userInfo[CKErrorRetryAfterKey] as? Double
+            result(FlutterError(
+                code: "SERVICE_UNAVAILABLE",
+                message: "iCloud is temporarily unavailable.",
+                details: retryAfter != nil ? ["retryAfterSeconds": retryAfter!] : nil
+            ))
 
         case .changeTokenExpired:
             // The stored change token is no longer valid; Dart should do a full fetch

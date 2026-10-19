@@ -10,6 +10,7 @@ import 'sync_backend.dart';
 import 'sync_crypto_service.dart';
 import 'sync_media_crypto.dart';
 import 'sync_metadata.dart';
+import 'sync_quarantine.dart';
 import 'sync_models.dart';
 
 /// Core sync engine: coordinates push/pull between ObjectBox and cloud backend.
@@ -37,6 +38,13 @@ class SyncEngine {
   final SyncMediaCrypto _mediaCrypto;
   final Directory _tempDirectory;
   final int _maxConcurrentTransfers;
+  final SyncQuarantine _quarantine;
+
+  /// Remote housekeeping runs at most this often (after a full pull).
+  static const maintenanceInterval = Duration(days: 1);
+
+  /// Another device's log idle this long is folded into ours and removed.
+  static const idleLogAge = Duration(days: 180);
 
   /// The running background media download pass, if any.
   Future<void>? _mediaDownloads;
@@ -84,7 +92,9 @@ class SyncEngine {
     int maxConcurrentTransfers = 2,
     this.callTimeout = const Duration(minutes: 2),
     this.transferTimeout = const Duration(minutes: 10),
-  }) : _db = database,
+    SyncQuarantine? quarantine,
+  }) : _quarantine = quarantine ?? SyncQuarantine(legacyMetadata: metadata),
+       _db = database,
        _backend = backend,
        _metadata = metadata,
        _crypto = cryptoService,
@@ -109,6 +119,9 @@ class SyncEngine {
     }
 
     try {
+      // Load the set-aside records (local file) so Settings can show their
+      // count right away, before any network work.
+      await _quarantine.records();
       final available = await _backend.isAvailable().timeout(callTimeout);
       if (!available) {
         _setState(SyncState.error);
@@ -139,14 +152,20 @@ class SyncEngine {
     final current = await _crypto.keyFingerprint();
     if (_keyVerified && current == _verifiedFingerprint) return true;
     _keyVerified = false;
-    final keyring = await _backend.readKeyring().timeout(callTimeout);
-    if (keyring != null && await _crypto.hasPassphrase()) {
-      if (!await _crypto.matchesKeyring(keyring)) {
-        const mismatch = SyncKeySaltMismatchException();
-        await _metadata.setLastError(mismatch.message);
-        _setState(SyncState.error);
-        return false;
+    if (await _crypto.hasPassphrase()) {
+      var keyring = await _backend.readKeyring().timeout(callTimeout);
+      if (keyring == null || keyring['check'] == null) {
+        // Never push without a verifiable keyring. A per-user-salt key can
+        // restore it (or add the missing check, same salt only); anything
+        // else needs the passphrase re-entered.
+        final own = await _crypto.keyringForCurrentKey();
+        if (own == null ||
+            (keyring != null && keyring['kdfSalt'] != own['kdfSalt'])) {
+          return _keyMismatch();
+        }
+        keyring = await _backend.publishKeyring(own).timeout(callTimeout);
       }
+      if (!await _crypto.matchesKeyring(keyring)) return _keyMismatch();
     }
     if (current != null) {
       final previous = _metadata.pushedKeyFingerprint;
@@ -160,6 +179,13 @@ class SyncEngine {
     _verifiedFingerprint = current;
     _keyVerified = true;
     return true;
+  }
+
+  Future<bool> _keyMismatch() async {
+    const mismatch = SyncKeySaltMismatchException();
+    await _metadata.setLastError(mismatch.message);
+    _setState(SyncState.error);
+    return false;
   }
 
   /// Enable or disable sync
@@ -382,9 +408,11 @@ class SyncEngine {
           .timeout(callTimeout);
 
       if (fetchResult == null) {
-        _lastPullFailed = false;
-        _setState(SyncState.idle);
-        return SyncResult.success();
+        // Not reachable (e.g. account disconnected): not a successful pull.
+        _lastPullFailed = true;
+        await _metadata.setLastError('Sync account is not connected.');
+        _setState(SyncState.error);
+        return SyncResult.error('Sync account is not connected');
       }
 
       _setState(SyncState.merging);
@@ -393,50 +421,57 @@ class SyncEngine {
       var conflicts = 0;
       var ignored = 0;
 
-      // A fetch can carry several versions of one record (e.g. from several
-      // devices); only the newest matters.
-      final newest = <String, Map<String, dynamic>>{};
-      // Previously quarantined records are retried first (the key may have
-      // been fixed since); fresher fetched versions replace them.
+      // Candidates per record: previously quarantined copies (the key may be
+      // fixed now) plus everything fetched. The winner is the newest version
+      // that decrypts *and* verifies - an unreadable copy never shadows a
+      // readable one, whatever its modifiedAt claims.
+      final candidates = <String, List<Map<String, dynamic>>>{};
       for (final record in [
-        ..._metadata.quarantinedRecords,
+        ...await _quarantine.records(),
         ...fetchResult.records,
       ]) {
         final syncUUID = record['syncUUID'] as String?;
         if (!_isValidUuid(syncUUID)) continue;
-        final existing = newest[syncUUID!];
-        if (existing == null ||
-            _modifiedAt(record).isAfter(_modifiedAt(existing))) {
-          newest[syncUUID] = record;
-        }
+        (candidates[syncUUID!] ??= []).add(record);
       }
 
       final toSave = <Entry>[];
       final quarantined = <Map<String, dynamic>>[];
-      for (final record in newest.values) {
-        final Map<String, dynamic> decrypted;
-        try {
-          decrypted = await _crypto.decryptRecordFields(record);
-        } on SyncUnversionedRecordException {
-          ignored++;
-          continue;
-        } on SyncPassphraseMissingException catch (e) {
-          // No usable key at all (as opposed to one bad record): stop, keep
-          // the token, and don't let a push follow.
-          if (e is SyncPassphraseReentryRequiredException ||
-              e is SyncKeySaltMismatchException) {
-            quarantined.add(record);
-            continue;
+      for (final MapEntry(key: syncUUID, value: versions)
+          in candidates.entries) {
+        versions.sort((a, b) => _modifiedAt(b).compareTo(_modifiedAt(a)));
+        Map<String, dynamic>? decrypted;
+        final failed = <Map<String, dynamic>>[];
+        for (final record in versions) {
+          try {
+            decrypted = await _crypto.decryptRecordFields(record);
+            break;
+          } on SyncUnversionedRecordException {
+            ignored++;
+          } on SyncPassphraseMissingException catch (e) {
+            // No usable key at all (as opposed to one bad record): stop,
+            // keep the token, and don't let a push follow.
+            if (e is! SyncPassphraseReentryRequiredException &&
+                e is! SyncKeySaltMismatchException) {
+              rethrow;
+            }
+            failed.add(record);
+          } on SyncCryptoException {
+            // Undecryptable or forged: try older versions, set this aside.
+            failed.add(record);
           }
-          rethrow;
-        } on SyncCryptoException {
-          // Undecryptable or forged: set aside, keep going, keep the token
-          // moving so one record can't wedge sync.
-          quarantined.add(record);
-          continue;
         }
+        // Keep an unreadable copy only while nothing readable is at least as
+        // new; then it is superseded and dropped.
+        final winnerAt = decrypted == null ? null : _modifiedAt(decrypted);
+        quarantined.addAll(
+          failed.where(
+            (r) => winnerAt == null || _modifiedAt(r).isAfter(winnerAt),
+          ),
+        );
+        if (decrypted == null) continue;
 
-        final local = _db.getEntryBySyncUUID(record['syncUUID'] as String);
+        final local = _db.getEntryBySyncUUID(syncUUID);
         if (local == null) {
           toSave.add(_decryptedToEntry(decrypted));
           pulled++;
@@ -479,7 +514,7 @@ class SyncEngine {
       if (fetchResult.newChangeToken != null) {
         await _metadata.setChangeToken(fetchResult.newChangeToken);
       }
-      await _metadata.setQuarantinedRecords(quarantined);
+      await _quarantine.replace(quarantined);
       await _metadata.setLastSyncTime(DateTime.now());
       // Set-aside records are not an error: Settings shows their count
       // (syncQuarantineCountProvider) with a calm explanation.
@@ -489,6 +524,7 @@ class SyncEngine {
       _setState(SyncState.idle);
       // Files arrive in the background; records show a placeholder until then.
       unawaited(downloadPendingMedia());
+      unawaited(_maybeMaintain());
       return SyncResult.success(
         pulled: pulled,
         conflicts: conflicts,
@@ -625,6 +661,55 @@ class SyncEngine {
 
   bool _isValidUuid(String? value) => SyncId.isValid(value);
 
+  /// Number of records currently set aside as undecryptable.
+  int get quarantineCount => _quarantine.count;
+
+  Future<void>? _maintenance;
+
+  /// Remote housekeeping after a successful pull, at most daily:
+  /// - deletes media blobs no record references (old ones only);
+  /// - retires other devices' logs idle for [idleLogAge]: their data is
+  ///   re-uploaded into this device's log first, then their files go.
+  Future<void> _maybeMaintain() {
+    return _maintenance ??= _maintain().whenComplete(() => _maintenance = null);
+  }
+
+  Future<void> _maintain() async {
+    try {
+      final last = _metadata.lastMaintenanceAt;
+      final now = DateTime.now();
+      if (last != null && now.difference(last) < maintenanceInterval) return;
+      if (!_allowed || _quarantine.count > 0) return;
+
+      final referenced = <String>{
+        ..._db.getAllMediaAssetIds(),
+        ..._metadata.pendingMediaUploads.values,
+      };
+      await _backend
+          .deleteOrphanMediaBlobs(referenced)
+          .timeout(transferTimeout);
+
+      final idle = await _backend
+          .idleDeviceIds(idleLogAge)
+          .timeout(callTimeout);
+      if (idle.isNotEmpty) {
+        // Everything we know (which includes their records) goes into our
+        // own log before theirs is removed.
+        await _metadata.setFormatVersion(0);
+        await _queueFullUploadIfNeeded(now);
+        final pushed = await push();
+        if (pushed.success && _metadata.pendingChanges.isEmpty) {
+          await _backend.deleteDeviceLogs(idle).timeout(callTimeout);
+        } else {
+          return; // try again next time
+        }
+      }
+      await _metadata.setLastMaintenanceAt(now);
+    } catch (e) {
+      developer.log('Sync housekeeping failed', name: 'SyncEngine', error: e);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Media
   // ---------------------------------------------------------------------------
@@ -674,19 +759,37 @@ class SyncEngine {
       developer.log('Skipping media over 50 MB', name: 'SyncEngine');
       return false;
     }
-    final assetId = SyncId.generate();
+    // An interrupted upload left its asset id reserved: reuse it and
+    // replace whatever copy may exist, so retries never leave orphans.
+    final reserved = _metadata.pendingMediaUploads[entry.syncUUID!];
+    final assetId = reserved ?? SyncId.generate();
+    if (reserved == null) {
+      await _metadata.setPendingMediaUpload(entry.syncUUID!, assetId);
+    }
     final key = _mediaCrypto.newFileKey();
-    final sealed = File('${_tempDirectory.path}/seedling_up_$assetId.enc');
+    final sealed = File(
+      '${_tempDirectory.path}/seedling_up_${assetId}_'
+      '${DateTime.now().microsecondsSinceEpoch}.enc',
+    );
+    var timedOut = false;
     try {
       await _mediaCrypto.encryptFile(file, sealed, key);
-      await _backend.uploadMediaBlob(assetId, sealed).timeout(transferTimeout);
+      await _backend
+          .uploadMediaBlob(assetId, sealed, replace: reserved != null)
+          .timeout(transferTimeout);
     } on UnsupportedError {
       return false;
+    } on TimeoutException {
+      timedOut = true;
+      rethrow;
     } finally {
-      if (await sealed.exists()) await sealed.delete();
+      // After a timeout the native upload may still be reading the file;
+      // leave it to the OS temp cleanup rather than pull it out from under.
+      if (!timedOut && await sealed.exists()) await sealed.delete();
     }
     entry.mediaAssetId = assetId;
     entry.mediaKey = base64Encode(key);
+    await _metadata.setPendingMediaUpload(entry.syncUUID!, null);
     _updateMediaFields(entry.syncUUID!, (fresh) {
       fresh
         ..mediaAssetId = assetId
