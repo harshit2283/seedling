@@ -1,8 +1,8 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import '../error_reporter.dart';
 
 /// Service for compressing media files
 class MediaCompressionService {
@@ -39,8 +39,12 @@ class MediaCompressionService {
 
       // Return original if compression fails
       return file;
-    } catch (e) {
-      debugPrint('MediaCompressionService.compressImage failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'MediaCompressionService.compressImage',
+      );
       // Return original if any error occurs
       return file;
     }
@@ -59,8 +63,12 @@ class MediaCompressionService {
       }
 
       return size;
-    } catch (e) {
-      debugPrint('MediaCompressionService.estimateCompressedSize failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'MediaCompressionService.estimateCompressedSize',
+      );
       // Return original size estimate
       return await file.length();
     }

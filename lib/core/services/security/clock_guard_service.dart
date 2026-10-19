@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'secure_storage.dart';
+import '../error_reporter.dart';
 
 /// Tracks the maximum observed wall-clock time, persisted in secure storage,
 /// so callers can detect device clock rollback.
@@ -27,8 +27,12 @@ class ClockGuardService {
       if (raw != null && raw.isNotEmpty) {
         _cachedMax = DateTime.tryParse(raw)?.toUtc();
       }
-    } catch (e) {
-      debugPrint('ClockGuardService.init read failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'ClockGuardService.init',
+      );
     }
     _initialized = true;
     await trustedNow();
@@ -43,8 +47,12 @@ class ClockGuardService {
       _cachedMax = now;
       try {
         await _storage.write(key: storageKey, value: now.toIso8601String());
-      } catch (e) {
-        debugPrint('ClockGuardService.trustedNow write failed: $e');
+      } catch (e, st) {
+        const ErrorReporter().report(
+          e,
+          stack: st,
+          context: 'ClockGuardService.trustedNow',
+        );
       }
       return now;
     }

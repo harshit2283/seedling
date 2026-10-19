@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'app/router.dart';
+import 'core/services/diagnostics_log.dart';
+import 'core/services/error_reporter.dart';
 import 'core/services/media/file_storage_service.dart';
 import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
@@ -20,28 +21,31 @@ import 'core/services/widget/widget_data_service.dart';
 import 'data/datasources/local/objectbox_database.dart';
 
 void main() async {
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    debugPrint('FlutterError: ${details.exceptionAsString()}');
-  };
-
-  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-    debugPrint('PlatformDispatcherError: $error');
-    return true;
-  };
+  // All uncaught errors go to the ErrorReporter: printed in debug, and kept
+  // (redacted) in the local diagnostics log in every build. Nothing is sent
+  // off the device.
+  const reporter = ErrorReporter();
+  installGlobalErrorHandlers(reporter);
 
   await runZonedGuarded(
     () async {
       await _runApp();
     },
     (error, stackTrace) {
-      debugPrint('UncaughtZoneError: $error');
+      reporter.report(error, stack: stackTrace, context: 'Zone');
     },
   );
 }
 
 Future<void> _runApp() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Local, rotating error log (Settings > About > Share diagnostics).
+  try {
+    DiagnosticsLog.instance = await DiagnosticsLog.open();
+  } catch (_) {
+    // Diagnostics are optional; the app runs without them.
+  }
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([

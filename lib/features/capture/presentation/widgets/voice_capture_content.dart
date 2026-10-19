@@ -124,7 +124,11 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     if (_voicePath != null && _playbackService.currentPath == _voicePath) {
       unawaited(
         _playbackService.stop().catchError((error, stackTrace) {
-          debugPrint('Failed to stop voice playback during dispose: $error');
+          const ErrorReporter().report(
+            error as Object,
+            stack: stackTrace as StackTrace?,
+            context: 'VoiceCapture.disposeStop',
+          );
         }),
       );
     }
@@ -601,8 +605,12 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     if (_voicePath != null && _playbackService.currentPath == _voicePath) {
       try {
         await _playbackService.stop();
-      } catch (error) {
-        debugPrint('Failed to stop voice playback before delete: $error');
+      } catch (error, st) {
+        const ErrorReporter().report(
+          error,
+          stack: st,
+          context: 'VoiceCapture.stopBeforeDelete',
+        );
         if (mounted) {
           _showError('Could not stop voice playback');
         }
@@ -628,8 +636,12 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     HapticFeedback.selectionClick();
     try {
       await _playbackService.togglePlayPause(voicePath);
-    } catch (error) {
-      debugPrint('Failed to toggle voice playback: $error');
+    } catch (error, st) {
+      const ErrorReporter().report(
+        error,
+        stack: st,
+        context: 'VoiceCapture.togglePlayback',
+      );
       if (mounted) {
         _showError('Could not play this voice memo');
       }
