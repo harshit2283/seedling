@@ -42,15 +42,16 @@ abstract class SyncBackend {
     }
   }
 
-  /// The per-user key-derivation salt (base64) kept in the user's remote
-  /// sync space, or null if none has been created yet.
-  Future<String?> readKdfSalt() async => null;
+  /// The account keyring kept in the user's own sync space:
+  /// `{kdfSalt: base64, check: key-check value}`, or null if none exists yet.
+  Future<Map<String, dynamic>?> readKeyring() async => null;
 
-  /// Stores [salt] as the per-user key salt unless one already exists, and
-  /// returns the salt in effect afterwards (the existing one wins). Every
-  /// device must end up with the same answer.
-  Future<String> publishKdfSalt(String salt) async =>
-      throw UnsupportedError('This sync backend has no keyring');
+  /// Stores [keyring] unless one already exists, and returns the keyring in
+  /// effect afterwards (an existing one wins). Every device must end up with
+  /// the same answer.
+  Future<Map<String, dynamic>> publishKeyring(
+    Map<String, dynamic> keyring,
+  ) async => throw UnsupportedError('This sync backend has no keyring');
 
   /// Fetch remote changes since [changeToken].
   Future<SyncFetchResult?> fetchChanges({String? changeToken});

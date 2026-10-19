@@ -179,6 +179,16 @@ class DriveChangeToken {
 typedef DriveCorruptionBackup =
     Future<String?> Function(String operation, List<int> bytes);
 
+/// Reads data left by an older sync layout. Given the marker stored in the
+/// change token last time (null = never), it adds records/deletions and
+/// returns the new marker (null = nothing read, try again next time).
+typedef SyncLegacyReader =
+    Future<int?> Function(
+      int? seenMarker,
+      List<Map<String, dynamic>> records,
+      Set<String> deletedUUIDs,
+    );
+
 /// The Drive sync protocol over a [DriveFileStore].
 class DriveSyncLogStore {
   static const logPrefix = 'seedling_sync_log_v2_';
@@ -190,16 +200,25 @@ class DriveSyncLogStore {
   final DriveFileStore _files;
   final String _deviceId;
   final DriveCorruptionBackup? _backup;
+  final SyncLegacyReader? _legacy;
+  final Duration _keyringSettle;
 
   String? _ownLogId;
   Future<void> _writeTail = Future<void>.value();
 
+  /// [legacy] defaults to reading Drive's v1 shared document.
+  /// [keyringSettle] is how long to wait between keyring re-reads when
+  /// confirming that a freshly published keyring is the one everyone sees.
   DriveSyncLogStore(
     this._files, {
     required String deviceId,
     DriveCorruptionBackup? backup,
+    SyncLegacyReader? legacy,
+    Duration keyringSettle = const Duration(seconds: 2),
   }) : _deviceId = deviceId,
-       _backup = backup;
+       _backup = backup,
+       _legacy = legacy,
+       _keyringSettle = keyringSettle;
 
   String get ownLogName => '$logPrefix$_deviceId.json';
 
@@ -305,7 +324,7 @@ class DriveSyncLogStore {
       seen[file.name] = log.seq;
     }
 
-    final legacyUpdatedAt = await _readLegacy(
+    final legacyUpdatedAt = await (_legacy ?? _readLegacy)(
       token.legacyUpdatedAt,
       records,
       deletedUUIDs,
@@ -365,40 +384,60 @@ class DriveSyncLogStore {
     }
   }
 
-  /// The per-user key salt file. Several can exist if two devices enabled
-  /// sync at the same instant (Drive has no create-if-absent); every reader
-  /// picks the same one (smallest salt), so all devices agree.
+  /// Keyring files: `{kdfSalt, check}` - the account's random key salt and
+  /// an encrypted key-check value that proves a passphrase is right. Several
+  /// can exist if devices enabled sync at the same moment (no create-if-
+  /// absent on Drive); every reader picks the same one, the smallest salt,
+  /// so all devices agree.
   static const keyringPrefix = 'seedling_sync_keyring_v1';
 
-  Future<String?> readKdfSalt() async {
-    final salts = <String>[];
+  /// The keyring every device uses, or null if none exists yet.
+  Future<Map<String, dynamic>?> readKeyring() async {
+    final candidates = <Map<String, dynamic>>[];
     for (final file in await _files.listByPrefix(keyringPrefix)) {
       final bytes = await _files.read(file.id);
       if (bytes == null || bytes.isEmpty) continue;
       try {
         final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
         final salt = json['kdfSalt'] as String?;
-        if (salt != null && base64Decode(salt).length >= 16) salts.add(salt);
+        if (salt != null && base64Decode(salt).length >= 16) {
+          candidates.add(json);
+        }
       } catch (_) {
         continue;
       }
     }
-    if (salts.isEmpty) return null;
-    salts.sort();
-    return salts.first;
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) {
+      final bySalt = (a['kdfSalt'] as String).compareTo(b['kdfSalt'] as String);
+      if (bySalt != 0) return bySalt;
+      // Same salt twice: prefer the one carrying a key check.
+      return (a['check'] == null ? 1 : 0) - (b['check'] == null ? 1 : 0);
+    });
+    return candidates.first;
   }
 
-  Future<String> publishKdfSalt(String salt) async {
-    final existing = await readKdfSalt();
+  /// Publishes [keyring] unless one exists, then returns the keyring in
+  /// effect. After writing, it re-reads until two reads agree (bounded), so
+  /// a device that raced another settles on the winner *before* it derives
+  /// a key and pushes anything.
+  Future<Map<String, dynamic>> publishKeyring(
+    Map<String, dynamic> keyring,
+  ) async {
+    final existing = await readKeyring();
     if (existing != null) return existing;
     await _files.create(
       '${keyringPrefix}_$_deviceId.json',
-      utf8.encode(
-        jsonEncode({'v': 1, 'kdf': 'pbkdf2-sha256', 'kdfSalt': salt}),
-      ),
+      utf8.encode(jsonEncode({'v': 1, 'kdf': 'pbkdf2-sha256', ...keyring})),
     );
-    // Re-read: if another device raced us, both settle on the same file.
-    return (await readKdfSalt())!;
+    var current = (await readKeyring())!;
+    for (var i = 0; i < 3; i++) {
+      await Future<void>.delayed(_keyringSettle);
+      final again = (await readKeyring())!;
+      if (again['kdfSalt'] == current['kdfSalt']) return again;
+      current = again;
+    }
+    return current;
   }
 
   /// Encrypted media blobs, one appData file per asset id.

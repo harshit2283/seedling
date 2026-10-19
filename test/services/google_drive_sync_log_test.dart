@@ -210,22 +210,30 @@ void main() {
     }
   });
 
-  test('key salt: first publisher wins and racing devices agree', () async {
-    expect(await a.readKdfSalt(), isNull);
-    final saltA = base64Encode(List<int>.filled(32, 9));
-    final saltB = base64Encode(List<int>.filled(32, 3));
+  test('keyring: first publisher wins and racing devices agree', () async {
+    expect(await a.readKeyring(), isNull);
+    final keyA = {
+      'kdfSalt': base64Encode(List<int>.filled(32, 9)),
+      'check': 'a',
+    };
+    final keyB = {
+      'kdfSalt': base64Encode(List<int>.filled(32, 3)),
+      'check': 'b',
+    };
     final results = await Future.wait([
-      a.publishKdfSalt(saltA),
-      b.publishKdfSalt(saltB),
+      a.publishKeyring(keyA),
+      b.publishKeyring(keyB),
     ]);
-    // Both devices, and any later reader, settle on one salt.
-    expect(results[0], results[1]);
-    expect(await c.readKdfSalt(), results[0]);
+    // Both devices, and any later reader, settle on one keyring before
+    // anything is derived or pushed.
+    expect(results[0]['kdfSalt'], results[1]['kdfSalt']);
+    expect(results[0]['check'], results[1]['check']);
+    expect((await c.readKeyring())!['kdfSalt'], results[0]['kdfSalt']);
     // Publishing again never replaces it.
-    expect(
-      await c.publishKdfSalt(base64Encode(List<int>.filled(32, 1))),
-      results[0],
-    );
+    final again = await c.publishKeyring({
+      'kdfSalt': base64Encode(List<int>.filled(32, 1)),
+    });
+    expect(again['kdfSalt'], results[0]['kdfSalt']);
   });
 
   test('an unreadable log from one device does not block the others', () async {

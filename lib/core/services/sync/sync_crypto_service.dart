@@ -52,9 +52,25 @@ class SyncKeySaltMismatchException extends SyncPassphraseMissingException {
       );
 }
 
-/// Reads the per-user key salt from the remote sync space, creating it on
-/// first use. Must return the same salt on every device of the account.
-typedef SyncKdfSaltProvider = Future<List<int>> Function();
+/// Thrown when the passphrase doesn't match the account's key-check value:
+/// the key it produces could not read anything other devices sync.
+class SyncWrongPassphraseException extends SyncPayloadCryptoException {
+  const SyncWrongPassphraseException()
+    : super(
+        'That passphrase doesn\'t match the one your other devices use. '
+        'Check it and try again.',
+      );
+}
+
+/// The account keyring in the user's own sync space:
+/// `{kdfSalt: base64 random salt, check: encrypted key-check value}`.
+abstract class SyncKeyring {
+  /// The keyring every device uses, or null if none exists yet.
+  Future<Map<String, dynamic>?> read();
+
+  /// Publishes [keyring] unless one exists; returns the keyring in effect.
+  Future<Map<String, dynamic>> publish(Map<String, dynamic> keyring);
+}
 
 const _missingPassphraseText =
     'Sync passphrase is not set. Add it in Settings > Privacy > Sync passphrase.';
@@ -81,10 +97,11 @@ class SyncPassphraseReentryRequiredException
 ///   HKDF(master, record salt). HKDF is cheap, so pulling many records no
 ///   longer re-runs PBKDF2 per record; derived keys are also cached per salt.
 /// - v4: the PBKDF2 salt is random per user. It lives in the user's own
-///   remote sync space (a small keyring next to the synced records, created
-///   on first enable by [SyncKdfSaltProvider]) and every device reads it
-///   before deriving, so all devices get the same master key while cracking
-///   work can't be reused across Seedling users.
+///   remote sync space (a small [SyncKeyring] next to the synced records,
+///   created on first enable together with an encrypted key-check value) and
+///   every device reads it before deriving, so all devices get the same
+///   master key, a wrong passphrase is caught up front, and cracking work
+///   can't be reused across Seedling users.
 /// - v3 (pre-release only): the salt was a fixed app-wide value. Keys stored
 ///   that way keep working; the next [setPassphrase] moves to v4 and keeps
 ///   the v3 key alongside so v3 records stay readable.
@@ -112,6 +129,17 @@ class SyncCryptoService {
   static const _kdfIterations = 210000;
   static const _masterKdfSalt = 'seedling.sync.master-kdf.v3';
   static const _recordKeyInfo = 'seedling.sync.record-key.v3';
+  static const _keyCheckInfo = 'seedling.sync.key-check.v1';
+  static const _keyCheckPlaintext = 'seedling-key-check-v1';
+  static const _recordMacInfo = 'seedling.sync.record-mac.v1';
+
+  /// Record layout written by this build: field ciphertexts are bound to
+  /// their record and field name (AES-GCM AAD) and the whole record,
+  /// plaintext metadata included, carries an HMAC-SHA256 (`syncMac`).
+  /// Records without it (older builds) are still read.
+  static const int recordFormat = 2;
+  static const _formatField = 'syncRecordFormat';
+  static const _macField = 'syncMac';
 
   static const _encryptedFields = <String>[
     'text',
@@ -130,7 +158,8 @@ class SyncCryptoService {
   final AesGcm _aesGcm;
   final Pbkdf2 _pbkdf2;
   final Hkdf _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
-  final SyncKdfSaltProvider? _kdfSaltProvider;
+  final Hmac _hmac = Hmac.sha256();
+  final SyncKeyring? _keyring;
 
   /// Current master key and the record version it encrypts as (4 with a
   /// per-user salt; 3 for a pre-release fixed-salt key).
@@ -151,8 +180,8 @@ class SyncCryptoService {
     FlutterSecureStorage? secureStorage,
     AesGcm? aesGcm,
     Pbkdf2? pbkdf2,
-    SyncKdfSaltProvider? kdfSaltProvider,
-  }) : _kdfSaltProvider = kdfSaltProvider,
+    SyncKeyring? keyring,
+  }) : _keyring = keyring,
        _secureStorage = secureStorage ?? createSeedlingSecureStorage(),
        _aesGcm = aesGcm ?? AesGcm.with256bits(),
        _pbkdf2 =
@@ -171,6 +200,13 @@ class SyncCryptoService {
     return legacy != null && legacy.isNotEmpty;
   }
 
+  /// Derives and stores the sync key for [passphrase].
+  ///
+  /// With a keyring, the account's random salt is read (or created, with a
+  /// key-check value) first; a passphrase that fails the key check is
+  /// rejected with [SyncWrongPassphraseException] and nothing is stored.
+  /// The fixed-salt (v3, pre-release) key is always derived too, so even a
+  /// brand-new device can read v3 records.
   Future<void> setPassphrase(String passphrase) async {
     final normalized = passphrase.trim();
     if (normalized.length < 8) {
@@ -178,35 +214,27 @@ class SyncCryptoService {
         'Passphrase must be at least 8 characters.',
       );
     }
-    // Keep v3 (fixed-salt) records readable after moving to a per-user salt.
-    Uint8List? fixedSaltKey;
-    try {
-      await _loadMasterKey();
-      fixedSaltKey = _masterVersion == _fixedSaltVersion
-          ? _masterKey
-          : _fixedSaltKey;
-    } on SyncPassphraseMissingException {
-      fixedSaltKey = null;
-    }
-
-    final provider = _kdfSaltProvider;
+    final fixedSaltKey = await _pbkdf2Bytes(
+      normalized,
+      salt: utf8.encode(_masterKdfSalt),
+    );
+    final Uint8List master;
     final List<int> kdfSalt;
     final int version;
-    if (provider != null) {
-      kdfSalt = await provider();
-      version = syncEncryptionVersion;
-    } else {
+    if (_keyring == null) {
       // No remote keyring available (tests, tooling): app-wide salt.
+      master = fixedSaltKey;
       kdfSalt = utf8.encode(_masterKdfSalt);
       version = _fixedSaltVersion;
+    } else {
+      (master, kdfSalt) = await _keyFromKeyring(normalized, _keyring);
+      version = syncEncryptionVersion;
     }
-    final master = await _pbkdf2Bytes(normalized, salt: kdfSalt);
-    if (version == _fixedSaltVersion) fixedSaltKey = null;
     await _storeMasterKey(
       master,
       version: version,
       kdfSalt: kdfSalt,
-      fixedSaltKey: fixedSaltKey,
+      fixedSaltKey: version == _fixedSaltVersion ? null : fixedSaltKey,
     );
     await _secureStorage.write(key: _legacyPassphraseStorageId, value: null);
     _recordKeyCache.clear();
@@ -215,6 +243,94 @@ class SyncCryptoService {
     _masterKdfSaltBytes = kdfSalt;
     _fixedSaltKey = fixedSaltKey;
     _sessionPassphrase = normalized;
+  }
+
+  /// Reads (or creates) the keyring and returns the master key and salt for
+  /// [passphrase], verifying the key check when there is one.
+  Future<(Uint8List, List<int>)> _keyFromKeyring(
+    String passphrase,
+    SyncKeyring keyring,
+  ) async {
+    var remote = await keyring.read();
+    List<int> salt;
+    Uint8List master;
+    if (remote == null) {
+      salt = _randomBytes(32);
+      master = await _pbkdf2Bytes(passphrase, salt: salt);
+      remote = await keyring.publish({
+        'kdfSalt': base64Encode(salt),
+        'check': await _keyCheck(master),
+      });
+      final winner = base64Decode(remote['kdfSalt'] as String);
+      if (!_sameBytes(winner, salt)) {
+        // Another device published first; use its salt.
+        salt = winner;
+        master = await _pbkdf2Bytes(passphrase, salt: salt);
+      }
+    } else {
+      salt = base64Decode(remote['kdfSalt'] as String);
+      master = await _pbkdf2Bytes(passphrase, salt: salt);
+    }
+    final check = remote['check'];
+    if (check is String && !await _verifyKeyCheck(master, check)) {
+      throw const SyncWrongPassphraseException();
+    }
+    return (master, salt);
+  }
+
+  Future<Uint8List> _keyCheckKey(Uint8List master) async {
+    final derived = await _hkdf.deriveKey(
+      secretKey: SecretKey(master),
+      nonce: utf8.encode('seedling.key-check'),
+      info: utf8.encode(_keyCheckInfo),
+    );
+    return Uint8List.fromList(await derived.extractBytes());
+  }
+
+  Future<String> _keyCheck(Uint8List master) async =>
+      _encryptValue(_keyCheckPlaintext, await _keyCheckKey(master));
+
+  Future<bool> _verifyKeyCheck(Uint8List master, String check) async {
+    try {
+      return await _decryptValue(check, await _keyCheckKey(master)) ==
+          _keyCheckPlaintext;
+    } on SyncPayloadCryptoException {
+      return false;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// Whether this device's key is the account's key: same salt as
+  /// [keyring], and (when the keyring carries one) the key check verifies.
+  Future<bool> matchesKeyring(Map<String, dynamic> keyring) async {
+    final salt = keyring['kdfSalt'];
+    if (salt is! String) return false;
+    if (!await usesKdfSalt(base64Decode(salt))) return false;
+    final check = keyring['check'];
+    if (check is! String) return true;
+    return _verifyKeyCheck(_masterKey!, check);
+  }
+
+  /// Identifies the current key (not secret): changes whenever the key is
+  /// re-derived with a different salt. Null when no key is set up.
+  Future<String?> keyFingerprint() async {
+    try {
+      await _loadMasterKey();
+    } on SyncPassphraseMissingException {
+      return null;
+    }
+    final salt = _masterKdfSaltBytes;
+    return '$_masterVersion:${salt == null ? '' : base64Encode(salt)}';
+  }
+
+  static bool _sameBytes(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    var diff = 0;
+    for (var i = 0; i < a.length; i++) {
+      diff |= a[i] ^ b[i];
+    }
+    return diff == 0;
   }
 
   /// Whether this device's key was derived with [kdfSalt] (the salt in the
@@ -226,11 +342,7 @@ class SyncCryptoService {
       return false;
     }
     final own = _masterKdfSaltBytes;
-    if (own == null || own.length != kdfSalt.length) return false;
-    for (var i = 0; i < own.length; i++) {
-      if (own[i] != kdfSalt[i]) return false;
-    }
-    return true;
+    return own != null && _sameBytes(own, kdfSalt);
   }
 
   Future<SyncEncryptionSession> createEncryptionSession() async {
@@ -253,16 +365,53 @@ class SyncCryptoService {
     SyncEncryptionSession? session,
   }) async {
     final activeSession = session ?? await createEncryptionSession();
-    final output = Map<String, dynamic>.from(record);
+    final output = Map<String, dynamic>.from(record)
+      ..remove(_macField)
+      ..['syncEncryptionVersion'] = activeSession.version
+      ..[_saltField] = base64Encode(activeSession.salt)
+      ..[_formatField] = recordFormat;
     for (final field in _encryptedFields) {
       final value = output[field];
       if (value is String && value.isNotEmpty) {
-        output[field] = await _encryptValue(value, activeSession.keyBytes);
+        output[field] = await _encryptValue(
+          value,
+          activeSession.keyBytes,
+          aad: _fieldAad(output, field),
+        );
       }
     }
-    output['syncEncryptionVersion'] = activeSession.version;
-    output[_saltField] = base64Encode(activeSession.salt);
+    output[_macField] = await _recordMac(output, activeSession.keyBytes);
     return output;
+  }
+
+  /// Binds a field's ciphertext to its record and field name, so it can't be
+  /// moved to another record or field.
+  List<int> _fieldAad(Map<String, dynamic> record, String field) => utf8.encode(
+    'seedling-record|${record['syncUUID']}|$field|'
+    '${record['syncEncryptionVersion']}|$recordFormat',
+  );
+
+  /// HMAC-SHA256 over every key/value of the record except the MAC itself,
+  /// in sorted key order. Covers the plaintext metadata (isDeleted,
+  /// modifiedAt, capsuleUnlockDate, mediaAssetId, typeIndex, ...).
+  Future<String> _recordMac(
+    Map<String, dynamic> record,
+    Uint8List recordKey,
+  ) async {
+    final keys = record.keys.where((k) => k != _macField).toList()..sort();
+    final canonical = jsonEncode([
+      for (final k in keys) [k, record[k]],
+    ]);
+    final macKey = await _hkdf.deriveKey(
+      secretKey: SecretKey(recordKey),
+      nonce: utf8.encode('seedling.record-mac'),
+      info: utf8.encode(_recordMacInfo),
+    );
+    final mac = await _hmac.calculateMac(
+      utf8.encode(canonical),
+      secretKey: macKey,
+    );
+    return base64Encode(mac.bytes);
   }
 
   Future<Map<String, dynamic>> decryptRecordFields(
@@ -274,12 +423,34 @@ class SyncCryptoService {
       throw const SyncUnversionedRecordException();
     }
     final keyBytes = await _resolveKeyBytesForVersion(output, version);
+    final authenticated = output[_formatField] == recordFormat;
+    if (authenticated) {
+      final mac = output[_macField];
+      final expected = await _recordMac(output, keyBytes);
+      if (mac is! String ||
+          !_sameBytes(utf8.encode(mac), utf8.encode(expected))) {
+        throw const SyncPayloadCryptoException(
+          'Sync record failed authentication.',
+        );
+      }
+    } else if (output.containsKey(_formatField)) {
+      throw SyncPayloadCryptoException(
+        'Unsupported sync record format: ${output[_formatField]}',
+      );
+    }
     for (final field in _encryptedFields) {
       final value = output[field];
       if (value is String && value.isNotEmpty) {
-        output[field] = await _decryptValue(value, keyBytes);
+        output[field] = await _decryptValue(
+          value,
+          keyBytes,
+          aad: authenticated ? _fieldAad(output, field) : const [],
+        );
       }
     }
+    output
+      ..remove(_macField)
+      ..remove(_formatField);
     return output;
   }
 
@@ -378,17 +549,18 @@ class SyncCryptoService {
     if (legacy == null || legacy.isEmpty) {
       throw const SyncPassphraseMissingException();
     }
-    final provider = _kdfSaltProvider;
+    final keyring = _keyring;
+    final Uint8List master;
     final List<int> kdfSalt;
     final int version;
-    if (provider != null) {
-      kdfSalt = await provider();
+    if (keyring != null) {
+      (master, kdfSalt) = await _keyFromKeyring(legacy, keyring);
       version = syncEncryptionVersion;
     } else {
       kdfSalt = utf8.encode(_masterKdfSalt);
+      master = await _pbkdf2Bytes(legacy, salt: kdfSalt);
       version = _fixedSaltVersion;
     }
-    final master = await _pbkdf2Bytes(legacy, salt: kdfSalt);
     await _storeMasterKey(master, version: version, kdfSalt: kdfSalt);
     await _secureStorage.write(key: _legacyPassphraseStorageId, value: null);
     _masterKey = master;
@@ -440,17 +612,26 @@ class SyncCryptoService {
     }
   }
 
-  Future<String> _encryptValue(String value, Uint8List keyBytes) async {
+  Future<String> _encryptValue(
+    String value,
+    Uint8List keyBytes, {
+    List<int> aad = const [],
+  }) async {
     final nonce = _randomBytes(12);
     final secretBox = await _aesGcm.encrypt(
       Uint8List.fromList(utf8.encode(value)),
       secretKey: SecretKey(keyBytes),
       nonce: nonce,
+      aad: aad,
     );
     return '$_fieldPrefix${base64Encode(nonce)}:${base64Encode(secretBox.cipherText)}:${base64Encode(secretBox.mac.bytes)}';
   }
 
-  Future<String> _decryptValue(String value, Uint8List keyBytes) async {
+  Future<String> _decryptValue(
+    String value,
+    Uint8List keyBytes, {
+    List<int> aad = const [],
+  }) async {
     if (!value.startsWith(_fieldPrefix)) {
       throw const SyncPayloadCryptoException(
         'Encrypted sync record field is malformed.',
@@ -473,6 +654,7 @@ class SyncCryptoService {
       final clearBytes = await _aesGcm.decrypt(
         SecretBox(ciphertext, nonce: nonce, mac: Mac(mac)),
         secretKey: SecretKey(keyBytes),
+        aad: aad,
       );
       return utf8.decode(clearBytes);
     } on SecretBoxAuthenticationError {

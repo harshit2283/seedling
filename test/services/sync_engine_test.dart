@@ -39,6 +39,10 @@ void main() {
       database = _MockObjectBoxDatabase();
       backend = _MockSyncBackend();
       crypto = _MockSyncCryptoService();
+      when(() => backend.readKeyring()).thenAnswer((_) async => null);
+      when(() => crypto.hasPassphrase()).thenAnswer((_) async => true);
+      when(() => crypto.keyFingerprint()).thenAnswer((_) async => 'k');
+      when(() => database.getEntriesNeedingMediaDownload()).thenReturn([]);
       when(
         () => crypto.createEncryptionSession(),
       ).thenAnswer((_) async => _FakeSyncEncryptionSession());
