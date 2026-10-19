@@ -272,6 +272,9 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                       onTap: () => context.push(AppRoutes.memories),
                       personality: personality,
                       showGrowthDetails: !calm,
+                      memoryLights: recentMemoryLightCount(
+                        recentEntries.map((e) => e.createdAt),
+                      ),
                     ),
                   ),
                 ),
