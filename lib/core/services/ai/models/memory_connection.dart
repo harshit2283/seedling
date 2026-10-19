@@ -41,7 +41,7 @@ class MemoryConnection {
 
 /// Breakdown of factors contributing to connection strength
 class ConnectionFactors {
-  /// Text content similarity (Jaccard index)
+  /// Text content similarity (TF-IDF cosine over the collection)
   final double textSimilarity;
 
   /// Temporal proximity bonus (same week = higher)
@@ -50,26 +50,46 @@ class ConnectionFactors {
   /// Shared theme bonus
   final double themeBonus;
 
+  /// Shared people and places (names, relationship words)
+  final double entityBonus;
+
   const ConnectionFactors({
     required this.textSimilarity,
     required this.temporalBonus,
     required this.themeBonus,
+    this.entityBonus = 0.0,
   });
 
-  /// Total weighted score
+  // Calibrated on test/fixtures/connection_eval.json (train split) so the
+  // 0.3 "meaningful" cut-off sits where precision and coverage balance.
+  // TF-IDF cosine between short texts is small (one shared rare word is
+  // ~0.15), hence a text weight above 0.5. The sum is clamped to 1.
+  static const double textWeight = 0.85;
+  static const double entityWeight = 0.45;
+  static const double themeWeight = 0.25;
+  static const double temporalWeight = 0.15;
+
+  /// Total weighted score (0..1)
   double get total {
-    // Weights: text 60%, temporal 20%, theme 20%
-    return (textSimilarity * 0.6) + (temporalBonus * 0.2) + (themeBonus * 0.2);
+    final sum =
+        textSimilarity * textWeight +
+        entityBonus * entityWeight +
+        themeBonus * themeWeight +
+        temporalBonus * temporalWeight;
+    return sum > 1.0 ? 1.0 : sum;
   }
 
-  /// Primary reason for connection
+  /// Primary reason for connection: the factor contributing most.
   String get primaryReason {
-    if (textSimilarity >= temporalBonus && textSimilarity >= themeBonus) {
-      return 'Similar content';
+    final text = textSimilarity * textWeight;
+    final people = entityBonus * entityWeight;
+    final theme = themeBonus * themeWeight;
+    final time = temporalBonus * temporalWeight;
+    if (people > text && people >= theme && people >= time) {
+      return 'People & places';
     }
-    if (themeBonus >= temporalBonus) {
-      return 'Same theme';
-    }
+    if (text >= theme && text >= time) return 'Similar content';
+    if (theme >= time) return 'Same theme';
     return 'Close in time';
   }
 }
