@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../security/secure_storage.dart';
+
 /// Base class for sync payload encryption/decryption failures.
 abstract class SyncCryptoException implements Exception {
   final String message;
@@ -67,6 +69,12 @@ class SyncCryptoService {
   static const _legacyPassphraseStorageId = 'seedling_sync_passphrase_v2';
   static const _keyMaterialStorageId = 'seedling_sync_key_v3';
   static const _saltField = 'syncEncryptionSalt';
+
+  /// Every secure-storage key this service reads or writes.
+  static const secureStorageKeys = <String>[
+    _legacyPassphraseStorageId,
+    _keyMaterialStorageId,
+  ];
   static const _fieldPrefix = 'syncenc:v1:';
   static const _kdfIterations = 210000;
   static const _masterKdfSalt = 'seedling.sync.master-kdf.v3';
@@ -100,7 +108,7 @@ class SyncCryptoService {
     FlutterSecureStorage? secureStorage,
     AesGcm? aesGcm,
     Pbkdf2? pbkdf2,
-  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage(),
+  }) : _secureStorage = secureStorage ?? createSeedlingSecureStorage(),
        _aesGcm = aesGcm ?? AesGcm.with256bits(),
        _pbkdf2 =
            pbkdf2 ??

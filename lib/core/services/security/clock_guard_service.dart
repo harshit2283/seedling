@@ -1,13 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'secure_storage.dart';
+
 /// Tracks the maximum observed wall-clock time, persisted in secure storage,
 /// so callers can detect device clock rollback.
 ///
 /// Used by capsule visibility gates: if the user (or an attacker) sets the
 /// device clock backwards, capsules should not become unlockable as a result.
 class ClockGuardService {
-  static const _storageKey = 'clock_guard_max_observed_now_v1';
+  static const storageKey = 'clock_guard_max_observed_now_v1';
   static const Duration _tamperThreshold = Duration(hours: 24);
 
   final FlutterSecureStorage _storage;
@@ -15,13 +17,13 @@ class ClockGuardService {
   bool _initialized = false;
 
   ClockGuardService({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? createSeedlingSecureStorage();
 
   /// Hydrate the cached max from secure storage. Safe to call repeatedly.
   Future<void> init() async {
     if (_initialized) return;
     try {
-      final raw = await _storage.read(key: _storageKey);
+      final raw = await _storage.read(key: storageKey);
       if (raw != null && raw.isNotEmpty) {
         _cachedMax = DateTime.tryParse(raw)?.toUtc();
       }
@@ -40,7 +42,7 @@ class ClockGuardService {
     if (max == null || now.isAfter(max)) {
       _cachedMax = now;
       try {
-        await _storage.write(key: _storageKey, value: now.toIso8601String());
+        await _storage.write(key: storageKey, value: now.toIso8601String());
       } catch (e) {
         debugPrint('ClockGuardService.trustedNow write failed: $e');
       }

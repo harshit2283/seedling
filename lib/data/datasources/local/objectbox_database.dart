@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Directory;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import '../../../core/services/error_reporter.dart';
@@ -33,7 +34,21 @@ class ObjectBoxDatabase {
 
   static ObjectBoxDatabase? _instance;
 
+  /// Directory holding the ObjectBox store files.
+  late final String storeDirectory;
+
+  /// True when the store directory did not exist before this open, i.e. a
+  /// fresh install or a device restored from a backup (the store is excluded
+  /// from iOS backups, but SharedPreferences are not).
+  late final bool isFreshStore;
+
   ObjectBoxDatabase._();
+
+  /// Default on-device location of the app's store.
+  static Future<String> defaultStoreDirectory() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return '${dir.path}/objectbox';
+  }
 
   /// Get the singleton instance
   static ObjectBoxDatabase get instance {
@@ -51,9 +66,8 @@ class ObjectBoxDatabase {
       return _instance!;
     }
 
-    final dir = await getApplicationDocumentsDirectory();
     final db = await _open(
-      directory: '${dir.path}/objectbox',
+      directory: await defaultStoreDirectory(),
       encryptionService: AtRestEncryptionService(),
     );
     _instance = db;
@@ -73,6 +87,8 @@ class ObjectBoxDatabase {
     required AtRestEncryptionService encryptionService,
   }) async {
     final db = ObjectBoxDatabase._();
+    db.storeDirectory = directory;
+    db.isFreshStore = !await Directory(directory).exists();
     db._store = await openStore(directory: directory);
     db._entryBox = db._store.box<Entry>();
     db._treeBox = db._store.box<Tree>();

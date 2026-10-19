@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../security/secure_storage.dart';
 import '../sync/cloudkit_sync_service.dart';
 import '../sync/google_drive_sync_service.dart';
 import '../sync/sync_backend.dart';
@@ -51,7 +52,7 @@ final cloudKitSyncServiceProvider = Provider<CloudKitSyncService>((ref) {
 
 /// Provider for secure storage used by sync cryptography.
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
-  return const FlutterSecureStorage();
+  return createSeedlingSecureStorage();
 });
 
 /// Provider for sync payload encryption/decryption.
