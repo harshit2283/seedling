@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/glass/glass_container.dart';
@@ -58,20 +58,15 @@ class _SupportInvitationCardState extends ConsumerState<SupportInvitationCard> {
   }
 
   Widget _buildCard(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textTheme = Theme.of(context).textTheme;
-    final accent = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final accent = context.palette.primary;
 
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: GlassContainer(
         borderRadius: PlatformUtils.isIOS ? 20 : 12,
         opacity: 0.75,
-        border: Border.all(
-          color: isDark ? SeedlingColors.dividerDark : SeedlingColors.softCream,
-        ),
+        border: Border.all(color: context.palette.divider),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
           child: Column(
@@ -85,9 +80,7 @@ class _SupportInvitationCardState extends ConsumerState<SupportInvitationCard> {
                 'memories meant something to you, you can help keep it '
                 'growing. Only if you want to.',
                 style: textTheme.bodyMedium?.copyWith(
-                  color: isDark
-                      ? SeedlingColors.textSecondaryDark
-                      : SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                   height: 1.45,
                 ),
               ),
@@ -98,9 +91,7 @@ class _SupportInvitationCardState extends ConsumerState<SupportInvitationCard> {
                   TextButton(
                     onPressed: _dismiss,
                     style: TextButton.styleFrom(
-                      foregroundColor: isDark
-                          ? SeedlingColors.textMutedDark
-                          : SeedlingColors.textMuted,
+                      foregroundColor: context.palette.textMuted,
                     ),
                     child: const Text('Not now'),
                   ),

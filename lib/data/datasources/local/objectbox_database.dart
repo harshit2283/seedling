@@ -12,6 +12,10 @@ import '../../models/ritual.dart';
 import '../../models/sync_id.dart';
 import '../../models/tree.dart';
 
+/// An entry removed by [ObjectBoxDatabase.purgeExpiredEntries], as sync
+/// needs to know it (to delete the remote record and media blob).
+typedef PurgedEntry = ({String syncUUID, String? mediaAssetId});
+
 /// ObjectBox database singleton for local storage
 /// Handles all CRUD operations for entries and trees
 class ObjectBoxDatabase {
@@ -517,16 +521,32 @@ class ObjectBoxDatabase {
 
   /// syncUUIDs of entries purged this session that sync has not yet been
   /// told about. Drained by [takePurgedSyncUUIDs].
-  final List<String> _purgedSyncUUIDs = [];
+  final List<PurgedEntry> _purged = [];
 
   /// Returns (and forgets) the syncUUIDs of entries [purgeExpiredEntries]
   /// removed, so the sync engine can queue remote deletes. Without this, the
   /// remote tombstone (isDeleted=true record) lingered forever and could be
   /// pulled back onto devices.
-  List<String> takePurgedSyncUUIDs() {
-    final taken = List<String>.of(_purgedSyncUUIDs);
-    _purgedSyncUUIDs.clear();
+  List<PurgedEntry> takePurgedEntries() {
+    final taken = List<PurgedEntry>.of(_purged);
+    _purged.clear();
     return taken;
+  }
+
+  /// Live entries whose media blob is known remotely but not on this device
+  /// yet (pulled from another device, or an interrupted download).
+  List<Entry> getEntriesNeedingMediaDownload() {
+    final query = _entryBox
+        .query(
+          Entry_.mediaAssetId
+              .notNull()
+              .and(Entry_.mediaPath.isNull())
+              .and(Entry_.isDeleted.equals(false)),
+        )
+        .build();
+    final results = query.find();
+    query.close();
+    return [for (final e in _plain(results)) e.copy()];
   }
 
   /// Every stored entry's syncUUID, including soft-deleted ones (reads only
@@ -564,12 +584,11 @@ class ObjectBoxDatabase {
     final ids = expiredEntries.map((e) => e.id).toList();
     final removed = _entryBox.removeMany(ids);
     ids.forEach(_plainById.remove);
-    _purgedSyncUUIDs.addAll(
-      expiredEntries
-          .map((e) => e.syncUUID)
-          .whereType<String>()
-          .where(SyncId.isValid),
-    );
+    _purged.addAll([
+      for (final e in expiredEntries)
+        if (SyncId.isValid(e.syncUUID))
+          (syncUUID: e.syncUUID!, mediaAssetId: e.mediaAssetId),
+    ]);
 
     if (removed > 0) {
       _invalidateEntryCaches();
@@ -913,6 +932,7 @@ class ObjectBoxDatabase {
     entry.connectionIds = _encryptionService.encryptField(entry.connectionIds);
     entry.manualLinkIds = _encryptionService.encryptField(entry.manualLinkIds);
     entry.transcription = _encryptionService.encryptField(entry.transcription);
+    entry.mediaKey = _encryptionService.encryptField(entry.mediaKey);
   }
 
   void _decryptEntryFields(Entry entry) {
@@ -937,6 +957,7 @@ class ObjectBoxDatabase {
     entry.connectionIds = decryptOrPreserve(entry.connectionIds);
     entry.manualLinkIds = decryptOrPreserve(entry.manualLinkIds);
     entry.transcription = decryptOrPreserve(entry.transcription);
+    entry.mediaKey = decryptOrPreserve(entry.mediaKey);
   }
 
   // ============ Ritual Operations ============

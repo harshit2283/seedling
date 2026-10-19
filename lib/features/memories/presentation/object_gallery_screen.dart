@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../data/models/entry.dart';
@@ -46,13 +47,13 @@ class ObjectGalleryScreen extends ConsumerWidget {
               Icon(
                 Icons.category_outlined,
                 size: 48,
-                color: SeedlingColors.textMuted,
+                color: context.palette.textMuted,
               ),
               const SizedBox(height: 16),
               Text(
                 'No objects yet',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -60,7 +61,7 @@ class ObjectGalleryScreen extends ConsumerWidget {
                 'Capture something meaningful — a gift, a keepsake, something that tells a story.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: SeedlingColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
               ),
             ],
@@ -109,10 +110,18 @@ class _ObjectCell extends StatelessWidget {
           children: [
             // Photo or placeholder
             if (entry.hasMedia)
-              Image.file(
-                File(entry.mediaPath!),
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _placeholder(context),
+              // Decode at tile size, not camera size (~14MB per full photo).
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final dpr = MediaQuery.devicePixelRatioOf(context);
+                  final side = constraints.biggest.longestSide;
+                  return Image.file(
+                    File(entry.mediaPath!),
+                    fit: BoxFit.cover,
+                    cacheWidth: side.isFinite ? (side * dpr).round() : null,
+                    errorBuilder: (_, _, _) => _placeholder(context),
+                  );
+                },
               )
             else
               _placeholder(context),
@@ -127,17 +136,14 @@ class _ObjectCell extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.7),
-                    ],
+                    colors: [Colors.transparent, context.palette.mediaScrim],
                   ),
                 ),
                 padding: const EdgeInsets.fromLTRB(12, 24, 12, 12),
                 child: Text(
                   entry.title ?? entry.displayContent,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: context.palette.onMedia,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),

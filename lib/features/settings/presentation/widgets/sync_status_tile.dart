@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/sync/sync_backend.dart';
 import '../../../../core/services/sync/sync_models.dart';
@@ -91,31 +92,26 @@ class SyncStatusTile extends ConsumerWidget {
         Icon(
           Platform.isIOS ? CupertinoIcons.cloud : Icons.cloud_queue,
           color: isEnabled
-              ? SeedlingColors.forestGreen
-              : SeedlingColors.textMuted,
+              ? context.palette.primary
+              : context.palette.textMuted,
           size: 20,
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             'Cloud sync',
-            style: TextStyle(
-              fontSize: 16,
-              color: isDark
-                  ? SeedlingColors.textPrimaryDark
-                  : SeedlingColors.textPrimary,
-            ),
+            style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
           ),
         ),
         Platform.isIOS
             ? CupertinoSwitch(
                 value: isEnabled,
-                activeTrackColor: SeedlingColors.forestGreen,
+                activeTrackColor: context.palette.primaryFill,
                 onChanged: (value) => _toggleSync(context, ref, value),
               )
             : Switch(
                 value: isEnabled,
-                activeThumbColor: SeedlingColors.forestGreen,
+                activeThumbColor: context.palette.primary,
                 onChanged: (value) => _toggleSync(context, ref, value),
               ),
       ],
@@ -135,12 +131,7 @@ class SyncStatusTile extends ConsumerWidget {
         Expanded(
           child: Text(
             'Sync provider',
-            style: TextStyle(
-              fontSize: 16,
-              color: isDark
-                  ? SeedlingColors.textPrimaryDark
-                  : SeedlingColors.textPrimary,
-            ),
+            style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
           ),
         ),
         CupertinoButton(
@@ -153,7 +144,7 @@ class SyncStatusTile extends ConsumerWidget {
                 selected.label,
                 style: TextStyle(
                   fontSize: 15,
-                  color: SeedlingColors.forestGreen,
+                  color: context.palette.primary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -250,9 +241,7 @@ class SyncStatusTile extends ConsumerWidget {
     String status,
     bool isDark,
   ) {
-    final textColor = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
+    final textColor = context.palette.textSecondary;
     final providerName =
         Platform.isIOS && providerType == SyncProviderType.cloudKit
         ? 'CloudKit'
@@ -291,9 +280,7 @@ class SyncStatusTile extends ConsumerWidget {
     final locked = lockedAsync.asData?.value;
     if (locked == null) return const SizedBox.shrink();
 
-    final textColor = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
+    final textColor = context.palette.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.only(left: 32, top: 8),
@@ -401,7 +388,7 @@ class SyncStatusTile extends ConsumerWidget {
       SyncState.idle => (
         Icons.check_circle_outline,
         'Up to date',
-        SeedlingColors.forestGreen,
+        context.palette.primary,
       ),
       SyncState.pushing => (
         Icons.cloud_upload_outlined,
@@ -422,7 +409,7 @@ class SyncStatusTile extends ConsumerWidget {
       SyncState.disabled => (
         Icons.cloud_off,
         'Disabled',
-        SeedlingColors.textMuted,
+        context.palette.textMuted,
       ),
     };
 
@@ -450,7 +437,7 @@ class SyncStatusTile extends ConsumerWidget {
       padding: const EdgeInsets.only(left: 32),
       child: Text(
         label,
-        style: TextStyle(fontSize: 12, color: SeedlingColors.textMuted),
+        style: TextStyle(fontSize: 12, color: context.palette.textMuted),
       ),
     );
   }

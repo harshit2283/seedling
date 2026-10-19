@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 
 /// Content widget for capturing time capsule entries
@@ -53,24 +54,12 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final textSecondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final textMuted = isDark
-        ? SeedlingColors.textMutedDark
-        : SeedlingColors.textMuted;
-    final accentColor = isDark
-        ? SeedlingColors.themeGratitudeDark
-        : SeedlingColors.themeGratitude;
-    final cardColor = isDark
-        ? SeedlingColors.cardDark
-        : SeedlingColors.softCream;
-    final borderColor = isDark
-        ? SeedlingColors.borderDark
-        : SeedlingColors.softCream;
+    final textPrimary = context.palette.textPrimary;
+    final textSecondary = context.palette.textSecondary;
+    final textMuted = context.palette.textMuted;
+    final accentColor = context.palette.accentGold;
+    final cardColor = context.palette.surfaceMuted;
+    final borderColor = context.palette.border;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,10 +122,9 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
 
         // Unlock date section
         Text(
-          'UNLOCK DATE',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: textMuted,
-            letterSpacing: 1.2,
+          'Opens on',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: context.palette.textSecondary,
           ),
         ),
         const SizedBox(height: 8),
@@ -252,12 +240,8 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
         _selectedDate!.month == targetDate.month &&
         _selectedDate!.day == targetDate.day;
 
-    final backgroundColor = isDark
-        ? SeedlingColors.surfaceDark
-        : SeedlingColors.warmWhite;
-    final borderColor = isDark
-        ? SeedlingColors.borderDark
-        : SeedlingColors.softCream;
+    final backgroundColor = context.palette.surface;
+    final borderColor = context.palette.border;
 
     return GestureDetector(
       onTap: () {
@@ -283,11 +267,7 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: isSelected
-                ? accentColor
-                : (isDark
-                      ? SeedlingColors.textSecondaryDark
-                      : SeedlingColors.textSecondary),
+            color: isSelected ? accentColor : (context.palette.textSecondary),
           ),
         ),
       ),
@@ -304,12 +284,8 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
               _selectedDate!.day == target.day;
         });
 
-    final backgroundColor = isDark
-        ? SeedlingColors.surfaceDark
-        : SeedlingColors.warmWhite;
-    final borderColor = isDark
-        ? SeedlingColors.borderDark
-        : SeedlingColors.softCream;
+    final backgroundColor = context.palette.surface;
+    final borderColor = context.palette.border;
 
     return GestureDetector(
       onTap: () => _showDatePicker(context, isDark),
@@ -336,9 +312,7 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
               size: 16,
               color: isCustomSelected
                   ? accentColor
-                  : (isDark
-                        ? SeedlingColors.textSecondaryDark
-                        : SeedlingColors.textSecondary),
+                  : (context.palette.textSecondary),
             ),
             const SizedBox(width: 6),
             Text(
@@ -350,9 +324,7 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
                     : FontWeight.w500,
                 color: isCustomSelected
                     ? accentColor
-                    : (isDark
-                          ? SeedlingColors.textSecondaryDark
-                          : SeedlingColors.textSecondary),
+                    : (context.palette.textSecondary),
               ),
             ),
           ],

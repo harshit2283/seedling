@@ -122,6 +122,8 @@ class SyncCryptoService {
     'transcription',
     'detectedTheme',
     'manualLinkIds',
+    // Per-file key for the encrypted media blob (see SyncMediaCrypto).
+    'mediaKey',
   ];
 
   final FlutterSecureStorage _secureStorage;

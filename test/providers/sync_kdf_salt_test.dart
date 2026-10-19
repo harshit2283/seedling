@@ -29,9 +29,6 @@ class _KeyringBackend extends SyncBackend {
   Future<void> deleteRecord(String syncUUID) async {}
   @override
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async => null;
-  @override
-  Future<String?> downloadAsset(String syncUUID, String targetPath) async =>
-      null;
 }
 
 void main() {

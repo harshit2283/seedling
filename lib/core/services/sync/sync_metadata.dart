@@ -97,6 +97,7 @@ class SyncMetadata {
           syncUUID: change.syncUUID,
           changeType: change.changeType,
           timestamp: replaced.timestamp.add(const Duration(milliseconds: 1)),
+          mediaAssetId: change.mediaAssetId ?? replaced.mediaAssetId,
         );
       }
       byUUID.remove(change.syncUUID);

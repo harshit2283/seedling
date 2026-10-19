@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/share/share_receiver_service.dart';
@@ -64,18 +65,10 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
-    final textPrimary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final textSecondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final textMuted = isDark
-        ? SeedlingColors.textMutedDark
-        : SeedlingColors.textMuted;
-    final accentColor = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final textPrimary = context.palette.textPrimary;
+    final textSecondary = context.palette.textSecondary;
+    final textMuted = context.palette.textMuted;
+    final accentColor = context.palette.primary;
 
     final content = Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
@@ -175,9 +168,7 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
     );
 
     return GlassSheet(
-      backgroundColor: isDark
-          ? SeedlingColors.surfaceDark
-          : SeedlingColors.warmWhite,
+      backgroundColor: context.palette.surface,
       opacity: PlatformUtils.isIOS ? 0.85 : 1.0,
       child: content,
     );
@@ -213,12 +204,8 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
   }
 
   Widget _buildContentPreview(bool isDark, Color textPrimary, Color textMuted) {
-    final cardColor = isDark
-        ? SeedlingColors.cardDark
-        : SeedlingColors.softCream;
-    final borderColor = isDark
-        ? SeedlingColors.borderDark
-        : SeedlingColors.softCream;
+    final cardColor = context.palette.surfaceMuted;
+    final borderColor = context.palette.border;
 
     switch (widget.content.type) {
       case SharedContentType.text:

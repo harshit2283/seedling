@@ -8,6 +8,7 @@ import '../../../data/models/entry.dart';
 import '../../../data/models/sync_id.dart';
 import 'sync_backend.dart';
 import 'sync_crypto_service.dart';
+import 'sync_media_crypto.dart';
 import 'sync_metadata.dart';
 import 'sync_models.dart';
 
@@ -21,14 +22,22 @@ import 'sync_models.dart';
 class SyncEngine {
   /// Bump when the remote layout changes so that every local entry must be
   /// uploaded again. v2: CloudKit keeps the encryption envelope (salt and
-  /// version) and Drive uses per-device change logs.
-  static const currentFormatVersion = 2;
+  /// version) and Drive uses per-device change logs. v3: media files sync
+  /// (encrypted), so existing photo/voice entries must upload their files.
+  static const currentFormatVersion = 3;
 
   final ObjectBoxDatabase _db;
   final SyncBackend _backend;
   final SyncMetadata _metadata;
   final SyncCryptoService _crypto;
   final String _mediaBasePath;
+  final bool Function() _networkAllowed;
+  final SyncMediaCrypto _mediaCrypto;
+  final Directory _tempDirectory;
+  final int _maxConcurrentTransfers;
+
+  /// The running background media download pass, if any.
+  Future<void>? _mediaDownloads;
   static final _uuidV4Pattern = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
   );
@@ -53,15 +62,29 @@ class SyncEngine {
     required SyncMetadata metadata,
     required SyncCryptoService cryptoService,
     String mediaBasePath = '',
+    bool Function()? networkAllowed,
+    SyncMediaCrypto? mediaCrypto,
+    Directory? tempDirectory,
+    int maxConcurrentTransfers = 2,
   }) : _db = database,
        _backend = backend,
        _metadata = metadata,
        _crypto = cryptoService,
-       _mediaBasePath = mediaBasePath;
+       _mediaBasePath = mediaBasePath,
+       _networkAllowed = networkAllowed ?? _always,
+       _mediaCrypto = mediaCrypto ?? SyncMediaCrypto(),
+       _tempDirectory = tempDirectory ?? Directory.systemTemp,
+       _maxConcurrentTransfers = maxConcurrentTransfers;
+
+  static bool _always() => true;
+
+  /// Network is only touched when this backend's sync is on *and* the
+  /// app-wide cloud-sync opt-in is on.
+  bool get _allowed => _metadata.isEnabled && _networkAllowed();
 
   /// Initialize sync engine. Call once at app startup.
   Future<void> init() async {
-    if (!_metadata.isEnabled) {
+    if (!_allowed) {
       _setState(SyncState.disabled);
       return;
     }
@@ -137,6 +160,9 @@ class SyncEngine {
         syncUUID: entry.syncUUID!,
         changeType: changeType,
         timestamp: DateTime.now(),
+        mediaAssetId: changeType == SyncChangeType.delete
+            ? entry.mediaAssetId
+            : null,
       ),
     );
 
@@ -151,13 +177,14 @@ class SyncEngine {
   ///   layout yet (first enable, or after a format change).
   Future<void> _queueMaintenanceChanges() async {
     final now = DateTime.now();
-    final purged = _db.takePurgedSyncUUIDs();
+    final purged = _db.takePurgedEntries();
     await _metadata.addPendingChanges([
-      for (final uuid in purged)
+      for (final p in purged)
         SyncChange(
-          syncUUID: uuid,
+          syncUUID: p.syncUUID,
           changeType: SyncChangeType.delete,
           timestamp: now,
+          mediaAssetId: p.mediaAssetId,
         ),
     ]);
 
@@ -188,7 +215,7 @@ class SyncEngine {
   Future<SyncResult> push() => _serialized(_push);
 
   Future<SyncResult> _push() async {
-    if (!_metadata.isEnabled) return SyncResult.error('Sync disabled');
+    if (!_allowed) return SyncResult.error('Sync disabled');
 
     // Snapshot: only these exact changes are removed afterwards. Anything
     // queued while we are on the network stays queued for the next push.
@@ -200,6 +227,7 @@ class SyncEngine {
     final handled = <SyncChange>[];
     try {
       final saves = <SyncChange>[];
+      final toSave = <Entry>[];
       final records = <Map<String, dynamic>>[];
       final deletes = <SyncChange>[];
       SyncEncryptionSession? encryptionSession;
@@ -222,11 +250,22 @@ class SyncEngine {
           continue;
         }
 
+        toSave.add(entry);
+        saves.add(change);
+      }
+
+      // Media first, so a record never points at a blob that isn't there.
+      // An interrupted upload leaves the change queued and resumes next push.
+      var skippedLarge = 0;
+      await _forEachBounded(toSave.where(_needsUpload).toList(), (entry) async {
+        if (!await _uploadMedia(entry)) skippedLarge++;
+      });
+
+      for (final entry in toSave) {
         encryptionSession ??= await _crypto.createEncryptionSession();
         records.add(
           await _entryToRecord(entry, encryptionSession: encryptionSession),
         );
-        saves.add(change);
       }
 
       if (records.isNotEmpty) {
@@ -235,11 +274,28 @@ class SyncEngine {
       }
       if (deletes.isNotEmpty) {
         await _backend.deleteRecords([for (final d in deletes) d.syncUUID]);
+        await _forEachBounded(
+          [
+            for (final d in deletes)
+              if (_isValidUuid(d.mediaAssetId)) d.mediaAssetId!,
+          ],
+          (assetId) async {
+            try {
+              await _backend.deleteMediaBlob(assetId);
+            } on UnsupportedError {
+              // Backend without media sync: nothing to remove.
+            }
+          },
+        );
         handled.addAll(deletes);
       }
 
       await _metadata.removePendingChanges(handled);
-      await _metadata.setLastError(null);
+      await _metadata.setLastError(
+        skippedLarge > 0
+            ? 'Skipped syncing $skippedLarge media file(s) over 50 MB.'
+            : null,
+      );
       _setState(SyncState.idle);
 
       return SyncResult.success(pushed: records.length + deletes.length);
@@ -254,7 +310,7 @@ class SyncEngine {
   Future<SyncResult> pull() => _serialized(_pull);
 
   Future<SyncResult> _pull() async {
-    if (!_metadata.isEnabled) return SyncResult.error('Sync disabled');
+    if (!_allowed) return SyncResult.error('Sync disabled');
 
     _setState(SyncState.pulling);
 
@@ -344,6 +400,8 @@ class SyncEngine {
       await _metadata.setLastError(null);
 
       _setState(SyncState.idle);
+      // Files arrive in the background; records show a placeholder until then.
+      unawaited(downloadPendingMedia());
       return SyncResult.success(pulled: pulled, conflicts: conflicts);
     } catch (e) {
       return _fail('pull', e);
@@ -397,6 +455,8 @@ class SyncEngine {
       'transcription': entry.transcription,
       'manualLinkIds': entry.manualLinkIds,
       'mediaPath': _relativeMediaPath(entry.mediaPath, entry.typeIndex),
+      'mediaAssetId': entry.mediaAssetId,
+      'mediaKey': entry.mediaKey,
       'deviceId': entry.deviceId ?? _metadata.deviceId,
     };
     return _crypto.encryptRecordFields(record, session: encryptionSession);
@@ -406,6 +466,8 @@ class SyncEngine {
     final syncUUID = decrypted['syncUUID'] as String?;
     final deviceId = decrypted['deviceId'] as String?;
     final typeIndex = decrypted['typeIndex'] as int? ?? 0;
+    final assetId = decrypted['mediaAssetId'] as String?;
+    final hasBlob = _isValidUuid(assetId);
     return Entry(
       typeIndex: typeIndex,
       createdAt: _date(decrypted['createdAt']) ?? DateTime.now(),
@@ -421,7 +483,12 @@ class SyncEngine {
       capsuleUnlockDate: _date(decrypted['capsuleUnlockDate']),
       transcription: decrypted['transcription'] as String?,
       manualLinkIds: decrypted['manualLinkIds'] as String?,
-      mediaPath: _localMediaPath(decrypted['mediaPath'] as String?, typeIndex),
+      // With a blob, the file is downloaded later (mediaPath set then).
+      mediaPath: hasBlob
+          ? null
+          : _localMediaPath(decrypted['mediaPath'] as String?, typeIndex),
+      mediaAssetId: hasBlob ? assetId : null,
+      mediaKey: hasBlob ? decrypted['mediaKey'] as String? : null,
       syncUUID: _isValidUuid(syncUUID) ? syncUUID : SyncId.generate(),
       modifiedAt: _date(decrypted['modifiedAt']),
       deviceId: _isValidUuidV4(deviceId) ? deviceId : _metadata.deviceId,
@@ -441,10 +508,21 @@ class SyncEngine {
     if (decrypted.containsKey('manualLinkIds')) {
       entry.manualLinkIds = decrypted['manualLinkIds'] as String?;
     }
-    entry.mediaPath = _localMediaPath(
-      decrypted['mediaPath'] as String?,
-      entry.typeIndex,
-    );
+    final assetId = decrypted['mediaAssetId'] as String?;
+    if (_isValidUuid(assetId)) {
+      if (entry.mediaAssetId != assetId) {
+        // New or replaced media: fetch it in the background.
+        entry.mediaAssetId = assetId;
+        entry.mediaKey = decrypted['mediaKey'] as String?;
+        entry.mediaPath = null;
+      }
+    } else if (entry.mediaAssetId == null) {
+      // Older builds sync only a path (and no file).
+      entry.mediaPath = _localMediaPath(
+        decrypted['mediaPath'] as String?,
+        entry.typeIndex,
+      );
+    }
     entry.isDeleted = decrypted['isDeleted'] as bool? ?? false;
     entry.deletedAt = _date(decrypted['deletedAt']);
     entry.modifiedAt = _date(decrypted['modifiedAt']) ?? DateTime.now();
@@ -453,6 +531,152 @@ class SyncEngine {
   }
 
   bool _isValidUuid(String? value) => SyncId.isValid(value);
+
+  // ---------------------------------------------------------------------------
+  // Media
+  // ---------------------------------------------------------------------------
+
+  /// Runs [work] over [items] with at most [_maxConcurrentTransfers] at once.
+  Future<void> _forEachBounded<T>(
+    List<T> items,
+    Future<void> Function(T item) work,
+  ) async {
+    if (items.isEmpty) return;
+    var next = 0;
+    Future<void> worker() async {
+      while (next < items.length) {
+        await work(items[next++]);
+      }
+    }
+
+    final workers = items.length < _maxConcurrentTransfers
+        ? items.length
+        : _maxConcurrentTransfers;
+    await Future.wait([for (var i = 0; i < workers; i++) worker()]);
+  }
+
+  bool _needsUpload(Entry entry) =>
+      entry.mediaAssetId == null && _localMediaFile(entry) != null;
+
+  /// The entry's media file on this device, if it exists.
+  File? _localMediaFile(Entry entry) {
+    final path = entry.mediaPath;
+    if (path == null || path.isEmpty) return null;
+    final direct = File(path);
+    if (direct.existsSync()) return direct;
+    // Stored absolute paths go stale when iOS moves the app container.
+    final relative = _relativeMediaPath(path, entry.typeIndex);
+    if (relative == null || _mediaBasePath.isEmpty) return null;
+    final moved = File('${_normalizePath(_mediaBasePath)}/$relative');
+    return moved.existsSync() ? moved : null;
+  }
+
+  /// Encrypts and uploads the entry's media, then records the blob id and
+  /// key on the entry. Returns false when the file was skipped (too large or
+  /// the backend has no media support).
+  Future<bool> _uploadMedia(Entry entry) async {
+    final file = _localMediaFile(entry);
+    if (file == null) return true;
+    if (await file.length() > SyncMediaCrypto.maxPlaintextBytes) {
+      developer.log('Skipping media over 50 MB', name: 'SyncEngine');
+      return false;
+    }
+    final assetId = SyncId.generate();
+    final key = _mediaCrypto.newFileKey();
+    final sealed = File('${_tempDirectory.path}/seedling_up_$assetId.enc');
+    try {
+      await _mediaCrypto.encryptFile(file, sealed, key);
+      await _backend.uploadMediaBlob(assetId, sealed);
+    } on UnsupportedError {
+      return false;
+    } finally {
+      if (await sealed.exists()) await sealed.delete();
+    }
+    entry.mediaAssetId = assetId;
+    entry.mediaKey = base64Encode(key);
+    _updateMediaFields(entry.syncUUID!, (fresh) {
+      fresh
+        ..mediaAssetId = assetId
+        ..mediaKey = entry.mediaKey;
+      return true;
+    });
+    return true;
+  }
+
+  /// Applies [change] to the *current* stored entry in one synchronous step,
+  /// so an edit made while a transfer was running is never overwritten.
+  bool _updateMediaFields(String syncUUID, bool Function(Entry) change) {
+    final fresh = _db.getEntryBySyncUUID(syncUUID);
+    if (fresh == null || !change(fresh)) return false;
+    _db.saveEntries([fresh], preserveModifiedAt: true);
+    return true;
+  }
+
+  /// Downloads, verifies and stores media for entries that have a remote
+  /// blob but no local file. Safe to call repeatedly; one pass at a time.
+  /// Anything that fails stays pending and is retried after the next pull.
+  Future<void> downloadPendingMedia() {
+    return _mediaDownloads ??= _downloadPendingMedia().whenComplete(() {
+      _mediaDownloads = null;
+    });
+  }
+
+  Future<void> _downloadPendingMedia() async {
+    if (!_allowed || _mediaBasePath.isEmpty) return;
+    final List<Entry> pending;
+    try {
+      pending = _db.getEntriesNeedingMediaDownload();
+    } catch (e) {
+      // Background work: never surface as an unhandled error.
+      developer.log('Media download pass failed', name: 'SyncEngine', error: e);
+      return;
+    }
+    await _forEachBounded(pending, (entry) async {
+      try {
+        await _downloadMedia(entry);
+      } catch (e) {
+        developer.log(
+          'Media download failed; will retry',
+          name: 'SyncEngine',
+          error: e,
+        );
+      }
+    });
+  }
+
+  Future<void> _downloadMedia(Entry entry) async {
+    final assetId = entry.mediaAssetId!;
+    final encodedKey = entry.mediaKey;
+    if (!_isValidUuid(assetId) || encodedKey == null) return;
+    final key = base64Decode(encodedKey);
+    final sealed = File('${_tempDirectory.path}/seedling_down_$assetId.enc');
+    final folder = _folderForType(entry.typeIndex);
+    final dir = Directory('${_normalizePath(_mediaBasePath)}/$folder');
+    final target = File(
+      '${dir.path}/${SyncId.generate()}.${entry.typeIndex == EntryType.voice.index ? 'm4a' : 'jpg'}',
+    );
+    try {
+      if (!await _backend.downloadMediaBlob(assetId, sealed)) return;
+      if (await sealed.length() >
+          SyncMediaCrypto.maxPlaintextBytes + 1024 * 1024) {
+        developer.log('Skipping media over 50 MB', name: 'SyncEngine');
+        return;
+      }
+      await dir.create(recursive: true);
+      // Throws (and removes target) on a bad tag or wrong key.
+      await _mediaCrypto.decryptFile(sealed, target, key);
+    } finally {
+      if (await sealed.exists()) await sealed.delete();
+    }
+    final stored = _updateMediaFields(entry.syncUUID!, (fresh) {
+      if (fresh.mediaAssetId != assetId || fresh.mediaPath != null) {
+        return false; // Changed meanwhile; this file is no longer wanted.
+      }
+      fresh.mediaPath = target.path;
+      return true;
+    });
+    if (!stored && await target.exists()) await target.delete();
+  }
 
   bool _isValidUuidV4(String? value) {
     if (value == null || value.isEmpty) return false;

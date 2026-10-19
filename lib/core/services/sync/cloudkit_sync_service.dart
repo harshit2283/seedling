@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'sync_backend.dart';
 import '../error_reporter.dart';
@@ -9,7 +11,6 @@ import '../error_reporter.dart';
 /// marshals data between Dart and native.
 class CloudKitSyncService implements SyncBackend {
   static const _channel = MethodChannel('com.seedling.cloudkit_sync');
-  static const _assetFieldName = 'mediaAsset';
 
   /// Check if iCloud is available (user signed in, container accessible)
   @override
@@ -125,23 +126,28 @@ class CloudKitSyncService implements SyncBackend {
     }
   }
 
-  /// Download a media asset from CloudKit
+  /// Encrypted media lives in its own `SeedlingMedia` record as a CKAsset
+  /// (the file is already ciphertext; see SyncMediaCrypto).
   @override
-  Future<String?> downloadAsset(String syncUUID, String targetPath) async {
-    try {
-      final result = await _channel.invokeMethod<String>('downloadAsset', {
-        'syncUUID': syncUUID,
-        'destinationPath': targetPath,
-        'fieldName': _assetFieldName,
-      });
-      return result;
-    } on PlatformException catch (e) {
-      const ErrorReporter().report(
-        e,
-        context: 'CloudKitSyncService.downloadAsset',
-      );
-      return null;
-    }
+  Future<void> uploadMediaBlob(String assetId, File ciphertext) async {
+    await _channel.invokeMethod<void>('uploadMediaBlob', {
+      'assetId': assetId,
+      'sourcePath': ciphertext.path,
+    });
+  }
+
+  @override
+  Future<bool> downloadMediaBlob(String assetId, File target) async {
+    final found = await _channel.invokeMethod<bool>('downloadMediaBlob', {
+      'assetId': assetId,
+      'destinationPath': target.path,
+    });
+    return found ?? false;
+  }
+
+  @override
+  Future<void> deleteMediaBlob(String assetId) async {
+    await _channel.invokeMethod<void>('deleteMediaBlob', {'assetId': assetId});
   }
 
   @override

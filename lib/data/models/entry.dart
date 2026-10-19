@@ -122,6 +122,15 @@ class Entry {
   /// Device identifier that last modified this entry
   String? deviceId;
 
+  /// Remote id of this entry's encrypted media blob (null until uploaded,
+  /// or for entries without media). With [mediaPath] null it means the file
+  /// still has to be downloaded.
+  String? mediaAssetId;
+
+  /// Base64 per-file key for the media blob. Encrypted at rest like the
+  /// memory text; synced only inside the encrypted record.
+  String? mediaKey;
+
   /// True when one or more encrypted fields could not be decrypted at read-time.
   @Transient()
   bool decryptionFailed = false;
@@ -153,6 +162,8 @@ class Entry {
     this.syncUUID,
     this.modifiedAt,
     this.deviceId,
+    this.mediaAssetId,
+    this.mediaKey,
   }) : createdAt = createdAt ?? DateTime.now();
 
   /// A field-for-field copy (persisted fields plus [decryptionFailed]).
@@ -181,6 +192,8 @@ class Entry {
     syncUUID: syncUUID,
     modifiedAt: modifiedAt,
     deviceId: deviceId,
+    mediaAssetId: mediaAssetId,
+    mediaKey: mediaKey,
   )..decryptionFailed = decryptionFailed;
 
   /// Create a LINE entry - text that stayed with you

@@ -1,5 +1,10 @@
+import 'dart:ui';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
+import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/haptic_service.dart';
 
 /// Animated celebration when a capsule unlocks
@@ -30,6 +35,9 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
   late Animation<double> _revealScale;
 
   bool _showContent = false;
+
+  /// Reduce Motion: skip the shake, scale and sparkles; crossfade instead.
+  bool _reduceMotion = false;
   late final AnimationStatusListener _lockStatusListener;
   late final AnimationStatusListener _revealStatusListener;
 
@@ -109,6 +117,16 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
 
     // Wait a beat, then start
     await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
+
+    _reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (_reduceMotion) {
+      _revealController.duration = const Duration(milliseconds: 300);
+      _revealController.addStatusListener(_revealStatusListener);
+      setState(() => _showContent = true);
+      _revealController.forward();
+      return;
+    }
 
     // Shake the lock
     _lockController.forward();
@@ -132,10 +150,7 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor = isDark
-        ? SeedlingColors.themeGratitudeDark
-        : SeedlingColors.themeGratitude;
+    final accentColor = context.palette.accentGold;
 
     return Stack(
       alignment: Alignment.center,
@@ -148,7 +163,7 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
               return Opacity(
                 opacity: _revealOpacity.value,
                 child: Transform.scale(
-                  scale: _revealScale.value,
+                  scale: _reduceMotion ? 1.0 : _revealScale.value,
                   child: widget.child,
                 ),
               );
@@ -177,7 +192,13 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
                       color: accentColor.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.lock_open, size: 48, color: accentColor),
+                    child: Icon(
+                      PlatformUtils.isIOS
+                          ? CupertinoIcons.lock_open
+                          : Icons.lock_open,
+                      size: 48,
+                      color: accentColor,
+                    ),
                   ),
                 ),
               );
@@ -185,7 +206,7 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
           ),
 
         // Sparkles
-        if (_showContent)
+        if (_showContent && !_reduceMotion)
           ...List.generate(8, (index) {
             return AnimatedBuilder(
               animation: _sparkleController,
@@ -225,31 +246,49 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
   }
 }
 
-/// Show the unlock animation in a dialog
+/// Show the unlock animation in a modal: a blurred glass backdrop with a
+/// Cupertino route on iOS, a Material dialog on Android.
 Future<void> showCapsuleUnlockAnimation(
   BuildContext context, {
   required Widget content,
 }) async {
+  Widget card(BuildContext context) => CapsuleUnlockAnimation(
+    onComplete: () {
+      Navigator.of(context).pop();
+    },
+    child: Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: SeedlingRadius.card,
+      ),
+      child: content,
+    ),
+  );
+
+  if (PlatformUtils.isIOS) {
+    return showCupertinoDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Material(
+              type: MaterialType.transparency,
+              child: card(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   return showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: CapsuleUnlockAnimation(
-        onComplete: () {
-          Navigator.of(context).pop();
-        },
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? SeedlingColors.cardDark
-                : SeedlingColors.warmWhite,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: content,
-        ),
-      ),
-    ),
+    builder: (context) =>
+        Dialog(backgroundColor: Colors.transparent, child: card(context)),
   );
 }

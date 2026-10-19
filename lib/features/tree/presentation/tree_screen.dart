@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
@@ -177,18 +179,16 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     required TreePersonality personality,
   }) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: isDark
-              ? [SeedlingColors.backgroundDark, SeedlingColors.surfaceDark]
-              : [
-                  SeedlingColors.backgroundGradientStart,
-                  SeedlingColors.backgroundGradientEnd,
-                ],
+          colors: [
+            palette.backgroundGradientStart,
+            palette.backgroundGradientEnd,
+          ],
         ),
       ),
       child: SingleChildScrollView(
@@ -216,15 +216,15 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Text(
                 '${DateTime.now().year}',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: SeedlingColors.forestGreen,
-                  fontFamily: 'Georgia',
+                  color: context.palette.primary,
+                  fontFamily: SeedlingTypography.serifFamily,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               Text(
                 'This year: ${_treeStageLabel(treeState)}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.warmBrown,
+                  color: palette.secondary,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -232,14 +232,12 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color:
-                      Theme.of(context).cardTheme.color ??
-                      Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(28),
+                  color: palette.card,
+                  borderRadius: SeedlingRadius.card,
                   border: Border.all(color: Theme.of(context).dividerColor),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
+                      color: palette.shadow,
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -264,7 +262,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 child: Text(
                   treeDescription,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                     fontStyle: FontStyle.italic,
                   ),
                   textAlign: TextAlign.center,
@@ -275,7 +273,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 Text(
                   '$entryCount ${entryCount == 1 ? 'memory' : 'memories'}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: SeedlingColors.textMuted,
+                    color: context.palette.textMuted,
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -306,18 +304,22 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
         width: 190,
         child: CupertinoButton(
           padding: EdgeInsets.zero,
-          color: SeedlingColors.forestGreen,
+          color: context.palette.primaryFill,
           borderRadius: BorderRadius.circular(24),
           onPressed: () => showQuickCaptureSheet(context),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(AdaptiveIcons.add, color: Colors.white, size: 18),
+              Icon(
+                AdaptiveIcons.add,
+                color: context.palette.onPrimaryFill,
+                size: 18,
+              ),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Add Memory',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: context.palette.onPrimaryFill,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -333,7 +335,10 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       children: [
         IconButton(
           onPressed: () => context.push(AppRoutes.settings),
-          icon: Icon(AdaptiveIcons.settings, color: SeedlingColors.textPrimary),
+          icon: Icon(
+            AdaptiveIcons.settings,
+            color: context.palette.textPrimary,
+          ),
           tooltip: 'Settings',
         ),
         Expanded(
@@ -341,15 +346,15 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             'Your Tree',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: SeedlingColors.textPrimary,
-              fontFamily: 'Georgia',
+              color: context.palette.textPrimary,
+              fontFamily: SeedlingTypography.serifFamily,
               fontWeight: FontWeight.w600,
             ),
           ),
         ),
         IconButton(
           onPressed: () => context.push(AppRoutes.forest),
-          icon: Icon(AdaptiveIcons.tree, color: SeedlingColors.textPrimary),
+          icon: Icon(AdaptiveIcons.tree, color: context.palette.textPrimary),
           tooltip: 'Forest',
         ),
       ],
@@ -361,10 +366,8 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            Theme.of(context).cardTheme.color ??
-            Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        color: context.palette.card,
+        borderRadius: SeedlingRadius.card,
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
@@ -376,7 +379,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Text(
                 'Recent memories',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
               PlatformUtils.isIOS
@@ -386,7 +389,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                       child: Text(
                         'See all',
                         style: TextStyle(
-                          color: SeedlingColors.forestGreen,
+                          color: context.palette.primary,
                           fontSize: 14,
                         ),
                       ),
@@ -421,15 +424,13 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           ? CupertinoButton(
               padding: EdgeInsets.zero,
               color: Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: SeedlingRadius.button,
               onPressed: () => context.push(AppRoutes.memories),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color:
-                      Theme.of(context).cardTheme.color ??
-                      Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
+                  color: context.palette.card,
+                  borderRadius: SeedlingRadius.button,
                   border: Border.all(color: Theme.of(context).dividerColor),
                 ),
                 child: Row(
@@ -437,14 +438,14 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   children: [
                     Icon(
                       AdaptiveIcons.list,
-                      color: SeedlingColors.forestGreen,
+                      color: context.palette.primary,
                       size: 18,
                     ),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       'Open Memory Gallery',
                       style: TextStyle(
-                        color: SeedlingColors.forestGreen,
+                        color: context.palette.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -454,7 +455,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             )
           : OutlinedButton.icon(
               onPressed: () => context.push(AppRoutes.memories),
-              icon: Icon(AdaptiveIcons.list, color: SeedlingColors.forestGreen),
+              icon: Icon(AdaptiveIcons.list, color: context.palette.primary),
               label: const Text('Open Memory Gallery'),
             ),
     );

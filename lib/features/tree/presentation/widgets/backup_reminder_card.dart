@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/widgets/glass/glass_container.dart';
@@ -23,16 +23,9 @@ class BackupReminderCard extends ConsumerWidget {
     final shouldShow = ref.watch(shouldShowBackupReminderProvider);
     if (!shouldShow) return const SizedBox.shrink();
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final brown = isDark
-        ? SeedlingColors.warmBrownDark
-        : SeedlingColors.warmBrown;
-    final primary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final secondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
+    final brown = context.palette.secondary;
+    final primary = context.palette.textPrimary;
+    final secondary = context.palette.textSecondary;
 
     return GlassContainer(
       borderRadius: 18,
@@ -82,17 +75,17 @@ class BackupReminderCard extends ConsumerWidget {
     if (PlatformUtils.isIOS) {
       return CupertinoButton(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        color: SeedlingColors.forestGreen,
+        color: context.palette.primary,
         borderRadius: BorderRadius.circular(12),
         minimumSize: Size.zero,
         onPressed: () {
           HapticFeedback.selectionClick();
           context.push(AppRoutes.settings);
         },
-        child: const Text(
+        child: Text(
           'Back up now',
           style: TextStyle(
-            color: Colors.white,
+            color: context.palette.onPrimaryFill,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -106,8 +99,8 @@ class BackupReminderCard extends ConsumerWidget {
         context.push(AppRoutes.settings);
       },
       style: ElevatedButton.styleFrom(
-        backgroundColor: SeedlingColors.forestGreen,
-        foregroundColor: Colors.white,
+        backgroundColor: context.palette.primaryFill,
+        foregroundColor: context.palette.onPrimaryFill,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         minimumSize: Size.zero,
@@ -121,10 +114,7 @@ class BackupReminderCard extends ConsumerWidget {
   }
 
   Widget _buildDismissButton(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark
-        ? SeedlingColors.textMutedDark
-        : SeedlingColors.textMuted;
+    final muted = context.palette.textMuted;
     return GestureDetector(
       onTap: () async {
         HapticFeedback.selectionClick();

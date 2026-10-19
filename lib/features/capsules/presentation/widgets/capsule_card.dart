@@ -2,7 +2,8 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../data/models/entry.dart';
 
@@ -30,21 +31,11 @@ class CapsuleCard extends StatelessWidget {
   }
 
   Widget _buildLockedCard(BuildContext context) {
-    final cardColor = isDark
-        ? SeedlingColors.cardDark
-        : SeedlingColors.warmWhite;
-    final borderColor = isDark
-        ? SeedlingColors.dividerDark
-        : SeedlingColors.softCream;
-    final textPrimary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final textSecondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final textMuted = isDark
-        ? SeedlingColors.textMutedDark
-        : SeedlingColors.textMuted;
+    final cardColor = context.palette.card;
+    final borderColor = context.palette.divider;
+    final textPrimary = context.palette.textPrimary;
+    final textSecondary = context.palette.textSecondary;
+    final textMuted = context.palette.textMuted;
 
     return Semantics(
       label:
@@ -53,7 +44,7 @@ class CapsuleCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: SeedlingRadius.card,
           border: Border.all(color: borderColor),
         ),
         child: Column(
@@ -104,11 +95,7 @@ class CapsuleCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color:
-                    (isDark
-                            ? SeedlingColors.surfaceDark
-                            : SeedlingColors.softCream)
-                        .withValues(alpha: 0.5),
+                color: (context.palette.surfaceMuted).withValues(alpha: 0.5),
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(15),
                 ),
@@ -137,9 +124,7 @@ class CapsuleCard extends StatelessWidget {
   }
 
   Widget _buildLockIndicator(BuildContext context) {
-    final accentColor = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final accentColor = context.palette.primary;
 
     return Container(
       width: 60,
@@ -186,18 +171,10 @@ class CapsuleCard extends StatelessWidget {
   }
 
   Widget _buildUnlockedCard(BuildContext context) {
-    final cardColor = isDark
-        ? SeedlingColors.cardDark
-        : SeedlingColors.warmWhite;
-    final textPrimary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final textMuted = isDark
-        ? SeedlingColors.textMutedDark
-        : SeedlingColors.textMuted;
-    final accentColor = isDark
-        ? SeedlingColors.themeGratitudeDark
-        : SeedlingColors.themeGratitude;
+    final cardColor = context.palette.card;
+    final textPrimary = context.palette.textPrimary;
+    final textMuted = context.palette.textMuted;
+    final accentColor = context.palette.accentGold;
 
     return Semantics(
       button: onTap != null,
@@ -210,7 +187,7 @@ class CapsuleCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: cardColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: SeedlingRadius.card,
             border: Border.all(
               color: accentColor.withValues(alpha: 0.3),
               width: 2,

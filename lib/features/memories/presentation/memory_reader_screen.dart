@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../app/router.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/media/file_storage_service.dart';
 import '../../../data/models/entry.dart';
@@ -67,144 +67,127 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!PlatformUtils.isIOS) {
-      final entry = widget.args.entries[_currentIndex];
-      return Scaffold(
-        appBar: AppBar(title: const Text('Memory')),
-        body: Center(
-          child: TextButton(
-            onPressed: () => context.push(AppRoutes.entryRoute(entry.id)),
-            child: const Text('Open memory details'),
+    final palette = context.palette;
+    final topInset = MediaQuery.paddingOf(context).top;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final isIOS = PlatformUtils.isIOS;
+
+    final body = Stack(
+      children: [
+        Semantics(
+          label:
+              'Memory reader. Tap left for previous, right for next, center for controls.',
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTapUp: (details) => _handleReaderTap(context, details),
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.args.entries.length,
+              onPageChanged: (index) {
+                setState(() => _currentIndex = index);
+                HapticFeedback.selectionClick();
+                _scheduleChromeHide();
+              },
+              itemBuilder: (context, index) =>
+                  _buildEntryPage(context, widget.args.entries[index]),
+            ),
           ),
         ),
-      );
-    }
-
-    return CupertinoPageScaffold(
-      backgroundColor: const Color(0xFFF3F2EE),
-      child: Stack(
-        children: [
-          Semantics(
-            label:
-                'Memory reader. Tap left for previous, right for next, center for controls.',
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTapUp: (details) => _handleReaderTap(context, details),
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: widget.args.entries.length,
-                onPageChanged: (index) {
-                  setState(() => _currentIndex = index);
-                  HapticFeedback.selectionClick();
-                  _scheduleChromeHide();
-                },
-                itemBuilder: (context, index) =>
-                    _buildEntryPage(context, widget.args.entries[index]),
+        if (_showChrome)
+          Positioned(
+            top: topInset + 8,
+            left: 14,
+            child: _frostedIconButton(
+              icon: isIOS ? CupertinoIcons.back : Icons.arrow_back,
+              label: 'Back',
+              hint: 'Returns to memories',
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+        if (_showChrome)
+          Positioned(
+            top: topInset + 8,
+            right: 14,
+            child: Row(
+              children: [
+                _frostedIconButton(
+                  icon: _layoutIcon(),
+                  label: 'Switch reader style',
+                  hint: 'Cycles between immersive, pressed, and poetic styles',
+                  onPressed: _cycleLayout,
+                ),
+                const SizedBox(width: 8),
+                _frostedIconButton(
+                  icon: _showMetadata
+                      ? (isIOS
+                            ? CupertinoIcons.eye_slash
+                            : Icons.visibility_off_outlined)
+                      : (isIOS
+                            ? CupertinoIcons.eye
+                            : Icons.visibility_outlined),
+                  label: _showMetadata ? 'Hide details' : 'Show details',
+                  onPressed: () {
+                    setState(() => _showMetadata = !_showMetadata);
+                    _scheduleChromeHide();
+                  },
+                ),
+                const SizedBox(width: 8),
+                _frostedIconButton(
+                  icon: isIOS ? CupertinoIcons.ellipsis : Icons.more_horiz,
+                  label: 'Open details',
+                  hint: 'Opens editable memory details',
+                  onPressed: () {
+                    final entry = widget.args.entries[_currentIndex];
+                    context.push(AppRoutes.entryRoute(entry.id));
+                  },
+                ),
+              ],
+            ),
+          ),
+        if (_showChrome)
+          Positioned(
+            bottom: bottomInset + 20,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Semantics(
+                label:
+                    'Memory ${_currentIndex + 1} of ${widget.args.entries.length}',
+                excludeSemantics: true,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: palette.mediaScrim.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: palette.onMedia.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1} / ${widget.args.entries.length}',
+                    style: TextStyle(
+                      color: palette.onMedia,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-          if (_showChrome)
-            Positioned(
-              top: 54,
-              left: 14,
-              child: Semantics(
-                button: true,
-                label: 'Back',
-                hint: 'Returns to memories',
-                child: _frostedIconButton(
-                  icon: CupertinoIcons.back,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-            ),
-          if (_showChrome)
-            Positioned(
-              top: 54,
-              right: 14,
-              child: Row(
-                children: [
-                  Semantics(
-                    button: true,
-                    label: 'Switch reader style',
-                    hint:
-                        'Cycles between immersive, specimen, and poetic styles',
-                    child: _frostedIconButton(
-                      icon: _layoutIcon(),
-                      onPressed: _cycleLayout,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Semantics(
-                    button: true,
-                    label: _showMetadata ? 'Hide metadata' : 'Show metadata',
-                    child: _frostedIconButton(
-                      icon: _showMetadata
-                          ? CupertinoIcons.eye_slash
-                          : CupertinoIcons.eye,
-                      onPressed: () {
-                        setState(() => _showMetadata = !_showMetadata);
-                        _scheduleChromeHide();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Semantics(
-                    button: true,
-                    label: 'Open details',
-                    hint: 'Opens editable memory details',
-                    child: _frostedIconButton(
-                      icon: CupertinoIcons.ellipsis,
-                      onPressed: () {
-                        final entry = widget.args.entries[_currentIndex];
-                        context.push(AppRoutes.entryRoute(entry.id));
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (_showChrome)
-            Positioned(
-              bottom: 34,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Semantics(
-                  label:
-                      'Memory ${_currentIndex + 1} of ${widget.args.entries.length}',
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: Text(
-                          '${_currentIndex + 1} / ${widget.args.entries.length}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
+
+    if (isIOS) {
+      return CupertinoPageScaffold(
+        backgroundColor: palette.background,
+        child: body,
+      );
+    }
+    return Scaffold(backgroundColor: palette.background, body: body);
   }
 
   Widget _buildEntryPage(BuildContext context, Entry entry) {
@@ -256,11 +239,11 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
   Widget _buildImmersiveCard(BuildContext context, Entry entry) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: context.palette.card.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: context.palette.shadow,
             blurRadius: 28,
             offset: const Offset(0, 16),
           ),
@@ -277,8 +260,8 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             ],
             Text(
               (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
-              style: const TextStyle(
-                color: SeedlingColors.textPrimary,
+              style: TextStyle(
+                color: context.palette.textPrimary,
                 fontSize: 30,
                 fontWeight: FontWeight.w700,
                 height: 1.15,
@@ -290,7 +273,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                   ? entry.text!
                   : 'A preserved moment from your living tree.',
               style: TextStyle(
-                color: SeedlingColors.textPrimary.withValues(alpha: 0.9),
+                color: context.palette.textPrimary.withValues(alpha: 0.9),
                 fontSize: 20,
                 height: 1.7,
                 fontStyle: entry.type == EntryType.release
@@ -316,12 +299,12 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF9F8F3),
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFDAD7CC)),
+        border: Border.all(color: context.palette.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: context.palette.shadow,
             blurRadius: 22,
             offset: const Offset(0, 12),
           ),
@@ -333,12 +316,11 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'SPECIMEN',
+              'Pressed between pages',
               style: TextStyle(
-                color: SeedlingColors.textMuted,
-                fontSize: 11,
-                letterSpacing: 1.5,
-                fontWeight: FontWeight.w700,
+                color: context.palette.textSecondary,
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
               ),
             ),
             if (_showMetadata) ...[
@@ -356,8 +338,8 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             const SizedBox(height: 14),
             Text(
               (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
-              style: const TextStyle(
-                color: SeedlingColors.textPrimary,
+              style: TextStyle(
+                color: context.palette.textPrimary,
                 fontSize: 27,
                 fontWeight: FontWeight.w700,
                 height: 1.2,
@@ -369,7 +351,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                   ? entry.text!
                   : 'A preserved moment from your living tree.',
               style: TextStyle(
-                color: SeedlingColors.textPrimary.withValues(alpha: 0.88),
+                color: context.palette.textPrimary.withValues(alpha: 0.88),
                 fontSize: 18,
                 height: 1.65,
                 fontStyle: entry.type == EntryType.release
@@ -386,7 +368,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
   Widget _buildPoeticCard(BuildContext context, Entry entry) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
+        color: context.palette.card.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(28),
       ),
       child: Padding(
@@ -396,8 +378,8 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             if (_showMetadata)
               Text(
                 DateFormat('MMMM d').format(entry.createdAt),
-                style: const TextStyle(
-                  color: SeedlingColors.textSecondary,
+                style: TextStyle(
+                  color: context.palette.textSecondary,
                   fontSize: 15,
                   fontStyle: FontStyle.italic,
                 ),
@@ -406,8 +388,8 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             Text(
               (entry.title ?? '').isNotEmpty ? entry.title! : entry.typeName,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: SeedlingColors.textPrimary,
+              style: TextStyle(
+                color: context.palette.textPrimary,
                 fontSize: 34,
                 fontWeight: FontWeight.w600,
                 height: 1.1,
@@ -420,7 +402,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                   : 'A preserved moment from your living tree.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: SeedlingColors.textPrimary.withValues(alpha: 0.85),
+                color: context.palette.textPrimary.withValues(alpha: 0.85),
                 fontSize: 21,
                 height: 1.8,
                 fontStyle: entry.type == EntryType.release
@@ -440,24 +422,23 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: context.palette.surfaceMuted,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            entry.typeName.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-              color: SeedlingColors.textSecondary,
+            entry.typeName,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: context.palette.textSecondary,
             ),
           ),
         ),
         const SizedBox(width: 8),
         Text(
           DateFormat('MMMM d, y').format(entry.createdAt),
-          style: const TextStyle(
-            color: SeedlingColors.textSecondary,
+          style: TextStyle(
+            color: context.palette.textSecondary,
             fontSize: 12,
             letterSpacing: 0.3,
           ),
@@ -466,22 +447,48 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
     );
   }
 
+  /// Chrome button over the reader backdrop. Always at least 44x44pt so it
+  /// is easy to hit, with a label for screen readers.
   Widget _frostedIconButton({
     required IconData icon,
+    required String label,
     required VoidCallback onPressed,
+    String? hint,
   }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: CupertinoButton(
-          padding: const EdgeInsets.all(10),
-          color: Colors.white.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(20),
-          onPressed: onPressed,
-          child: Icon(icon, size: 16, color: Colors.white),
-        ),
-      ),
+    final palette = context.palette;
+    final button = PlatformUtils.isIOS
+        ? CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(44, 44),
+            color: palette.onMedia.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(22),
+            onPressed: onPressed,
+            child: Icon(icon, size: 20, color: palette.onMedia),
+          )
+        : Material(
+            color: palette.mediaScrim.withValues(alpha: 0.35),
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: IconButton(
+              onPressed: onPressed,
+              icon: Icon(icon, size: 22, color: palette.onMedia),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            ),
+          );
+    return Semantics(
+      button: true,
+      label: label,
+      hint: hint,
+      excludeSemantics: true,
+      child: PlatformUtils.isIOS
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: button,
+              ),
+            )
+          : button,
     );
   }
 
@@ -499,7 +506,10 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
           if (resolvedPath == null) {
             return _buildGradientBackdrop(entry);
           }
-          final cacheWidth = MediaQuery.of(context).size.width.toInt();
+          final cacheWidth =
+              (MediaQuery.sizeOf(context).width *
+                      MediaQuery.devicePixelRatioOf(context))
+                  .round();
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -510,7 +520,9 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
               ),
               BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(color: Colors.black.withValues(alpha: 0.24)),
+                child: Container(
+                  color: context.palette.mediaScrim.withValues(alpha: 0.3),
+                ),
               ),
             ],
           );
@@ -555,7 +567,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
               child: Container(
                 color: Theme.of(context).dividerColor,
                 alignment: Alignment.center,
-                child: const CupertinoActivityIndicator(),
+                child: const CircularProgressIndicator.adaptive(),
               ),
             ),
           );
@@ -569,16 +581,27 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                 ? Container(
                     color: Theme.of(context).dividerColor,
                     alignment: Alignment.center,
-                    child: const Icon(CupertinoIcons.photo),
+                    child: Icon(
+                      PlatformUtils.isIOS
+                          ? CupertinoIcons.photo
+                          : Icons.photo_outlined,
+                    ),
                   )
                 : Image.file(
                     File(resolvedPath),
                     fit: BoxFit.cover,
-                    cacheWidth: MediaQuery.of(context).size.width.toInt(),
+                    cacheWidth:
+                        (MediaQuery.sizeOf(context).width *
+                                MediaQuery.devicePixelRatioOf(context))
+                            .round(),
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: Theme.of(context).dividerColor,
                       alignment: Alignment.center,
-                      child: const Icon(CupertinoIcons.photo),
+                      child: Icon(
+                        PlatformUtils.isIOS
+                            ? CupertinoIcons.photo
+                            : Icons.photo_outlined,
+                      ),
                     ),
                   ),
           ),
@@ -601,7 +624,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
               color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Center(child: CupertinoActivityIndicator()),
+            child: const Center(child: CircularProgressIndicator.adaptive()),
           );
         }
         final resolvedPath = snapshot.data;
@@ -614,16 +637,18 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
             ),
             child: Row(
               children: [
-                const Icon(
-                  CupertinoIcons.waveform,
-                  color: SeedlingColors.textMuted,
+                Icon(
+                  PlatformUtils.isIOS
+                      ? CupertinoIcons.waveform
+                      : Icons.graphic_eq,
+                  color: context.palette.textMuted,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Voice memo unavailable',
                     style: TextStyle(
-                      color: SeedlingColors.textSecondary.withValues(
+                      color: context.palette.textSecondary.withValues(
                         alpha: 0.9,
                       ),
                       fontSize: 14,
@@ -640,6 +665,13 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
   }
 
   IconData _layoutIcon() {
+    if (!PlatformUtils.isIOS) {
+      return switch (_layout) {
+        ReaderLayout.immersive => Icons.grid_view,
+        ReaderLayout.specimen => Icons.notes,
+        ReaderLayout.poetic => Icons.auto_awesome_outlined,
+      };
+    }
     return switch (_layout) {
       ReaderLayout.immersive => CupertinoIcons.square_grid_2x2,
       ReaderLayout.specimen => CupertinoIcons.text_justify,
@@ -679,20 +711,28 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
   void _goToPrevious() {
     if (_currentIndex <= 0) return;
     HapticFeedback.selectionClick();
-    _pageController.previousPage(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-    );
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pageController.jumpToPage(_currentIndex - 1);
+    } else {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    }
     _scheduleChromeHide();
   }
 
   void _goToNext() {
     if (_currentIndex >= widget.args.entries.length - 1) return;
     HapticFeedback.selectionClick();
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-    );
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pageController.jumpToPage(_currentIndex + 1);
+    } else {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    }
     _scheduleChromeHide();
   }
 
@@ -705,6 +745,8 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
     }
     _chromeTimer = Timer(const Duration(seconds: 4), () {
       if (!mounted) return;
+      // Keep controls reachable for screen-reader and switch users.
+      if (MediaQuery.maybeAccessibleNavigationOf(context) ?? false) return;
       setState(() => _showChrome = false);
     });
   }

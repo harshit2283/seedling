@@ -31,10 +31,6 @@ class _CountingBackend extends SyncBackend {
 
   @override
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async => null;
-
-  @override
-  Future<String?> downloadAsset(String syncUUID, String targetPath) async =>
-      null;
 }
 
 Future<ProviderContainer> _container(

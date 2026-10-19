@@ -75,6 +75,38 @@ class _DriveApiFileStore implements DriveFileStore {
       uploadMedia: drive.Media(Stream.value(bytes), bytes.length),
     );
   }
+
+  @override
+  Future<String> createFromFile(String name, File source) async {
+    final created = await _api.files.create(
+      drive.File()
+        ..name = name
+        ..parents = ['appDataFolder'],
+      uploadMedia: drive.Media(source.openRead(), await source.length()),
+      uploadOptions: drive.UploadOptions.resumable,
+    );
+    return created.id!;
+  }
+
+  @override
+  Future<void> downloadTo(String fileId, File target) async {
+    final media = await _api.files.get(
+      fileId,
+      downloadOptions: drive.DownloadOptions.fullMedia,
+    );
+    if (media is! drive.Media) {
+      throw const FileSystemException('Drive returned no media');
+    }
+    final sink = target.openWrite();
+    try {
+      await media.stream.pipe(sink);
+    } finally {
+      await sink.close();
+    }
+  }
+
+  @override
+  Future<void> delete(String fileId) => _api.files.delete(fileId);
 }
 
 /// Google Drive appData-based sync backend used on iOS/Android.
@@ -327,41 +359,31 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   @override
+  Future<void> uploadMediaBlob(String assetId, File ciphertext) async {
+    if (!await _ensureReady()) throw StateError('Google Drive not connected');
+    final logs = await _logs();
+    await _withRetry(() => logs.uploadBlob(assetId, ciphertext));
+  }
+
+  @override
+  Future<bool> downloadMediaBlob(String assetId, File target) async {
+    if (!await _ensureReady()) throw StateError('Google Drive not connected');
+    final logs = await _logs();
+    return _withRetry(() => logs.downloadBlob(assetId, target));
+  }
+
+  @override
+  Future<void> deleteMediaBlob(String assetId) async {
+    if (!await _ensureReady()) throw StateError('Google Drive not connected');
+    final logs = await _logs();
+    await _withRetry(() => logs.deleteBlob(assetId));
+  }
+
+  @override
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async {
     if (!await _ensureReady()) return null;
     final logs = await _logs();
     return _withRetry(() => logs.fetch(changeToken));
-  }
-
-  @override
-  Future<String?> downloadAsset(String syncUUID, String targetPath) async {
-    if (!await _ensureReady() || _driveApi == null) return null;
-
-    return _withRetry(() async {
-      final api = _driveApi!;
-      final query =
-          "name contains '${syncUUID}_' and trashed=false and 'appDataFolder' in parents";
-      final files = await api.files.list(
-        q: query,
-        spaces: 'appDataFolder',
-        $fields: 'files(id,name)',
-        pageSize: 1,
-      );
-      final found = files.files;
-      if (found == null || found.isEmpty || found.first.id == null) return null;
-
-      final media = await api.files.get(
-        found.first.id!,
-        downloadOptions: drive.DownloadOptions.fullMedia,
-      );
-      if (media is! drive.Media) return null;
-
-      final output = File(targetPath);
-      final sink = output.openWrite();
-      await media.stream.pipe(sink);
-      await sink.close();
-      return output.path;
-    });
   }
 
   // ---------------------------------------------------------------------------
