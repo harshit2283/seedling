@@ -40,6 +40,9 @@ class AppRoutes {
   static const String yearReview = '/review/:year';
 
   static String entryRoute(int id) => '/entry/$id';
+
+  /// Opens a memory resurfaced on its anniversary ("2 years ago today").
+  static String onThisDayEntryRoute(int id) => '/entry/$id?onThisDay=1';
   static String yearReviewRoute(int year) => '/review/$year';
 }
 
@@ -116,7 +119,10 @@ GoRouter createAppRouter(SharedPreferences prefs) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
           return _buildPage(
             key: state.pageKey,
-            child: EntryDetailScreen(entryId: id),
+            child: EntryDetailScreen(
+              entryId: id,
+              onThisDay: state.uri.queryParameters['onThisDay'] == '1',
+            ),
           );
         },
       ),

@@ -49,10 +49,21 @@ final entryConnectionsProvider = Provider.autoDispose
       // every time the entries list changes (e.g. when a new entry is created).
       final entries = ref.read(entriesProvider);
       final entry = entries.where((e) => e.id == entryId).firstOrNull;
-      if (entry == null) return [];
-
       final connectionFinder = ref.watch(connectionFinderProvider);
-      return connectionFinder.findConnections(entry, entries);
+      if (entry != null) {
+        return connectionFinder.findConnections(entry, entries);
+      }
+
+      // A memory from an earlier year: look across every year (sealed
+      // capsules stay sealed). Watched, because the all-years list may still
+      // be loading on the first build.
+      final everything = ref
+          .watch(allEntriesProvider)
+          .where((e) => !e.isLocked && !e.isDeleted)
+          .toList();
+      final past = everything.where((e) => e.id == entryId).firstOrNull;
+      if (past == null) return [];
+      return connectionFinder.findConnections(past, everything);
     });
 
 /// Provider for theme distribution across all entries
