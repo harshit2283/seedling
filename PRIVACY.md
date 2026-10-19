@@ -76,9 +76,10 @@ devices. Without it, those fields can't be read by Apple, Google, or us.
 
 What sync does **not** encrypt end-to-end today:
 
-- **Photos and voice memos** are uploaded as regular files to your iCloud
-  or Drive storage. They are protected by Apple's or Google's own storage
-  encryption, not by your Seedling passphrase.
+- **Photos and voice memos are not synced yet.** Only the memory record
+  (with the media file's name) is synced, so a photo or voice memo appears
+  on your other device as a memory without its file. When media sync
+  ships, files will be encrypted with your passphrase before upload.
 - **Record metadata** such as memory type, dates, capsule unlock dates,
   deletion state, a sentiment score, file names, and a random device ID
   are stored unencrypted alongside the encrypted text, so sync can work.
@@ -126,7 +127,7 @@ children, because it collects no information at all.
 
 Being honest about where the code doesn't yet match the ideal:
 
-1. Synced photos and voice memos are not encrypted with your passphrase.
+1. Photos and voice memos are not synced between devices yet.
 2. Some sync metadata (dates, type, sentiment score) is not encrypted.
 3. On Android, ML Kit may contact Google to download its language model
    on first launch, before any opt-in.
