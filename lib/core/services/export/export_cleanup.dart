@@ -16,6 +16,9 @@ const List<String> exportArtifactPrefixes = [
 /// share_plus's own staging copy of outgoing files (`share_plus`, Android).
 const List<String> transientShareDirectories = ['shared_intake', 'share_plus'];
 
+/// Prefix of the staging directories imports extract media into.
+const String importStagingPrefix = 'seedling_import_';
+
 /// Deletes a single exported file. Never throws: cleanup must not turn a
 /// successful share into a reported failure.
 Future<void> deleteExportArtifact(String? path) async {
@@ -59,8 +62,20 @@ Future<int> sweepStaleExportArtifacts(
 
   try {
     await for (final entity in tempDir.list(followLinks: false)) {
+      final name = entity.path.replaceAll('\\', '/').split('/').last;
+      if (entity is Directory && name.startsWith(importStagingPrefix)) {
+        try {
+          final modified = (await entity.stat()).modified;
+          if (modified.isBefore(cutoff)) {
+            await entity.delete(recursive: true);
+            deleted++;
+          }
+        } catch (e) {
+          debugPrint('sweepStaleExportArtifacts skipped "${entity.path}": $e');
+        }
+        continue;
+      }
       if (entity is! File) continue;
-      final name = entity.uri.pathSegments.last;
       if (exportArtifactPrefixes.any(name.startsWith)) {
         await deleteIfStale(entity);
       }

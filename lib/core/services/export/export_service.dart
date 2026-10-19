@@ -14,9 +14,11 @@ import '../media/file_storage_service.dart';
 import 'backup_codec.dart';
 import 'export_cleanup.dart';
 import 'export_models.dart';
+import 'journal_import.dart';
 import 'markdown_export.dart';
 
 export 'export_models.dart';
+export 'journal_import.dart' show JournalImport, JournalImportSource;
 
 /// Presents the platform share sheet for [file]. Injectable for tests.
 typedef ShareFileFn =
@@ -364,6 +366,36 @@ class ExportService {
 
   static Future<LoadedEncryptedBackup> _runLoadZip(String filePath) {
     return Isolate.run(() => readZipArchiveFile(filePath));
+  }
+
+  /// Parses a Day One JSON export ZIP or a Seedling Markdown export ZIP.
+  ///
+  /// Media is extracted, size-bounded, into a fresh staging directory in the
+  /// temp folder; call [discardJournalImport] when done (the startup sweep
+  /// removes any left behind). Runs in a background isolate.
+  Future<JournalImport> loadJournalArchive(String zipPath) async {
+    final tempDir = await getTemporaryDirectory();
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final staging = '${tempDir.path}/$importStagingPrefix$stamp';
+    try {
+      return await Isolate.run(() => readJournalArchive(zipPath, staging));
+    } catch (_) {
+      await _deleteDirectory(staging);
+      rethrow;
+    }
+  }
+
+  /// Deletes the staged media of [import].
+  Future<void> discardJournalImport(JournalImport import) =>
+      _deleteDirectory(import.stagingDirectory);
+
+  static Future<void> _deleteDirectory(String path) async {
+    try {
+      final dir = Directory(path);
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } catch (e) {
+      debugPrint('Could not delete import staging "$path": $e');
+    }
   }
 
   /// Share an exported file

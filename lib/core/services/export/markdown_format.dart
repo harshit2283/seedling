@@ -51,9 +51,13 @@ String isoWithOffset(DateTime value) {
   final hh = abs.inHours.toString().padLeft(2, '0');
   final mm = (abs.inMinutes % 60).toString().padLeft(2, '0');
   String two(int v) => v.toString().padLeft(2, '0');
+  // Milliseconds only when present, so re-imports match the exact instant.
+  final ms = local.millisecond == 0
+      ? ''
+      : '.${local.millisecond.toString().padLeft(3, '0')}';
   return '${local.year.toString().padLeft(4, '0')}-${two(local.month)}-'
       '${two(local.day)}T${two(local.hour)}:${two(local.minute)}:'
-      '${two(local.second)}$sign$hh:$mm';
+      '${two(local.second)}$ms$sign$hh:$mm';
 }
 
 /// Writes a YAML front-matter block. Free text is emitted as double-quoted
