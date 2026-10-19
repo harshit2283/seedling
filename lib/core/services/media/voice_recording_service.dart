@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import '../error_reporter.dart';
 import 'file_storage_service.dart';
@@ -61,7 +60,7 @@ class VoiceStartRecordingResult {
 
 /// Service for recording voice memos
 class VoiceRecordingService {
-  final AudioRecorder _recorder = AudioRecorder();
+  final AudioRecorder _recorder;
   final PermissionService _permissionService;
   final FileStorageService _storageService;
   final ErrorReporter _errorReporter;
@@ -74,16 +73,23 @@ class VoiceRecordingService {
   /// Maximum recording duration (2 minutes)
   static const maxDuration = Duration(minutes: 2);
 
-  /// Callback when max duration is reached
-  VoidCallback? onMaxDurationReached;
+  /// Duration after which a recording is stopped automatically.
+  final Duration maxRecordingDuration;
+
+  /// Called after a recording was auto-stopped at [maxRecordingDuration],
+  /// with the saved result. The recording is kept, not discarded.
+  void Function(VoiceRecordingResult result)? onMaxDurationReached;
 
   VoiceRecordingService({
     required PermissionService permissionService,
     required FileStorageService storageService,
     ErrorReporter? errorReporter,
+    AudioRecorder? recorder,
+    this.maxRecordingDuration = maxDuration,
   }) : _permissionService = permissionService,
        _storageService = storageService,
-       _errorReporter = errorReporter ?? const ErrorReporter();
+       _errorReporter = errorReporter ?? const ErrorReporter(),
+       _recorder = recorder ?? AudioRecorder();
 
   /// Current recording state
   RecordingState get state => _state;
@@ -133,9 +139,9 @@ class VoiceRecordingService {
       _recordingStartTime = DateTime.now();
 
       // Set up max duration timer
-      _maxDurationTimer = Timer(maxDuration, () {
-        unawaited(stopRecording());
-        onMaxDurationReached?.call();
+      _maxDurationTimer = Timer(maxRecordingDuration, () async {
+        final result = await stopRecording();
+        onMaxDurationReached?.call(result);
       });
 
       return VoiceStartRecordingResult.started();

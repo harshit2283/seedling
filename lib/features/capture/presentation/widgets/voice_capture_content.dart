@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/media/audio_playback_service.dart';
+import '../../../../core/services/media/voice_recording_service.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
 
@@ -35,10 +36,18 @@ class VoiceCaptureContent extends ConsumerStatefulWidget {
 }
 
 class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   String? _voicePath;
   Duration? _recordedDuration;
   bool _isRecording = false;
+
+  /// True while [VoiceRecordingService.startRecording] is still awaiting
+  /// (permission prompt, recorder start-up).
+  bool _isStarting = false;
+
+  /// The finger was lifted before recording finished starting.
+  bool _releasedWhileStarting = false;
+  late final VoiceRecordingService _recordingService;
   Duration _currentDuration = Duration.zero;
   Timer? _durationTimer;
   late TextEditingController _textController;
@@ -70,7 +79,7 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
+    );
     _waveformFadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -80,12 +89,33 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     _setupPlaybackListeners();
 
     // Set up max duration callback
-    final service = ref.read(voiceRecordingServiceProvider);
-    service.onMaxDurationReached = _onMaxDurationReached;
+    _recordingService = ref.read(voiceRecordingServiceProvider);
+    _recordingService.onMaxDurationReached = _onMaxDurationReached;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Never keep the microphone live in the background. Stop (and keep) the
+    // recording rather than discarding what was said so far.
+    if ((state == AppLifecycleState.hidden ||
+            state == AppLifecycleState.paused) &&
+        _isRecording) {
+      unawaited(_stopRecording());
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_recordingService.onMaxDurationReached == _onMaxDurationReached) {
+      _recordingService.onMaxDurationReached = null;
+    }
+    // The sheet can be dismissed mid-recording (or while recording is still
+    // starting); make sure the microphone is released.
+    if (_isRecording || _isStarting) {
+      unawaited(_recordingService.cancelRecording());
+    }
     _durationTimer?.cancel();
     _amplitudeSubscription?.cancel();
     _playbackStateSubscription?.cancel();
@@ -161,46 +191,59 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
         ),
         const SizedBox(height: 24),
         // Record button
-        GestureDetector(
-          onTapDown: (_) => _startRecording(),
-          onTapUp: (_) => _stopRecording(),
-          onTapCancel: () => _cancelRecording(),
-          child: AnimatedBuilder(
-            animation: _pulseController,
-            builder: (context, child) {
-              final scale = _isRecording
-                  ? 1.0 + (_pulseController.value * 0.1)
-                  : 1.0;
-              return Transform.scale(scale: scale, child: child);
-            },
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _isRecording
-                    ? SeedlingColors.accentVoice
-                    : SeedlingColors.accentVoice.withValues(alpha: 0.15),
-                border: Border.all(color: SeedlingColors.accentVoice, width: 3),
-                boxShadow: _isRecording
-                    ? [
-                        BoxShadow(
-                          color: SeedlingColors.accentVoice.withValues(
-                            alpha: 0.3,
-                          ),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Icon(
-                  PlatformUtils.isIOS ? CupertinoIcons.mic_fill : Icons.mic,
-                  size: 40,
+        // A raw Listener (not a tap recognizer) so a little finger movement or
+        // the sheet's drag gesture can't cancel and discard the recording.
+        // Screen-reader users get tap-to-start / tap-to-stop instead of hold.
+        Semantics(
+          button: true,
+          label: _isRecording ? 'Stop recording' : 'Record voice memo',
+          hint: _isRecording ? null : 'Hold to record, or double-tap to start',
+          onTap: () => _isRecording ? _stopRecording() : _startRecording(),
+          excludeSemantics: true,
+          child: Listener(
+            onPointerDown: (_) => _startRecording(),
+            onPointerUp: (_) => _stopRecording(),
+            onPointerCancel: (_) => _stopRecording(),
+            child: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                final scale = _isRecording
+                    ? 1.0 + (_pulseController.value * 0.1)
+                    : 1.0;
+                return Transform.scale(scale: scale, child: child);
+              },
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
                   color: _isRecording
-                      ? Colors.white
-                      : SeedlingColors.accentVoice,
+                      ? SeedlingColors.accentVoice
+                      : SeedlingColors.accentVoice.withValues(alpha: 0.15),
+                  border: Border.all(
+                    color: SeedlingColors.accentVoice,
+                    width: 3,
+                  ),
+                  boxShadow: _isRecording
+                      ? [
+                          BoxShadow(
+                            color: SeedlingColors.accentVoice.withValues(
+                              alpha: 0.3,
+                            ),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: Icon(
+                    PlatformUtils.isIOS ? CupertinoIcons.mic_fill : Icons.mic,
+                    size: 40,
+                    color: _isRecording
+                        ? Colors.white
+                        : SeedlingColors.accentVoice,
+                  ),
                 ),
               ),
             ),
@@ -426,12 +469,27 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
   }
 
   Future<void> _startRecording() async {
-    if (_isRecording || _voicePath != null) return;
+    if (_isRecording || _isStarting || _voicePath != null) return;
 
-    final service = ref.read(voiceRecordingServiceProvider);
-    final result = await service.startRecording();
+    final service = _recordingService;
+    _isStarting = true;
+    _releasedWhileStarting = false;
+    final VoiceStartRecordingResult result;
+    try {
+      result = await service.startRecording();
+    } finally {
+      _isStarting = false;
+    }
 
     if (!mounted) return;
+
+    // The finger came up before the recorder was ready (for example while
+    // the first-time permission prompt was showing). Don't leave a recording
+    // running with nothing held.
+    if (result.started && _releasedWhileStarting) {
+      await service.cancelRecording();
+      return;
+    }
 
     if (!result.started) {
       if (result.permissionDenied) {
@@ -447,6 +505,9 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     }
 
     HapticFeedback.mediumImpact();
+    if (!MediaQuery.of(context).disableAnimations) {
+      _pulseController.repeat(reverse: true);
+    }
     setState(() {
       _isRecording = true;
       for (int i = 0; i < _waveformSamples.length; i++) {
@@ -482,15 +543,30 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
   }
 
   Future<void> _stopRecording() async {
+    // The pointer can come up after the sheet was dismissed; dispose already
+    // cancelled the recording.
+    if (!mounted) return;
+    if (_isStarting) {
+      _releasedWhileStarting = true;
+      return;
+    }
     if (!_isRecording) return;
 
+    _stopRecordingVisuals();
+    final result = await _recordingService.stopRecording();
+    _applyStopResult(result);
+  }
+
+  void _stopRecordingVisuals() {
     _durationTimer?.cancel();
     _amplitudeSubscription?.cancel();
     _waveformFadeController.reverse();
+    _pulseController
+      ..stop()
+      ..value = 0;
+  }
 
-    final service = ref.read(voiceRecordingServiceProvider);
-    final result = await service.stopRecording();
-
+  void _applyStopResult(VoiceRecordingResult result) {
     if (!mounted) return;
 
     setState(() {
@@ -512,35 +588,12 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
     }
   }
 
-  Future<void> _cancelRecording() async {
-    if (!_isRecording) return;
-
-    _durationTimer?.cancel();
-    _amplitudeSubscription?.cancel();
-    _waveformFadeController.reverse();
-
-    final service = ref.read(voiceRecordingServiceProvider);
-    await service.cancelRecording();
-
-    if (!mounted) return;
-
-    HapticFeedback.selectionClick();
-    setState(() {
-      _isRecording = false;
-      _currentDuration = Duration.zero;
-    });
-  }
-
-  void _onMaxDurationReached() {
+  void _onMaxDurationReached(VoiceRecordingResult result) {
     if (!mounted) return;
     HapticFeedback.heavyImpact();
-    // Recording is auto-stopped by the service
-    _durationTimer?.cancel();
-    _amplitudeSubscription?.cancel();
-    _waveformFadeController.reverse();
-    setState(() {
-      _isRecording = false;
-    });
+    // The service already stopped and saved the recording; keep it.
+    _stopRecordingVisuals();
+    _applyStopResult(result);
   }
 
   Future<void> _removeRecording() async {
