@@ -83,22 +83,6 @@ class CloudKitSyncService implements SyncBackend {
     }
   }
 
-  /// Upload a media asset to CloudKit
-  @override
-  Future<String?> uploadAsset(String localPath, String syncUUID) async {
-    try {
-      final result = await _channel.invokeMethod<String>('uploadAsset', {
-        'filePath': localPath,
-        'syncUUID': syncUUID,
-        'fieldName': _assetFieldName,
-      });
-      return result;
-    } on PlatformException catch (e) {
-      debugPrint('CloudKitSyncService.uploadAsset failed: ${e.code}');
-      return null;
-    }
-  }
-
   /// Download a media asset from CloudKit
   @override
   Future<String?> downloadAsset(String syncUUID, String targetPath) async {
