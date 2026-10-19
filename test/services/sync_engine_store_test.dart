@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/security/at_rest_encryption_service.dart';
+import 'package:seedling/core/services/sync/drive_sync_log.dart';
+import 'package:seedling/core/services/sync/google_drive_sync_service.dart';
 import 'package:seedling/core/services/sync/sync_backend.dart';
 import 'package:seedling/core/services/sync/sync_crypto_service.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
@@ -93,6 +95,38 @@ class _MemoryBackend implements SyncBackend {
   Future<bool> connect() async => true;
   @override
   Future<void> disconnect() async {}
+}
+
+class _MemoryDrive implements DriveFileStore {
+  final _files = <String, ({String name, List<int> bytes})>{};
+  var _nextId = 0;
+
+  @override
+  Future<List<DriveFileInfo>> listByPrefix(String prefix) async {
+    await Future<void>.delayed(Duration.zero);
+    return [
+      for (final MapEntry(:key, :value) in _files.entries)
+        if (value.name.startsWith(prefix))
+          DriveFileInfo(id: key, name: value.name),
+    ];
+  }
+
+  @override
+  Future<List<int>?> read(String fileId) async => _files[fileId]?.bytes;
+
+  @override
+  Future<String> create(String name, List<int> bytes) async {
+    await Future<void>.delayed(Duration.zero);
+    final id = 'f${_nextId++}';
+    _files[id] = (name: name, bytes: bytes);
+    return id;
+  }
+
+  @override
+  Future<void> overwrite(String fileId, List<int> bytes) async {
+    await Future<void>.delayed(Duration.zero);
+    _files[fileId] = (name: _files[fileId]!.name, bytes: bytes);
+  }
 }
 
 Map<String, dynamic> _record(
@@ -324,6 +358,62 @@ void main() {
     engine.queuePush(entry, SyncChangeType.create);
     await engine.push();
     expect(backend.saved.single['mediaPath'], 'photos/IMG_1.jpg');
+  });
+
+  test('two devices converge through Google Drive logs', () async {
+    if (skip()) return;
+    final drive = _MemoryDrive();
+    final dirB = await Directory.systemTemp.createTemp('sync_store_b');
+    final dbB = await ObjectBoxDatabase.openForTesting(
+      directory: dirB.path,
+      encryptionService: AtRestEncryptionService(),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('sync_enabled_b', true);
+    final metaB = SyncMetadata(prefs, namespace: 'b');
+    await metaB.setFormatVersion(SyncEngine.currentFormatVersion);
+    final engineA = SyncEngine(
+      database: db!,
+      backend: GoogleDriveSyncService.withStore(
+        drive,
+        deviceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ),
+      metadata: metadata,
+      cryptoService: _FakeCrypto(),
+    );
+    final engineB = SyncEngine(
+      database: dbB,
+      backend: GoogleDriveSyncService.withStore(
+        drive,
+        deviceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ),
+      metadata: metaB,
+      cryptoService: _FakeCrypto(),
+    );
+    try {
+      final fromA = await db!.saveEntry(Entry.line(text: 'from A'));
+      final fromB = await dbB.saveEntry(Entry.line(text: 'from B'));
+      engineA.queuePush(fromA, SyncChangeType.create);
+      engineB.queuePush(fromB, SyncChangeType.create);
+      // Both push at the same time.
+      await Future.wait([engineA.push(), engineB.push()]);
+      await Future.wait([engineA.pull(), engineB.pull()]);
+
+      expect(db!.getAllEntries().map((e) => e.text).toSet(), {
+        'from A',
+        'from B',
+      });
+      expect(dbB.getAllEntries().map((e) => e.text).toSet(), {
+        'from A',
+        'from B',
+      });
+      expect(dbB.currentTree!.entryCount, 2);
+    } finally {
+      engineA.dispose();
+      engineB.dispose();
+      dbB.close();
+      await dirB.delete(recursive: true);
+    }
   });
 
   test('first enable uploads existing entries', () async {
