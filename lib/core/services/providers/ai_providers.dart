@@ -112,21 +112,11 @@ final collectionStatsProvider = Provider<MemoryCollectionStats>((ref) {
     return MemoryCollectionStats(
       totalEntries: 0,
       themeDistribution: {},
-      averageSentiment: 0.0,
       dominantTheme: null,
       underrepresentedThemes: [],
       entriesPerWeek: 0.0,
     );
   }
-
-  // Calculate average sentiment
-  final entriesWithSentiment = entries.where((e) => e.sentimentScore != null);
-  final avgSentiment = entriesWithSentiment.isEmpty
-      ? 0.0
-      : entriesWithSentiment
-                .map((e) => e.sentimentScore!)
-                .reduce((a, b) => a + b) /
-            entriesWithSentiment.length;
 
   // Find dominant theme
   MemoryTheme? dominant;
@@ -150,7 +140,6 @@ final collectionStatsProvider = Provider<MemoryCollectionStats>((ref) {
   return MemoryCollectionStats(
     totalEntries: entries.length,
     themeDistribution: distribution,
-    averageSentiment: avgSentiment,
     dominantTheme: dominant,
     underrepresentedThemes: underrepresented,
     entriesPerWeek: entriesPerWeek,

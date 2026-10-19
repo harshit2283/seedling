@@ -228,35 +228,10 @@ final storageUsageProvider = FutureProvider<StorageUsage>((ref) async {
 // Feature Flag Providers
 // ============================================================================
 
-final moodVisualizationEnabledProvider =
-    NotifierProvider<_MoodVisualizationFlagNotifier, bool>(
-      _MoodVisualizationFlagNotifier.new,
-    );
-
 final collageViewEnabledProvider =
     NotifierProvider<_CollageViewFlagNotifier, bool>(
       _CollageViewFlagNotifier.new,
     );
-
-class _MoodVisualizationFlagNotifier extends Notifier<bool> {
-  @override
-  bool build() {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    return prefs.getBool(PrefsKeys.flagMoodVisualization) ?? false;
-  }
-
-  Future<void> toggle() async {
-    state = !state;
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setBool(PrefsKeys.flagMoodVisualization, state);
-  }
-
-  Future<void> set(bool value) async {
-    state = value;
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setBool(PrefsKeys.flagMoodVisualization, value);
-  }
-}
 
 class _CollageViewFlagNotifier extends Notifier<bool> {
   @override

@@ -183,35 +183,27 @@ void main() {
       }
     });
 
-    // -- Sentiment arc --
+    // -- Sentiment (removed: the review never judges feelings) --
 
-    test('sentiment arc has 12 months', () {
-      final data = generator.generate(2025, makeEntries(20));
-
-      expect(data.sentimentArc.length, 12);
-      expect(data.sentimentArc.first.month, 1);
-      expect(data.sentimentArc.last.month, 12);
-    });
-
-    test('sentiment arc averages scores per month', () {
-      final entries = [
+    test('stored sentiment scores do not change the review', () {
+      final scored = [
         makeEntry(month: 3, day: 1, sentimentScore: 0.8),
-        makeEntry(month: 3, day: 10, sentimentScore: 0.2),
+        makeEntry(month: 3, day: 10, sentimentScore: -0.9),
       ];
-      final data = generator.generate(2025, entries);
+      final unscored = [
+        makeEntry(month: 3, day: 1, sentimentScore: null),
+        makeEntry(month: 3, day: 10, sentimentScore: null),
+      ];
+      final a = generator.generate(2025, scored);
+      final b = generator.generate(2025, unscored);
 
-      final march = data.sentimentArc.firstWhere((m) => m.month == 3);
-      expect(march.averageSentiment, closeTo(0.5, 0.001));
-      expect(march.entryCount, 2);
-    });
-
-    test('months with no sentiment data default to 0.0', () {
-      final entries = [makeEntry(month: 7, sentimentScore: null)];
-      final data = generator.generate(2025, entries);
-
-      final july = data.sentimentArc.firstWhere((m) => m.month == 7);
-      expect(july.averageSentiment, 0.0);
-      expect(july.entryCount, 1);
+      expect(a.totalEntries, b.totalEntries);
+      expect(a.themeDistribution, b.themeDistribution);
+      expect(a.dominantTheme, b.dominantTheme);
+      expect(
+        a.seasons.map((k, v) => MapEntry(k, v.entryCount)),
+        b.seasons.map((k, v) => MapEntry(k, v.entryCount)),
+      );
     });
 
     // -- Memorable moments --

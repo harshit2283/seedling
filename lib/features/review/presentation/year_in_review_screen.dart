@@ -15,7 +15,6 @@ import '../../support/presentation/support_invitation_card.dart';
 import '../domain/review_generator.dart';
 import 'widgets/season_card.dart';
 import 'widgets/theme_garden.dart';
-import 'widgets/sentiment_arc.dart';
 import 'widgets/shareable_card.dart';
 
 /// A vertically scrollable year-in-review experience.
@@ -24,9 +23,8 @@ import 'widgets/shareable_card.dart';
 /// 1. Opening - year title, entry count, tree symbol
 /// 2. Seasons - four cards summarising each season
 /// 3. Theme Garden - horizontal bars for theme distribution
-/// 4. Sentiment Arc - monthly line chart
-/// 5. Memorable Moments - 3-5 highlighted entries
-/// 6. Closing - shareable card
+/// 4. Memorable Moments - 3-5 highlighted entries
+/// 5. Closing - shareable card
 ///
 /// Gated on 10+ entries. Shows a "keep planting" message otherwise.
 class YearInReviewScreen extends ConsumerWidget {
@@ -217,14 +215,7 @@ class _ReviewBody extends StatelessWidget {
         // ---- 3. Theme Garden ----
         ThemeGarden(distribution: data.themeDistribution, isDark: isDark),
 
-        const SizedBox(height: 36),
-        _sectionTitle(theme, 'Sentiment arc'),
-        const SizedBox(height: 12),
-
-        // ---- 4. Sentiment Arc ----
-        SentimentArc(data: data.sentimentArc, isDark: isDark),
-
-        // ---- 5. Memorable moments ----
+        // ---- 4. Memorable moments ----
         if (data.memorableMoments.isNotEmpty) ...[
           const SizedBox(height: 36),
           _sectionTitle(theme, 'Memorable moments'),

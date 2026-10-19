@@ -78,7 +78,8 @@ class Entry {
   /// Distinct from connectionIds which are AI-detected.
   String? manualLinkIds;
 
-  /// Sentiment score from -1.0 (negative) to 1.0 (positive)
+  /// Legacy sentiment score (-1.0..1.0). Kept only so older stores, backups
+  /// and sync payloads round-trip; the app no longer computes or shows it.
   double? sentimentScore;
 
   /// When AI last analyzed this entry

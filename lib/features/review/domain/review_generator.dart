@@ -22,9 +22,6 @@ class YearReviewData {
   /// The most common theme (excluding moments), or null when no entries.
   final MemoryTheme? dominantTheme;
 
-  /// Monthly sentiment averages (Jan=1 .. Dec=12).
-  final List<MonthSentiment> sentimentArc;
-
   /// A handful of randomly-picked entries to highlight.
   final List<Entry> memorableMoments;
 
@@ -40,7 +37,6 @@ class YearReviewData {
     required this.seasons,
     required this.themeDistribution,
     this.dominantTheme,
-    required this.sentimentArc,
     required this.memorableMoments,
     required this.treeStateLabel,
     required this.connectionCount,
@@ -68,24 +64,6 @@ class SeasonData {
   });
 }
 
-/// Average sentiment for a single month.
-class MonthSentiment {
-  /// 1-based month number (January = 1).
-  final int month;
-
-  /// Average of all sentimentScore values; 0.0 when no data.
-  final double averageSentiment;
-
-  /// How many entries exist in this month.
-  final int entryCount;
-
-  const MonthSentiment({
-    required this.month,
-    required this.averageSentiment,
-    required this.entryCount,
-  });
-}
-
 /// Generates [YearReviewData] from a flat list of entries.
 class ReviewGenerator {
   final ThemeDetectorService _themeDetector;
@@ -107,7 +85,6 @@ class ReviewGenerator {
     final seasons = _buildSeasons(entries);
     final themeDistribution = _buildThemeDistribution(entries);
     final dominantTheme = _findDominantTheme(themeDistribution);
-    final sentimentArc = _buildSentimentArc(entries);
     final memorableMoments = _pickMemorableMoments(entries);
     final treeStateLabel = _treeStateLabelForCount(entries.length);
     final connectionCount = _countConnections(entries);
@@ -118,7 +95,6 @@ class ReviewGenerator {
       seasons: seasons,
       themeDistribution: themeDistribution,
       dominantTheme: dominantTheme,
-      sentimentArc: sentimentArc,
       memorableMoments: memorableMoments,
       treeStateLabel: treeStateLabel,
       connectionCount: connectionCount,
@@ -210,43 +186,6 @@ class ReviewGenerator {
     }
 
     return dominant;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Sentiment arc
-  // ---------------------------------------------------------------------------
-
-  List<MonthSentiment> _buildSentimentArc(List<Entry> entries) {
-    final monthBuckets = <int, List<double>>{};
-
-    for (final entry in entries) {
-      if (entry.sentimentScore != null) {
-        monthBuckets
-            .putIfAbsent(entry.createdAt.month, () => [])
-            .add(entry.sentimentScore!);
-      }
-    }
-
-    return List.generate(12, (i) {
-      final month = i + 1;
-      final scores = monthBuckets[month];
-      final count = entries.where((e) => e.createdAt.month == month).length;
-
-      if (scores == null || scores.isEmpty) {
-        return MonthSentiment(
-          month: month,
-          averageSentiment: 0.0,
-          entryCount: count,
-        );
-      }
-
-      final avg = scores.reduce((a, b) => a + b) / scores.length;
-      return MonthSentiment(
-        month: month,
-        averageSentiment: avg,
-        entryCount: count,
-      );
-    });
   }
 
   // ---------------------------------------------------------------------------

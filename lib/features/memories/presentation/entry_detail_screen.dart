@@ -1283,7 +1283,6 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
 
   bool _hasExtraMetadata(Entry entry) {
     return entry.detectedTheme != null ||
-        entry.sentimentScore != null ||
         entry.lastAnalyzedAt != null ||
         (entry.connectionIds != null && entry.connectionIds!.isNotEmpty);
   }
@@ -1381,12 +1380,6 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                 context,
                 'Connections',
                 '${entry.connectionIds!.split(',').where((s) => s.trim().isNotEmpty).length}',
-              ),
-            if (entry.sentimentScore != null)
-              _metadataRow(
-                context,
-                'Sentiment',
-                entry.sentimentScore!.toStringAsFixed(2),
               ),
             if (entry.lastAnalyzedAt != null)
               _metadataRow(

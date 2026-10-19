@@ -5,7 +5,7 @@ import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import 'settings_helpers.dart';
 
-/// Settings section for experimental feature flags (mood arc, collage view).
+/// Settings section for experimental feature flags (collage view).
 class ExperimentalSection extends ConsumerWidget {
   const ExperimentalSection({super.key});
 
@@ -16,21 +16,6 @@ class ExperimentalSection extends ConsumerWidget {
         header: const Text('Experimental'),
         footer: const Text('These features are in testing and may change.'),
         children: [
-          CupertinoListTile(
-            leading: buildSettingsIconBox(
-              context,
-              CupertinoIcons.waveform,
-              SeedlingColors.accentVoice,
-            ),
-            title: const Text('Mood Arc'),
-            subtitle: const Text('Visualize sentiment across your entries'),
-            trailing: CupertinoSwitch(
-              value: ref.watch(moodVisualizationEnabledProvider),
-              activeTrackColor: SeedlingColors.accentVoice,
-              onChanged: (v) =>
-                  ref.read(moodVisualizationEnabledProvider.notifier).set(v),
-            ),
-          ),
           CupertinoListTile(
             leading: buildSettingsIconBox(
               context,
