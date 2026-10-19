@@ -15,6 +15,7 @@ import 'entry_detail_screen.dart' show keepsakeDateLine, yearsAgoLabel;
 import 'widgets/keepsake_memory_card.dart'
     show keepsakeSerif, keepsakeSerifFallback;
 import 'widgets/voice_player.dart';
+import '../../../core/util/date_labels.dart';
 
 class MemoryReaderArgs {
   final List<Entry> entries;
@@ -269,7 +270,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
     }
     return [
       DateFormat.EEEE(_locale).format(entry.createdAt),
-      DateFormat.jm(_locale).format(entry.createdAt),
+      DateLabels.timeOf(context, entry.createdAt),
       ?yearsAgoLabel(entry.createdAt, DateTime.now()),
     ].join('  ·  ');
   }

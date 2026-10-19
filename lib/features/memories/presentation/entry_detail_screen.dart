@@ -25,6 +25,7 @@ import 'widgets/memory_share_sheet.dart';
 import 'widgets/voice_player.dart';
 import 'widgets/similar_memories_section.dart';
 import '../../../core/widgets/feedback/seedling_toast.dart';
+import '../../../core/util/date_labels.dart';
 
 /// Formats the keepsake date header, e.g. "Saturday, 12 October 2024".
 ///
@@ -740,7 +741,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     final locale = Localizations.maybeLocaleOf(context)?.toLanguageTag();
     final date = entry.createdAt;
     final parts = <String>[
-      DateFormat.jm(locale).format(date),
+      DateLabels.timeOf(context, date),
       if (!_isOnThisDay(entry)) ?yearsAgoLabel(date, DateTime.now()),
     ];
     return Semantics(
@@ -1841,15 +1842,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
     );
   }
 
-  String _formatShortDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date).inDays;
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
-    if (diff < 7) return DateFormat('EEEE').format(date);
-    if (date.year == now.year) return DateFormat('MMM d').format(date);
-    return DateFormat('MMM d, y').format(date);
-  }
+  String _formatShortDate(DateTime date) => DateLabels.dayOf(context, date);
 
   IconData _getTypeIcon(EntryType type) {
     if (PlatformUtils.isIOS) {

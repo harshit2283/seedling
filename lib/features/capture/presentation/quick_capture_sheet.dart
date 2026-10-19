@@ -22,6 +22,7 @@ import '../domain/capture_inference.dart';
 import '../domain/capture_intent.dart';
 import 'widgets/release_ceremony.dart';
 import 'widgets/voice_capture_content.dart';
+import '../../../core/util/date_labels.dart';
 
 /// What the draft in the capture sheet currently is, inferred from what was
 /// added (see [inferCaptureType]). Kept for callers and tests that reason
@@ -608,25 +609,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   // When it happened
   // ───────────────────────────────────────────────────────────────────────
 
-  String _whenLabel(DateTime at) {
-    final locale = Localizations.maybeLocaleOf(context)?.toLanguageTag();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(at.year, at.month, at.day);
-    final diff = today.difference(day).inDays;
-    final String date;
-    if (diff == 0) {
-      date = 'Today';
-    } else if (diff == 1) {
-      date = 'Yesterday';
-    } else if (at.year == now.year) {
-      date = DateFormat.MMMEd(locale).format(at);
-    } else {
-      date = DateFormat.yMMMd(locale).format(at);
-    }
-    final time = DateFormat.jm(locale).format(at).toLowerCase();
-    return '$date, $time';
-  }
+  String _whenLabel(DateTime at) => DateLabels.dayWithTimeOf(context, at);
 
   Widget _buildWhenLine() {
     final at = _createdAt ?? DateTime.now();

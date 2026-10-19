@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../../../core/util/date_labels.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../app/theme/radius.dart';
 import '../../../../data/models/entry.dart';
@@ -51,7 +51,7 @@ class RecentEntryPreview extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _formatDate(entry.createdAt),
+                          DateLabels.dayAndTimeOf(context, entry.createdAt),
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: context.palette.textSecondary),
                         ),
@@ -97,20 +97,5 @@ class RecentEntryPreview extends StatelessWidget {
       EntryType.ritual => palette.accentRitual,
       EntryType.release => palette.accentRelease,
     };
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      return 'Today, ${DateFormat('h:mm a').format(date)}';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return DateFormat('EEEE').format(date); // Day name
-    } else {
-      return DateFormat('MMM d').format(date);
-    }
   }
 }

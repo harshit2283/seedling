@@ -16,6 +16,7 @@ import '../../../../core/services/providers.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
 import 'settings_helpers.dart';
 import 'settings_tiles.dart';
+import '../../../../core/util/date_labels.dart';
 
 /// Export and import rows, shown on the "Export & import" screen.
 class DataSection extends ConsumerStatefulWidget {
@@ -820,7 +821,8 @@ class _DataSectionState extends ConsumerState<DataSection> {
   ) async {
     final exportDate = preview.exportedAt == null
         ? 'Unknown'
-        : DateFormat('MMM d, y • h:mm a').format(preview.exportedAt!);
+        : '${DateFormat.yMMMd(DateLabels.settingsOf(context).locale).format(preview.exportedAt!)} • '
+              '${DateLabels.timeOf(context, preview.exportedAt!)}';
     final integrityText = preview.integrityVerified
         ? 'Integrity verified'
         : 'Legacy backup (integrity signature unavailable)';

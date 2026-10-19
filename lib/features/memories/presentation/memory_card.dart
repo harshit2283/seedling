@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import '../../../core/util/date_labels.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/palette.dart';
 import '../../../app/theme/radius.dart';
@@ -53,7 +53,7 @@ class MemoryCard extends ConsumerWidget {
       child: Semantics(
         button: true,
         label:
-            '${entry.typeName} memory from ${_formatDate(entry.createdAt)}. ${entry.displayContent}',
+            '${entry.typeName} memory from ${_formatDate(context, entry.createdAt)}. ${entry.displayContent}',
         hint: 'Double tap to open memory details',
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -100,7 +100,7 @@ class MemoryCard extends ConsumerWidget {
       child: Semantics(
         button: true,
         label:
-            '${entry.typeName} memory from ${_formatDate(entry.createdAt)}. ${entry.displayContent}',
+            '${entry.typeName} memory from ${_formatDate(context, entry.createdAt)}. ${entry.displayContent}',
         hint: 'Double tap to open memory',
         child: Container(
           decoration: BoxDecoration(
@@ -266,7 +266,7 @@ class MemoryCard extends ConsumerWidget {
         // Relative date
         Expanded(
           child: Text(
-            _formatDateShort(entry.createdAt),
+            _formatDateShort(context, entry.createdAt),
             style: TextStyle(
               color: context.palette.textSecondary,
               fontSize: 12,
@@ -475,7 +475,7 @@ class MemoryCard extends ConsumerWidget {
       children: [
         // Date
         Text(
-          _formatDate(entry.createdAt),
+          _formatDate(context, entry.createdAt),
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: context.palette.textSecondary),
@@ -605,40 +605,9 @@ class MemoryCard extends ConsumerWidget {
     }
   }
 
-  static final _timeFormat = DateFormat('h:mm a');
-  static final _dayOfWeekFormat = DateFormat('EEEE');
-  static final _monthDayFormat = DateFormat('MMMM d');
-  static final _fullDateFormat = DateFormat('MMMM d, y');
-  static final _shortMonthDayFormat = DateFormat('MMM d');
+  String _formatDate(BuildContext context, DateTime date) =>
+      DateLabels.dayAndTimeOf(context, date);
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final entryDate = DateTime(date.year, date.month, date.day);
-    final difference = today.difference(entryDate).inDays;
-
-    if (difference == 0) {
-      return 'Today at ${_timeFormat.format(date)}';
-    } else if (difference == 1) {
-      return 'Yesterday at ${_timeFormat.format(date)}';
-    } else if (difference < 7) {
-      return '${_dayOfWeekFormat.format(date)} at ${_timeFormat.format(date)}';
-    } else if (date.year == now.year) {
-      return _monthDayFormat.format(date);
-    } else {
-      return _fullDateFormat.format(date);
-    }
-  }
-
-  String _formatDateShort(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final entryDate = DateTime(date.year, date.month, date.day);
-    final difference = today.difference(entryDate).inDays;
-
-    if (difference == 0) return 'Today';
-    if (difference == 1) return 'Yesterday';
-    if (date.year == now.year) return _shortMonthDayFormat.format(date);
-    return _fullDateFormat.format(date);
-  }
+  String _formatDateShort(BuildContext context, DateTime date) =>
+      DateLabels.dayOf(context, date);
 }

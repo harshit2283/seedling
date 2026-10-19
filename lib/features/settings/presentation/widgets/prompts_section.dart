@@ -5,6 +5,7 @@ import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/notifications/gentle_reminder_service.dart';
 import '../../../../core/services/providers.dart';
 import 'settings_tiles.dart';
+import '../../../../core/util/date_labels.dart';
 
 /// "Gentle nudges": prompts, the weekly memory, reminders and the
 /// person's own capture cue.
@@ -99,12 +100,8 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
     await ref.read(captureIntentionProvider.notifier).set(result);
   }
 
-  String _formatTime(int hour, int minute) {
-    final suffix = hour >= 12 ? 'PM' : 'AM';
-    final h12 = hour % 12 == 0 ? 12 : hour % 12;
-    final mm = minute.toString().padLeft(2, '0');
-    return '$h12:$mm $suffix';
-  }
+  String _formatTime(int hour, int minute) =>
+      DateLabels.timeOf(context, DateTime(2000, 1, 1, hour, minute));
 
   Future<void> _pickReminderCadence() async {
     final current = ref.read(reminderSettingsProvider);
