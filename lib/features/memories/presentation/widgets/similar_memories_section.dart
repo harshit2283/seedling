@@ -11,7 +11,6 @@ import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/media/file_storage_service.dart';
 import '../../../../core/services/ai/models/memory_connection.dart';
-import '../../../../core/widgets/glass/glass_container.dart';
 import '../../../../data/models/entry.dart';
 
 /// Section showing memories similar to the current entry
@@ -99,35 +98,38 @@ class _RelatedMemoryCard extends StatelessWidget {
           HapticFeedback.selectionClick();
           context.push(AppRoutes.entryRoute(entry.id));
         },
-        child: GlassContainer(
-          borderRadius: 16,
-          opacity: 0.6,
-          child: Container(
-            width: 160,
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Media thumbnail or type icon
-                _buildLeading(entry),
-                const SizedBox(height: 8),
-                // Content preview
-                Expanded(
-                  child: Text(
-                    entry.displayContent,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: context.palette.textPrimary,
-                      height: 1.3,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+        // Solid translucent fill: a per-card BackdropFilter in a horizontal
+        // list re-blurs on every scroll frame.
+        child: Container(
+          width: 160,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: context.palette.card.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.palette.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Media thumbnail or type icon
+              _buildLeading(entry),
+              const SizedBox(height: 8),
+              // Content preview
+              Expanded(
+                child: Text(
+                  entry.displayContent,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.palette.textPrimary,
+                    height: 1.3,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
-                // Connection info
-                _buildConnectionInfo(context),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              // Connection info
+              _buildConnectionInfo(context),
+            ],
           ),
         ),
       ),

@@ -977,6 +977,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                   File(resolvedPath),
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  // Decode at display width instead of full camera size.
+                  cacheWidth:
+                      (MediaQuery.sizeOf(context).width *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .round(),
                   errorBuilder: (context, error, stackTrace) =>
                       _buildUnavailableMediaMessage('Photo unavailable'),
                 ),

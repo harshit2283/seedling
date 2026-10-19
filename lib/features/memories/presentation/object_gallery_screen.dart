@@ -110,10 +110,18 @@ class _ObjectCell extends StatelessWidget {
           children: [
             // Photo or placeholder
             if (entry.hasMedia)
-              Image.file(
-                File(entry.mediaPath!),
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _placeholder(context),
+              // Decode at tile size, not camera size (~14MB per full photo).
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final dpr = MediaQuery.devicePixelRatioOf(context);
+                  final side = constraints.biggest.longestSide;
+                  return Image.file(
+                    File(entry.mediaPath!),
+                    fit: BoxFit.cover,
+                    cacheWidth: side.isFinite ? (side * dpr).round() : null,
+                    errorBuilder: (_, _, _) => _placeholder(context),
+                  );
+                },
               )
             else
               _placeholder(context),

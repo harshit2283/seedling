@@ -145,19 +145,11 @@ void main() {
       );
       expect(
         tester.getSemantics(find.bySemanticsLabel('Line')),
-        isSemantics(
-          isButton: true,
-          hasSelectedState: true,
-          isSelected: true,
-        ),
+        isSemantics(isButton: true, hasSelectedState: true, isSelected: true),
       );
       expect(
         tester.getSemantics(find.bySemanticsLabel('Photo')),
-        isSemantics(
-          isButton: true,
-          hasSelectedState: true,
-          isSelected: false,
-        ),
+        isSemantics(isButton: true, hasSelectedState: true, isSelected: false),
       );
       handle.dispose();
     });

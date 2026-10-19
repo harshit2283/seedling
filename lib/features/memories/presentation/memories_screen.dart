@@ -485,98 +485,78 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     int count,
   ) {
     final isSelected = filterState.themeFilters.contains(theme);
-    final color = _getThemeColor(theme);
+    final color = context.palette.themeColor(theme.name);
+    final ink = context.palette.inkFor(color);
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.selectionClick();
         _cancelPendingSearch();
         ref.read(memoriesPageProvider.notifier).reset();
         ref.read(memoriesFilterProvider.notifier).toggleThemeFilter(theme);
       },
-      child: Semantics(
-        button: true,
-        selected: isSelected,
-        label: '${theme.displayName} filter, $count memories',
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? color.withValues(alpha: 0.2)
-                : Theme.of(context).cardTheme.color ??
-                      Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? color : Theme.of(context).dividerColor,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                theme.displayName,
-                style: TextStyle(
-                  color: isSelected ? color : context.palette.textMuted,
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
+      child: _ChipHitArea(
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          label: '${theme.displayName} filter, $count memories',
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.2)
+                  : context.palette.card,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isSelected ? color : Theme.of(context).dividerColor,
+                width: 1,
               ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? color.withValues(alpha: 0.2)
-                      : Theme.of(context).dividerColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '$count',
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  theme.displayName,
                   style: TextStyle(
-                    color: isSelected ? color : context.palette.textMuted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
+                    color: isSelected ? ink : context.palette.textSecondary,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? color.withValues(alpha: 0.2)
+                        : Theme.of(context).dividerColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      color: isSelected ? ink : context.palette.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Color _getThemeColor(MemoryTheme theme) {
-    switch (theme) {
-      case MemoryTheme.family:
-        return SeedlingColors.themeFamily;
-      case MemoryTheme.friends:
-        return SeedlingColors.themeFriends;
-      case MemoryTheme.work:
-        return SeedlingColors.themeWork;
-      case MemoryTheme.nature:
-        return SeedlingColors.themeNature;
-      case MemoryTheme.gratitude:
-        return SeedlingColors.themeGratitude;
-      case MemoryTheme.reflection:
-        return SeedlingColors.themeReflection;
-      case MemoryTheme.travel:
-        return SeedlingColors.themeTravel;
-      case MemoryTheme.creativity:
-        return SeedlingColors.themeCreativity;
-      case MemoryTheme.health:
-        return SeedlingColors.themeHealth;
-      case MemoryTheme.food:
-        return SeedlingColors.themeFood;
-      case MemoryTheme.moments:
-        return SeedlingColors.themeMoments;
-    }
-  }
-
   Widget _buildClearFiltersChip(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.selectionClick();
         _cancelPendingSearch();
@@ -585,6 +565,8 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
         ref.read(memoriesFilterProvider.notifier).clearAllFilters();
       },
       child: Container(
+        constraints: const BoxConstraints(minHeight: 44),
+        alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: context.palette.error.withValues(alpha: 0.15),
@@ -622,47 +604,52 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     final color = _getTypeColor(type);
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.selectionClick();
         _cancelPendingSearch();
         ref.read(memoriesPageProvider.notifier).reset();
         ref.read(memoriesFilterProvider.notifier).toggleTypeFilter(type);
       },
-      child: Semantics(
-        button: true,
-        selected: isSelected,
-        label: '${_getTypeName(type)} filter',
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? color.withValues(alpha: 0.2)
-                : Theme.of(context).dividerColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected ? color : Colors.transparent,
-              width: 1.5,
+      child: _ChipHitArea(
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          label: '${_getTypeName(type)} filter',
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.2)
+                  : context.palette.surfaceMuted,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? color : Colors.transparent,
+                width: 1.5,
+              ),
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _getTypeIcon(type),
-                size: 14,
-                color: isSelected ? color : context.palette.textSecondary,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _getTypeName(type),
-                style: TextStyle(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _getTypeIcon(type),
+                  size: 16,
                   color: isSelected ? color : context.palette.textSecondary,
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  _getTypeName(type),
+                  style: TextStyle(
+                    color: isSelected
+                        ? context.palette.inkFor(color)
+                        : context.palette.textSecondary,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -955,9 +942,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
   Widget _buildMemoriesList(BuildContext context, List<Entry> entries) {
     final groupedSections = _groupEntriesBySection(entries);
     final recentlyInsertedId = ref.watch(recentlyInsertedEntryIdProvider);
-    final headerBackground = Theme.of(
-      context,
-    ).scaffoldBackgroundColor.withValues(alpha: 0.7);
+    // Nearly opaque solid fill: pinned headers with a BackdropFilter
+    // re-blur the list on every scroll frame.
+    final headerBackground = context.palette.background.withValues(alpha: 0.94);
     final headerTextColor = context.palette.textSecondary;
 
     final scrollView = CustomScrollView(
@@ -1440,23 +1427,18 @@ class _StickySectionHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          height: _height,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          color: backgroundColor,
-          alignment: Alignment.centerLeft,
-          child: Semantics(
-            header: true,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+    return Container(
+      height: _height,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      color: backgroundColor,
+      alignment: Alignment.centerLeft,
+      child: Semantics(
+        header: true,
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: textColor,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -1795,6 +1777,22 @@ class _NewlyInsertedCardState extends State<_NewlyInsertedCard>
     return FadeTransition(
       opacity: _fade,
       child: SlideTransition(position: _slide, child: widget.child),
+    );
+  }
+}
+
+/// Gives a compact filter chip a 44pt-tall hit area (Apple HIG minimum)
+/// without making the visible pill any taller.
+class _ChipHitArea extends StatelessWidget {
+  const _ChipHitArea({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+      child: Center(widthFactor: 1, child: child),
     );
   }
 }
