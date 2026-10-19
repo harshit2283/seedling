@@ -3,15 +3,80 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/sync/cloudkit_sync_service.dart';
+import 'package:seedling/core/services/sync/drive_sync_log.dart';
+
+/// The CloudKit custom zone as the plugin exposes it: files by id (= name).
+class _FakeZone {
+  final files = <String, List<int>>{};
+
+  Future<Object?> handle(MethodCall call) async {
+    final args = Map<String, Object?>.from(call.arguments as Map? ?? {});
+    switch (call.method) {
+      case 'fsList':
+        final prefix = args['prefix']! as String;
+        return [
+          for (final id in files.keys)
+            if (id.startsWith(prefix)) {'id': id, 'name': id},
+        ];
+      case 'fsWrite':
+        files[args['id']! as String] = await File(
+          args['sourcePath']! as String,
+        ).readAsBytes();
+        return true;
+      case 'fsRead':
+        final bytes = files[args['id']! as String];
+        if (bytes == null) return false;
+        await File(args['destinationPath']! as String).writeAsBytes(bytes);
+        return true;
+      case 'fsDelete':
+        files.remove(args['id']! as String); // missing is fine
+        return true;
+      case 'fetchLegacyRecords':
+        return {'records': <Object?>[]};
+    }
+    throw MissingPluginException(call.method);
+  }
+}
+
+class _BrokenStore implements DriveFileStore {
+  @override
+  Future<List<DriveFileInfo>> listByPrefix(String prefix) async =>
+      throw PlatformException(code: 'NETWORK_UNAVAILABLE');
+  @override
+  Future<List<int>?> read(String fileId) async => null;
+  @override
+  Future<String> create(String name, List<int> bytes) async => name;
+  @override
+  Future<void> overwrite(String fileId, List<int> bytes) async {}
+  @override
+  Future<String> createFromFile(String name, File source) async => name;
+  @override
+  Future<void> downloadTo(String fileId, File target) async {}
+  @override
+  Future<void> delete(String fileId) async {}
+}
+
+Map<String, dynamic> _rec(String uuid, {String? mediaAssetId}) => {
+  'syncUUID': uuid,
+  'modifiedAt': 1,
+  'syncEncryptionVersion': 4,
+  'mediaAssetId': mediaAssetId,
+  'mediaKey': mediaAssetId == null ? null : 'syncenc:v1:k',
+};
+
+const _uuid1 = '550e8400-e29b-41d4-a716-446655440081';
+const _asset = '550e8400-e29b-41d4-a716-446655440082';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const channel = MethodChannel('com.seedling.cloudkit_sync');
-  late CloudKitSyncService service;
+  late _FakeZone zone;
 
   setUp(() {
-    service = CloudKitSyncService();
+    zone = _FakeZone();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, zone.handle);
   });
 
   tearDown(() {
@@ -19,56 +84,92 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  test('media blob calls pass only an asset id and file paths', () async {
+  CloudKitSyncService device(String id) => CloudKitSyncService.withStore(
+    CloudKitFileStore(),
+    deviceId: id,
+    legacyRecords: () async => const [],
+  );
+
+  test('deletions propagate to other devices (no resurrection)', () async {
+    final a = device('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    final b = device('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    await a.saveRecord(_rec(_uuid1));
+    final first = await b.fetchChanges();
+    expect(first!.records.single['syncUUID'], _uuid1);
+
+    await a.deleteRecord(_uuid1);
+    final second = await b.fetchChanges(changeToken: first.newChangeToken);
+    expect(second!.deletedUUIDs, [_uuid1]);
+    expect(second.records, isEmpty);
+    // Incremental: nothing new, nothing delivered again.
+    final third = await b.fetchChanges(changeToken: second.newChangeToken);
+    expect(third!.records, isEmpty);
+    expect(third.deletedUUIDs, isEmpty);
+  });
+
+  test('media id and key round-trip unchanged', () async {
+    final a = device('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    final b = device('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    await a.saveRecord(_rec(_uuid1, mediaAssetId: _asset));
+    final pulled = (await b.fetchChanges())!.records.single;
+    expect(pulled['mediaAssetId'], _asset);
+    expect(pulled['mediaKey'], 'syncenc:v1:k');
+  });
+
+  test('deleting something already gone succeeds', () async {
+    final a = device('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    await a.deleteMediaBlob(_asset);
+    await a.deleteRecord(_uuid1);
+  });
+
+  test(
+    'backend failures surface instead of looking like "no changes"',
+    () async {
+      final broken = CloudKitSyncService.withStore(
+        _BrokenStore(),
+        deviceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      );
+      await expectLater(
+        broken.fetchChanges(),
+        throwsA(isA<PlatformException>()),
+      );
+    },
+  );
+
+  test('legacy SeedlingEntry records are delivered once', () async {
+    var calls = 0;
+    final b = CloudKitSyncService.withStore(
+      CloudKitFileStore(),
+      deviceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      legacyRecords: () async {
+        calls++;
+        return [_rec(_uuid1)];
+      },
+    );
+    final first = await b.fetchChanges();
+    expect(first!.records.single['syncUUID'], _uuid1);
+    final second = await b.fetchChanges(changeToken: first.newChangeToken);
+    expect(second!.records, isEmpty);
+    expect(calls, 1);
+  });
+
+  test('file store passes only ids, names and file paths to native', () async {
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
+        .setMockMethodCallHandler(channel, (call) {
           calls.add(call);
-          return call.method == 'downloadMediaBlob' ? true : null;
+          return zone.handle(call);
         });
-
-    await service.uploadMediaBlob('asset-1', File('/tmp/blob.enc'));
-    final found = await service.downloadMediaBlob(
-      'asset-1',
-      File('/tmp/out.enc'),
-    );
-    await service.deleteMediaBlob('asset-1');
-
-    expect(found, isTrue);
-    expect(calls.map((c) => c.method), [
-      'uploadMediaBlob',
-      'downloadMediaBlob',
-      'deleteMediaBlob',
-    ]);
-    expect(calls[0].arguments, <String, dynamic>{
-      'assetId': 'asset-1',
-      'sourcePath': '/tmp/blob.enc',
+    final store = CloudKitFileStore();
+    await store.create('seedling_x', [1, 2, 3]);
+    expect(await store.read('seedling_x'), [1, 2, 3]);
+    await store.delete('seedling_x');
+    expect(calls.map((c) => c.method), ['fsWrite', 'fsRead', 'fsDelete']);
+    expect((calls.first.arguments as Map)['id'], 'seedling_x');
+    expect((calls.first.arguments as Map).keys.toSet(), {
+      'id',
+      'name',
+      'sourcePath',
     });
-    expect(calls[1].arguments, <String, dynamic>{
-      'assetId': 'asset-1',
-      'destinationPath': '/tmp/out.enc',
-    });
-  });
-
-  test('isAvailable returns false on platform exception', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          throw PlatformException(code: 'native-error', message: 'boom');
-        });
-
-    final available = await service.isAvailable();
-
-    expect(available, isFalse);
-  });
-
-  test('fetchChanges returns null on platform exception', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          throw PlatformException(code: 'native-error', message: 'boom');
-        });
-
-    final result = await service.fetchChanges(changeToken: 'abc');
-
-    expect(result, isNull);
   });
 }

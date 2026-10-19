@@ -450,4 +450,59 @@ void main() {
       expect(orphan.existsSync(), isTrue);
     });
   });
+
+  group('orphan sweep never touches an open draft', () {
+    test('live draft paths are registered until saved or released', () async {
+      final tracker = DraftMediaTracker(
+        () =>
+            (path) async => true,
+      );
+      await tracker.update(next: '/m/photos/draft.jpg');
+      await tracker.update(next: '/m/voices/other.m4a');
+      expect(
+        DraftMediaTracker.liveDraftPaths,
+        containsAll(['/m/photos/draft.jpg', '/m/voices/other.m4a']),
+      );
+
+      await tracker.commit('/m/photos/draft.jpg');
+      expect(
+        DraftMediaTracker.liveDraftPaths,
+        isNot(contains('/m/photos/draft.jpg')),
+      );
+      expect(
+        DraftMediaTracker.liveDraftPaths,
+        isNot(contains('/m/voices/other.m4a')),
+      );
+    });
+
+    test('sweeper keeps an old file that an open draft holds', () async {
+      final media = Directory.systemTemp.createTempSync('sweep_draft');
+      addTearDown(() => media.deleteSync(recursive: true));
+      final old = DateTime.now().subtract(const Duration(days: 5));
+      // A library photo copied with its original (old) timestamp.
+      final draft = File('${media.path}/photos/draft.jpg')
+        ..createSync(recursive: true)
+        ..setLastModifiedSync(old);
+      final orphan = File('${media.path}/photos/orphan.jpg')
+        ..createSync(recursive: true)
+        ..setLastModifiedSync(old);
+
+      final tracker = DraftMediaTracker(
+        () =>
+            (path) async => true,
+      );
+      await tracker.update(next: draft.path);
+      addTearDown(tracker.discard);
+
+      final count = await const MediaOrphanSweeper().sweep(
+        mediaDirectory: media,
+        referencedPaths: const ['/elsewhere/photos/live.jpg'],
+        protectedPaths: DraftMediaTracker.liveDraftPaths,
+      );
+
+      expect(count, 1);
+      expect(draft.existsSync(), isTrue);
+      expect(orphan.existsSync(), isFalse);
+    });
+  });
 }

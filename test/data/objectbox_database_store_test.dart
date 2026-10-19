@@ -208,4 +208,80 @@ void main() {
     expect(links, [migratedId]);
     expect(reopened.getEntriesBySyncUUIDs(links).single.text, 'the old bench');
   });
+
+  group('cache integrity', () {
+    test('UTC timestamps are cached as local time and counted in the local '
+        'year', () async {
+      final store = db;
+      if (store == null) {
+        markTestSkipped('ObjectBox native library not available');
+        return;
+      }
+      // 22:00 on New Year's Eve, local time, handed in as UTC (importers and
+      // sync do this).
+      final instant = DateTime(2024, 12, 31, 22).toUtc();
+      final entry = Entry.line(text: 'fireworks')
+        ..createdAt = instant
+        ..capsuleUnlockDate = DateTime.utc(2020)
+        ..deletedAt = null;
+      await store.saveEntry(entry);
+
+      final cached = store.getEntry(entry.id)!;
+      expect(cached.createdAt.isUtc, isFalse);
+      expect(cached.capsuleUnlockDate!.isUtc, isFalse);
+      expect(cached.createdAt.isAtSameMomentAs(instant), isTrue);
+      expect(store.getTreeForYear(2024)?.entryCount, 1);
+      expect(store.getTreeForYear(2025)?.entryCount ?? 0, 0);
+    });
+
+    test('returned entries are copies; lists are read-only', () async {
+      final store = db;
+      if (store == null) {
+        markTestSkipped('ObjectBox native library not available');
+        return;
+      }
+      final saved = await store.saveEntry(Entry.line(text: 'original'));
+
+      // List views are shared read-only snapshots of copies: mutating an
+      // element never reaches the plaintext cache that reads/writes use.
+      store.getAllEntries().first.text = 'mutated';
+      store.getCurrentYearEntries().first.text = 'mutated';
+      store.getEntriesPage(limit: 10, offset: 0).first.text = 'mutated';
+      store.getDeletedEntries();
+
+      expect(store.getEntry(saved.id)!.text, 'original');
+      expect(store.getEntriesPage(limit: 10, offset: 0).first.text, 'original');
+      expect(store.getEntryBySyncUUID(saved.syncUUID!)!.text, 'original');
+      expect(
+        () => store.getAllEntries().add(Entry.line(text: 'x')),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('a capsule that unlocks mid-session becomes visible without a '
+        'write', () async {
+      final store = db;
+      if (store == null) {
+        markTestSkipped('ObjectBox native library not available');
+        return;
+      }
+      await store.saveEntry(
+        Entry.capsule(
+          text: 'soon',
+          unlockDate: DateTime.now().add(const Duration(milliseconds: 300)),
+        ),
+      );
+      expect(
+        store.getCurrentYearEntries().where((e) => e.text == 'soon'),
+        isEmpty,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+
+      expect(
+        store.getCurrentYearEntries().where((e) => e.text == 'soon'),
+        hasLength(1),
+      );
+    });
+  });
 }

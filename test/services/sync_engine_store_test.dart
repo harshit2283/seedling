@@ -27,7 +27,12 @@ class _FakeCrypto extends Fake implements SyncCryptoService {
   Future<bool> hasPassphrase() async => true;
 
   @override
-  Future<bool> usesKdfSalt(List<int> kdfSalt) async => keyMatchesKeyring;
+  Future<bool> matchesKeyring(Map<String, dynamic> keyring) async =>
+      keyMatchesKeyring;
+
+  String fingerprint = 'key-1';
+  @override
+  Future<String?> keyFingerprint() async => fingerprint;
 
   @override
   Future<SyncEncryptionSession> createEncryptionSession() async =>
@@ -42,12 +47,18 @@ class _FakeCrypto extends Fake implements SyncCryptoService {
     'syncEncryptionVersion': SyncCryptoService.syncEncryptionVersion,
   };
 
+  /// Records whose text is in here fail to decrypt (wrong key, forged).
+  final undecryptable = <String>{};
+
   @override
   Future<Map<String, dynamic>> decryptRecordFields(
     Map<String, dynamic> record,
   ) async {
     if (record['syncEncryptionVersion'] == null) {
       throw const SyncUnversionedRecordException();
+    }
+    if (undecryptable.contains(record['text'])) {
+      throw const SyncPayloadCryptoException('Failed to decrypt');
     }
     return Map<String, dynamic>.from(record);
   }
@@ -81,9 +92,21 @@ class _MemoryBackend implements SyncBackend {
     deleted.addAll(syncUUIDs);
   }
 
+  /// When set, fetchChanges throws it (once).
+  Object? fetchError;
+
+  /// When set, every call waits on it (a hung backend).
+  Completer<void>? hang;
+
   @override
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async {
+    await hang?.future;
     fetchCalls++;
+    final error = fetchError;
+    if (error != null) {
+      fetchError = null;
+      throw error;
+    }
     final result = nextFetch;
     nextFetch = null;
     return result ??
@@ -94,11 +117,17 @@ class _MemoryBackend implements SyncBackend {
         );
   }
 
-  String? kdfSalt;
+  Map<String, dynamic>? keyring;
+  Object? keyringError;
   @override
-  Future<String?> readKdfSalt() async => kdfSalt;
+  Future<Map<String, dynamic>?> readKeyring() async {
+    if (keyringError != null) throw keyringError!;
+    return keyring;
+  }
+
   @override
-  Future<String> publishKdfSalt(String salt) async => kdfSalt ??= salt;
+  Future<Map<String, dynamic>> publishKeyring(Map<String, dynamic> k) async =>
+      keyring ??= k;
   final blobs = <String, List<int>>{};
   final blobDeletes = <String>[];
   var blobUploads = 0;
@@ -463,7 +492,7 @@ void main() {
 
   test('a key derived with another salt never pushes', () async {
     if (skip()) return;
-    backend.kdfSalt = 'AAAAAAAAAAAAAAAAAAAAAA==';
+    backend.keyring = {'kdfSalt': 'AAAAAAAAAAAAAAAAAAAAAA=='};
     final crypto = _FakeCrypto()..keyMatchesKeyring = false;
     final mismatched = SyncEngine(
       database: db!,
@@ -695,6 +724,111 @@ void main() {
       expect(metadata.lastError, contains('50 MB'));
       a.dispose();
     });
+  });
+
+  test('undecryptable records are quarantined; the rest still merge', () async {
+    if (skip()) return;
+    final crypto = _FakeCrypto()..undecryptable.add('forged');
+    final e = SyncEngine(
+      database: db!,
+      backend: backend,
+      metadata: metadata,
+      cryptoService: crypto,
+    );
+    backend.nextFetch = SyncFetchResult(
+      records: [
+        _record(
+          '55555555-6666-4777-8888-999999999999',
+          modifiedAt: DateTime.now(),
+          text: 'forged',
+        ),
+        _record(
+          '66666666-7777-4888-8999-aaaaaaaaaaaa',
+          modifiedAt: DateTime.now(),
+          text: 'fine',
+        ),
+      ],
+      deletedUUIDs: const [],
+      newChangeToken: 't2',
+    );
+    final result = await e.pull();
+    expect(result.success, isTrue);
+    expect(result.quarantinedCount, 1);
+    expect(db!.getAllEntries().map((x) => x.text), ['fine']);
+    // The token moves on: one bad record can't wedge sync forever.
+    expect(metadata.changeToken, 't2');
+    expect(metadata.quarantineCount, 1);
+    expect(metadata.lastError, contains("couldn't be decrypted"));
+
+    // Once the key is fixed, the quarantined record is retried and merged.
+    crypto.undecryptable.clear();
+    backend.nextFetch = const SyncFetchResult(records: [], deletedUUIDs: []);
+    await e.pull();
+    expect(db!.getAllEntries().map((x) => x.text).toSet(), {'fine', 'forged'});
+    expect(metadata.quarantineCount, 0);
+    e.dispose();
+  });
+
+  test('a failed pull blocks pushing until a pull succeeds', () async {
+    if (skip()) return;
+    final entry = await db!.saveEntry(Entry.line(text: 'local edit'));
+    engine.queuePush(entry, SyncChangeType.create);
+    backend.fetchError = const SyncPassphraseMissingException();
+    await engine.init();
+    expect(backend.saved, isEmpty);
+    expect((await engine.push()).success, isFalse);
+    expect(backend.saved, isEmpty);
+
+    await engine.pull();
+    expect((await engine.push()).success, isTrue);
+    expect(backend.saved, hasLength(1));
+  });
+
+  test('init never throws: keyring errors end up in lastError', () async {
+    if (skip()) return;
+    backend.keyringError = StateError('Google Drive not connected');
+    await engine.init();
+    expect(engine.currentState, SyncState.error);
+    expect(metadata.lastError, contains('not connected'));
+  });
+
+  test('a hung backend call times out instead of stalling the queue', () async {
+    if (skip()) return;
+    final e = SyncEngine(
+      database: db!,
+      backend: backend,
+      metadata: metadata,
+      cryptoService: _FakeCrypto(),
+      callTimeout: const Duration(milliseconds: 50),
+    );
+    backend.hang = Completer<void>();
+    final result = await e.pull();
+    expect(result.success, isFalse);
+    expect(metadata.lastError, contains('timed out'));
+    backend.hang!.complete();
+    backend.hang = null;
+    expect((await e.pull()).success, isTrue);
+    e.dispose();
+  });
+
+  test('a new key re-uploads everything under it', () async {
+    if (skip()) return;
+    final crypto = _FakeCrypto();
+    final e = SyncEngine(
+      database: db!,
+      backend: backend,
+      metadata: metadata,
+      cryptoService: crypto,
+    );
+    final a = await db!.saveEntry(Entry.line(text: 'a'));
+    await e.init();
+    expect(backend.saved, isEmpty);
+
+    // E.g. lost a keyring race and re-entered the passphrase.
+    crypto.fingerprint = 'key-2';
+    await e.init();
+    expect(backend.saved.map((r) => r['syncUUID']), [a.syncUUID]);
+    e.dispose();
   });
 
   test('first enable uploads existing entries', () async {

@@ -355,6 +355,8 @@ class _DataSectionState extends ConsumerState<DataSection> {
     );
     if (!authorized) return;
     if (!mounted) return;
+    if (!await _confirmPendingMediaDownloads(encrypted: false)) return;
+    if (!mounted) return;
     final shareOrigin = shareSheetOriginRect(context);
     setState(() => _isExporting = true);
 
@@ -397,6 +399,8 @@ class _DataSectionState extends ConsumerState<DataSection> {
       'Authenticate to export your memories',
     );
     if (!authorized || !mounted) return;
+    if (!await _confirmPendingMediaDownloads(encrypted: false)) return;
+    if (!mounted) return;
     final shareOrigin = shareSheetOriginRect(context);
     setState(() => _isExporting = true);
 
@@ -483,6 +487,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         journal.backup,
         mode: BackupImportMode.merge,
       );
+      BackupRestoreService.queueForSync(result, ref.read(syncEngineProvider));
       if (!mounted) return;
       if (result.success) {
         HapticFeedback.lightImpact();
@@ -604,6 +609,8 @@ class _DataSectionState extends ConsumerState<DataSection> {
       'Authenticate to create an encrypted backup',
     );
     if (!authorized) return;
+    if (!mounted) return;
+    if (!await _confirmPendingMediaDownloads(encrypted: true)) return;
     if (!mounted) return;
     final passphrase = await _promptForPassphrase(
       context,
@@ -807,17 +814,71 @@ class _DataSectionState extends ConsumerState<DataSection> {
     }
   }
 
+  /// When photos/voice memos are still downloading from other devices,
+  /// says what the export will miss and lets the person wait instead.
+  Future<bool> _confirmPendingMediaDownloads({required bool encrypted}) async {
+    final pending = ref.read(databaseProvider).getEntriesNeedingMediaDownload();
+    final message = ExportService.pendingMediaWarning(
+      pending.length,
+      encrypted: encrypted,
+    );
+    if (message == null) return true;
+
+    if (PlatformUtils.isIOS) {
+      final result = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: const Text('Still downloading'),
+          content: Text(message),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Wait'),
+            ),
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Export anyway'),
+            ),
+          ],
+        ),
+      );
+      return result ?? false;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Still downloading'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Wait'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Export anyway'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   // ============== Import Helpers ==============
 
   Future<ImportResult> _restoreLoadedBackup(
     LoadedEncryptedBackup loaded, {
     required BackupImportMode mode,
-  }) {
+  }) async {
     final service = BackupRestoreService(
       database: ref.read(databaseProvider),
       fileStorage: ref.read(fileStorageServiceProvider),
     );
-    return service.restore(loaded, mode: mode);
+    final result = await service.restore(loaded, mode: mode);
+    BackupRestoreService.queueForSync(result, ref.read(syncEngineProvider));
+    return result;
   }
 
   String _formatWarning(String warningCode) {
@@ -828,6 +889,8 @@ class _DataSectionState extends ConsumerState<DataSection> {
         return 'some media files were missing';
       case 'unsupported_media':
         return 'videos and PDFs were not imported';
+      case 'media_pending_download':
+        return 'some photos will download again from your other devices';
       default:
         return warningCode;
     }

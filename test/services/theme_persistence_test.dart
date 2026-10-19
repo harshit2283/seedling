@@ -19,9 +19,9 @@ class _CountingDetector extends ThemeDetectorService {
   int detections = 0;
 
   @override
-  MemoryTheme detectThemeForContent(String content) {
+  ThemeAnalysis analyze(ThemeInput input) {
     detections++;
-    return super.detectThemeForContent(content);
+    return super.analyze(input);
   }
 }
 
@@ -106,7 +106,7 @@ void main() {
     test('classify (isolate payload) matches detectTheme', () {
       final entry = Entry.line(text: 'Hiked the forest trail up the mountain');
       final result = ThemeBackfillService.classify([
-        (7, entry.searchableContent),
+        (7, ThemeInput.fromEntry(entry)),
       ]);
       expect(result[7], detector.detectTheme(entry).name);
     });
@@ -141,8 +141,9 @@ void main() {
         ),
       );
       final empty = await store.saveEntry(Entry.fragment(text: null));
+      // A label from an imported journal that is not one of our themes.
       final kept = await store.saveEntry(
-        Entry.line(text: 'mom')..detectedTheme = MemoryTheme.work.name,
+        Entry.line(text: 'mom')..detectedTheme = 'Holidays',
       );
       final modifiedBefore = store.getEntry(family.id)!.modifiedAt;
 
@@ -153,7 +154,7 @@ void main() {
       expect(store.getEntry(family.id)!.detectedTheme, 'family');
       expect(store.getEntry(family.id)!.modifiedAt, modifiedBefore);
       expect(store.getEntry(empty.id)!.detectedTheme, isNull);
-      expect(store.getEntry(kept.id)!.detectedTheme, 'work');
+      expect(store.getEntry(kept.id)!.detectedTheme, 'Holidays');
       expect(
         prefs.getInt(PrefsKeys.themeBackfillVersion),
         ThemeBackfillService.currentVersion,
@@ -161,6 +162,38 @@ void main() {
 
       // Second launch: nothing to do.
       await store.saveEntry(Entry.line(text: 'mom and dad'));
+      expect(await service.run(), 0);
+    });
+
+    test('version upgrade re-themes auto-assigned themes once', () async {
+      final store = db;
+      if (store == null) {
+        markTestSkipped('ObjectBox native library not available');
+        return;
+      }
+      // Themed by the v1 keyword detector, which fell back to moments.
+      final stale = await store.saveEntry(
+        Entry.line(text: 'coffee with mum on the porch')
+          ..detectedTheme = MemoryTheme.moments.name,
+      );
+      final current = await store.saveEntry(
+        Entry.line(text: 'first frost on the car')
+          ..detectedTheme = MemoryTheme.nature.name,
+      );
+      final modifiedBefore = store.getEntry(stale.id)!.modifiedAt;
+
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.themeBackfillVersion: 1,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final service = ThemeBackfillService(store, prefs);
+      expect(service.isDone, isFalse);
+      expect(await service.run(), 1, reason: 'only changed themes are saved');
+
+      expect(store.getEntry(stale.id)!.detectedTheme, 'family');
+      expect(store.getEntry(stale.id)!.modifiedAt, modifiedBefore);
+      expect(store.getEntry(current.id)!.detectedTheme, 'nature');
+      expect(prefs.getInt(PrefsKeys.themeBackfillVersion), 2);
       expect(await service.run(), 0);
     });
 

@@ -16,11 +16,23 @@ class SafeZipLimits {
   /// Maximum declared uncompressed size of any single entry.
   final int maxEntryBytes;
 
+  /// Maximum declared size of a `.json` / `.md` entry. These are read whole
+  /// and parsed, so a small ZIP of highly compressible whitespace must not
+  /// be able to balloon into hundreds of MB of string.
+  final int maxTextEntryBytes;
+
   const SafeZipLimits({
     required this.maxEntries,
     required this.maxTotalBytes,
     required this.maxEntryBytes,
+    this.maxTextEntryBytes = 64 * 1024 * 1024,
   });
+
+  /// Whether [name] is a text entry bounded by [maxTextEntryBytes].
+  static bool isTextEntry(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.json') || lower.endsWith('.md');
+  }
 
   /// Limits for archives Seedling itself produced (backups, Markdown export)
   /// and for third-party journal exports such as Day One.
@@ -395,6 +407,10 @@ class SafeZipReader {
       }
       if (uncompressed < 0 || uncompressed > limits.maxEntryBytes) {
         throw const UnsafeArchiveException('Archive entry is too large');
+      }
+      if (SafeZipLimits.isTextEntry(name) &&
+          uncompressed > limits.maxTextEntryBytes) {
+        throw const UnsafeArchiveException('Archive text file is too large');
       }
       declaredTotal += uncompressed;
       if (declaredTotal > limits.maxTotalBytes) {

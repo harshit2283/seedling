@@ -42,6 +42,10 @@ class PrefsKeys {
   // Remote layout version this device has fully uploaded for (re-push all
   // local entries when it is behind SyncEngine.currentFormatVersion).
   static const String syncFormatVersion = 'sync_format_version';
+  // Records that failed to decrypt/authenticate, kept for a retry.
+  static const String syncQuarantine = 'sync_quarantine';
+  // Fingerprint of the key the last full upload was done with.
+  static const String syncKeyFingerprint = 'sync_key_fingerprint';
 
   // Google Drive sync
   static const String syncGDriveLockedAccount = 'sync_gdrive_locked_account';

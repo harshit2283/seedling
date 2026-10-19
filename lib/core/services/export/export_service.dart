@@ -16,6 +16,7 @@ import 'export_cleanup.dart';
 import 'export_models.dart';
 import 'journal_import.dart';
 import 'markdown_export.dart';
+import 'safe_zip.dart';
 
 export 'export_models.dart';
 export 'journal_import.dart' show JournalImport, JournalImportSource;
@@ -80,21 +81,19 @@ class ExportService {
     String mediaBasePath,
   ) async {
     try {
-      final zipData = await _buildZipBytes(entries, mediaBasePath);
-
-      if (zipData == null) {
-        return const ExportResult.failure('Failed to encode ZIP file');
-      }
-
-      // Write to temp file
+      final payload = await _prepareZipPayload(
+        entries,
+        mediaBasePath,
+        includeSyncMediaKeys: false,
+        encrypted: false,
+      );
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final filePath = '${tempDir.path}/seedling_backup_$timestamp.zip';
-
-      final file = File(filePath);
-      await file.writeAsBytes(zipData);
-
+      await _runZipExport(payload, filePath);
       return ExportResult.success(filePath);
+    } on ExportTooLargeException catch (e) {
+      return ExportResult.failure(e.message);
     } catch (e, st) {
       _errorReporter.report(e, stack: st, context: 'ExportService.exportToZip');
       return const ExportResult.failure('Could not create backup archive');
@@ -141,11 +140,24 @@ class ExportService {
         );
       }
 
+      await _checkFitsImportLimits(
+        mediaPaths: [
+          for (final i in items)
+            if (i.mediaSourcePath != null) i.mediaSourcePath!,
+        ],
+        fileCount: 1 + items.length,
+        limits: SafeZipLimits.imports,
+        kind: 'one Markdown export',
+        alternative: '',
+      );
+
       final tempDir = await getTemporaryDirectory();
       final timestamp = exportedAt.toIso8601String().replaceAll(':', '-');
       final filePath = '${tempDir.path}/seedling_markdown_$timestamp.zip';
       await _runMarkdownExport(items, exportedAt, filePath);
       return ExportResult.success(filePath);
+    } on ExportTooLargeException catch (e) {
+      return ExportResult.failure(e.message);
     } catch (e, st) {
       _errorReporter.report(
         e,
@@ -190,16 +202,23 @@ class ExportService {
     }
 
     try {
-      final zipBytes = await _buildZipBytes(entries, mediaBasePath);
-      if (zipBytes == null) {
-        return const ExportResult.failure('Failed to encode ZIP file');
-      }
+      final payload = await _prepareZipPayload(
+        entries,
+        mediaBasePath,
+        // Encrypted backups only: lets entries whose media is still on
+        // another device download it after a restore.
+        includeSyncMediaKeys: true,
+        encrypted: true,
+      );
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final filePath = '${tempDir.path}/seedling_backup_$timestamp.seedling';
-      // KDF + AES-GCM + base64 take seconds; keep them off the UI isolate.
-      await _runEncrypt(zipBytes, passphrase, _kdfIterations, filePath);
+      // ZIP build, KDF, AES-GCM and base64 run in one background isolate, so
+      // the archive bytes are never copied back and forth.
+      await _runEncryptedExport(payload, passphrase, _kdfIterations, filePath);
       return ExportResult.success(filePath);
+    } on ExportTooLargeException catch (e) {
+      return ExportResult.failure(e.message);
     } catch (e, st) {
       _errorReporter.report(
         e,
@@ -210,10 +229,14 @@ class ExportService {
     }
   }
 
-  Future<List<int>?> _buildZipBytes(
+  /// Resolves media (on this isolate: path_provider needs the platform
+  /// channel) and checks the result will fit what restore accepts, before
+  /// any media is read. Media bytes are read later, inside the isolate.
+  Future<_ZipBuildPayload> _prepareZipPayload(
     List<Entry> entries,
     String mediaBasePath, {
-    void Function(double progress)? onProgress,
+    required bool includeSyncMediaKeys,
+    required bool encrypted,
   }) async {
     final normalizedMediaBasePath = mediaBasePath.trim();
     String? resolvedMediaBasePath;
@@ -224,21 +247,12 @@ class ExportService {
       }
     }
 
-    onProgress?.call(0.05);
-
-    // Collect media bytes on the main isolate (dart:io File is platform-bound).
     final mediaPayloads = <_MediaPayload>[];
-    final hasValidMediaBasePath =
-        resolvedMediaBasePath != null &&
-        resolvedMediaBasePath.trim().isNotEmpty;
-    final totalMedia = entries
-        .where((e) => e.mediaPath != null && e.mediaPath!.isNotEmpty)
-        .length;
-    var processedMedia = 0;
+    var mediaBytes = 0;
     for (final entry in entries) {
       final mediaPath = entry.mediaPath;
       if (mediaPath == null || mediaPath.isEmpty) continue;
-      if (!hasValidMediaBasePath) continue;
+      if (resolvedMediaBasePath == null) continue;
       // Stored paths go stale when iOS moves the app container; re-anchor
       // them on the current media directory instead of silently skipping.
       final resolvedPath = await FileStorageService.resolveMediaPath(
@@ -253,28 +267,62 @@ class ExportService {
       )) {
         continue;
       }
-      final bytes = await mediaFile.readAsBytes();
+      final length = await mediaFile.length();
+      if (length > BackupCodec.archiveLimits.maxEntryBytes) {
+        throw ExportTooLargeException(
+          'One photo or voice memo is larger than a backup can hold '
+          '(${_mb(BackupCodec.archiveLimits.maxEntryBytes)} MB). '
+          'Nothing was lost. Try Export as Markdown instead.',
+        );
+      }
+      mediaBytes += length;
       mediaPayloads.add(
         _MediaPayload(
           archivePath:
               'media/${_getMediaFolder(entry.type)}/${_fileNameFromPath(mediaPath)}',
-          bytes: bytes,
+          sourcePath: resolvedFilePath,
         ),
       );
-      processedMedia++;
-      if (totalMedia > 0) {
-        onProgress?.call(0.05 + (processedMedia / totalMedia) * 0.5);
-      }
     }
 
-    onProgress?.call(0.6);
+    final fileCount = 3 + entries.length + mediaPayloads.length;
+    if (fileCount > BackupCodec.archiveLimits.maxEntries) {
+      throw ExportTooLargeException(
+        'You have more memories and media than one backup can hold '
+        '(${BackupCodec.archiveLimits.maxEntries} files). Nothing was lost. '
+        'Try Export as Markdown instead.',
+      );
+    }
+    if (mediaBytes > BackupCodec.archiveLimits.maxTotalBytes) {
+      throw ExportTooLargeException(
+        _tooLargeMessage(
+          mediaBytes,
+          BackupCodec.archiveLimits.maxTotalBytes,
+          'a ZIP backup',
+          ' Try Export as Markdown instead.',
+        ),
+      );
+    }
+    if (encrypted) {
+      final estimate = encryptedBackupSizeFor(mediaBytes);
+      if (estimate > BackupCodec.maxEncryptedBackupBytes) {
+        throw ExportTooLargeException(
+          _tooLargeMessage(
+            estimate,
+            BackupCodec.maxEncryptedBackupBytes,
+            'an encrypted backup',
+            ' Try Export as ZIP or Export as Markdown instead.',
+          ),
+        );
+      }
+    }
 
     final entryPayloads = entries
         .map(
           (e) => _EntryArchivePayload(
             syncUUID: e.syncUUID,
             id: e.id,
-            json: _entryToJson(e),
+            json: _entryToJson(e, includeSyncMediaKeys: includeSyncMediaKeys),
             title: (e.title ?? '').isNotEmpty ? e.title! : e.typeName,
             displayContent: e.displayContent,
             createdAtIso: e.createdAt.toIso8601String(),
@@ -286,16 +334,121 @@ class ExportService {
         )
         .toList(growable: false);
 
-    final payload = _ZipBuildPayload(
+    return _ZipBuildPayload(
       entries: entryPayloads,
       media: mediaPayloads,
       exportedAtIso: DateTime.now().toIso8601String(),
       entryCount: entries.length,
     );
+  }
 
-    final result = await compute(_buildAndEncodeZip, payload);
-    onProgress?.call(1.0);
-    return result;
+  /// Size of a `.seedling` file whose inner ZIP is [zipBytes] long: base64
+  /// grows the ciphertext by 4/3, plus a little JSON around it.
+  static int encryptedBackupSizeFor(int zipBytes) =>
+      ((zipBytes + 2) ~/ 3) * 4 + 4096;
+
+  /// Warm message for an export that will not fit what restore accepts.
+  static String _tooLargeMessage(
+    int needed,
+    int limit,
+    String kind,
+    String alternative,
+  ) =>
+      'Your memories need about ${_mb(needed)} MB, more than $kind can hold '
+      '(${_mb(limit)} MB). Nothing was lost.$alternative';
+
+  static int _mb(int bytes) => (bytes / (1024 * 1024)).ceil();
+
+  /// Fails early (before zipping) when media alone exceeds [limits].
+  static Future<void> _checkFitsImportLimits({
+    required List<String> mediaPaths,
+    required int fileCount,
+    required SafeZipLimits limits,
+    required String kind,
+    required String alternative,
+  }) async {
+    if (fileCount + mediaPaths.length > limits.maxEntries) {
+      throw ExportTooLargeException(
+        'You have more memories and media than $kind can hold '
+        '(${limits.maxEntries} files). Nothing was lost.$alternative',
+      );
+    }
+    var total = 0;
+    for (final path in mediaPaths) {
+      final length = await File(path).length();
+      if (length > limits.maxEntryBytes) {
+        throw ExportTooLargeException(
+          'One photo or voice memo is larger than $kind can hold '
+          '(${_mb(limits.maxEntryBytes)} MB). Nothing was lost.$alternative',
+        );
+      }
+      total += length;
+    }
+    if (total > limits.maxTotalBytes) {
+      throw ExportTooLargeException(
+        _tooLargeMessage(total, limits.maxTotalBytes, kind, alternative),
+      );
+    }
+  }
+
+  /// Message for the export confirmation when [pendingCount] memories still
+  /// wait for their photo/voice memo to download from another device; null
+  /// when there is nothing to warn about.
+  static String? pendingMediaWarning(
+    int pendingCount, {
+    required bool encrypted,
+  }) {
+    if (pendingCount <= 0) return null;
+    final what = pendingCount == 1
+        ? '1 photo or voice memo is'
+        : '$pendingCount photos or voice memos are';
+    return encrypted
+        ? '$what still downloading from your other devices, so this backup '
+              'will not contain the files. It keeps the link, so after a '
+              'restore they download again while sync is on.'
+        : '$what still downloading from your other devices and will be '
+              'missing from this export. Waiting a moment and exporting '
+              'again includes them.';
+  }
+
+  static Future<void> _runZipExport(
+    _ZipBuildPayload payload,
+    String outputPath,
+  ) {
+    return Isolate.run(() {
+      final bytes = _buildAndEncodeZip(payload);
+      if (bytes == null) throw StateError('ZIP encoding failed');
+      File(outputPath).writeAsBytesSync(bytes, flush: true);
+    });
+  }
+
+  static Future<void> _runEncryptedExport(
+    _ZipBuildPayload payload,
+    String passphrase,
+    int iterations,
+    String outputPath,
+  ) {
+    return Isolate.run(() async {
+      final bytes = _buildAndEncodeZip(payload);
+      if (bytes == null) throw StateError('ZIP encoding failed');
+      final size = encryptedBackupSizeFor(bytes.length);
+      if (size > BackupCodec.maxEncryptedBackupBytes) {
+        throw ExportTooLargeException(
+          _tooLargeMessage(
+            size,
+            BackupCodec.maxEncryptedBackupBytes,
+            'an encrypted backup',
+            ' Try Export as ZIP or Export as Markdown instead.',
+          ),
+        );
+      }
+      await writeEncryptedBackupFile(
+        zipBytes: bytes,
+        passphrase: passphrase,
+        iterations: iterations,
+        outputPath: outputPath,
+      );
+    });
   }
 
   /// Decrypt encrypted backup and return summary info.
@@ -341,22 +494,6 @@ class ExportService {
   }
 
   // Static so the isolate closures never capture `this`.
-  static Future<void> _runEncrypt(
-    List<int> zipBytes,
-    String passphrase,
-    int iterations,
-    String outputPath,
-  ) {
-    return Isolate.run(
-      () => writeEncryptedBackupFile(
-        zipBytes: zipBytes,
-        passphrase: passphrase,
-        iterations: iterations,
-        outputPath: outputPath,
-      ),
-    );
-  }
-
   static Future<LoadedEncryptedBackup> _runLoadEncrypted(
     String filePath,
     String passphrase,
@@ -445,8 +582,19 @@ class ExportService {
   }
 
   /// Convert a single entry to JSON
-  Map<String, dynamic> _entryToJson(Entry entry) {
+  ///
+  /// [includeSyncMediaKeys] adds the remote media link (mediaAssetId and its
+  /// decryption key). Only ever for the encrypted backup: plaintext exports
+  /// must never carry the key.
+  Map<String, dynamic> _entryToJson(
+    Entry entry, {
+    bool includeSyncMediaKeys = false,
+  }) {
     return {
+      if (includeSyncMediaKeys && entry.mediaAssetId != null)
+        'mediaAssetId': entry.mediaAssetId,
+      if (includeSyncMediaKeys && entry.mediaKey != null)
+        'mediaKey': entry.mediaKey,
       'id': entry.id,
       'syncUUID': entry.syncUUID,
       'type': entry.type.name,
@@ -545,9 +693,20 @@ class _EntryArchivePayload {
 
 class _MediaPayload {
   final String archivePath;
-  final List<int> bytes;
 
-  const _MediaPayload({required this.archivePath, required this.bytes});
+  /// Read inside the isolate, so media bytes never sit on the UI isolate.
+  final String sourcePath;
+
+  const _MediaPayload({required this.archivePath, required this.sourcePath});
+}
+
+/// An export would exceed what restore accepts; [message] is shown as is.
+class ExportTooLargeException implements Exception {
+  const ExportTooLargeException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 String _isolateHtmlEscape(String input) {
@@ -667,9 +826,10 @@ List<int>? _buildAndEncodeZip(_ZipBuildPayload payload) {
   }
 
   for (final media in payload.media) {
-    archive.add(
-      ArchiveFile(media.archivePath, media.bytes.length, media.bytes),
-    );
+    final file = File(media.sourcePath);
+    if (!file.existsSync()) continue;
+    final bytes = file.readAsBytesSync();
+    archive.add(ArchiveFile(media.archivePath, bytes.length, bytes));
   }
 
   return ZipEncoder().encode(archive);

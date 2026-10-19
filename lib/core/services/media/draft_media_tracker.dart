@@ -17,6 +17,26 @@ class DraftMediaTracker {
 
   final MediaDeleter Function() _deleterFactory;
   MediaDeleter? _deleter;
+
+  static final Map<String, int> _live = {};
+
+  /// Media paths held by any open draft right now. The orphan sweep must
+  /// never delete these: no entry references them yet.
+  static Set<String> get liveDraftPaths => Set.unmodifiable(_live.keys);
+
+  static void _retain(String path) =>
+      _live.update(path, (n) => n + 1, ifAbsent: () => 1);
+
+  static void _release(String path) {
+    final n = _live[path];
+    if (n == null) return;
+    if (n <= 1) {
+      _live.remove(path);
+    } else {
+      _live[path] = n - 1;
+    }
+  }
+
   final Set<String> _pending = {};
   bool _settled = false;
 
@@ -29,7 +49,7 @@ class DraftMediaTracker {
   Future<void> update({String? previous, String? next}) async {
     if (next != null && next.isNotEmpty) {
       _deleter ??= _deleterFactory();
-      _pending.add(next);
+      if (_pending.add(next)) _retain(next);
     }
     if (previous != null && previous.isNotEmpty && previous != next) {
       await _delete(previous);
@@ -42,12 +62,18 @@ class DraftMediaTracker {
   /// pending is unreferenced and the orphan sweeper collects it later.
   Future<void> commit(String? savedPath) async {
     _settled = true;
-    _pending.remove(savedPath);
+    // Saved: an entry references it now, so the sweep keeps it anyway.
+    if (savedPath != null && _pending.remove(savedPath)) _release(savedPath);
     if (_pending.isNotEmpty) {
       debugPrint(
         'DraftMediaTracker kept ${_pending.length} unsaved capture(s) '
         'for the orphan sweeper',
       );
+    }
+    // The draft is closed, so its files are no longer "live": the sweep may
+    // collect any that no entry ended up referencing.
+    for (final path in _pending) {
+      _release(path);
     }
     _pending.clear();
   }
@@ -68,7 +94,7 @@ class DraftMediaTracker {
   }
 
   Future<void> _delete(String path) async {
-    _pending.remove(path);
+    if (_pending.remove(path)) _release(path);
     final deleter = _deleter;
     if (deleter == null) return;
     try {

@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'models/memory_theme.dart';
 import 'stop_words.dart';
+import 'theme_detector_service.dart';
 
 /// Platform-agnostic interface for ML-based text analysis
 ///
@@ -163,124 +164,10 @@ class FallbackTextAnalyzer implements MLTextAnalyzer {
   Future<bool> isAvailable() async => true;
 
   @override
-  Future<MemoryTheme> detectTheme(String text) async {
-    // Use keyword-based detection from ThemeDetectorService
-    // This is a simplified version - the full implementation is in theme_detector_service.dart
-    final content = text.toLowerCase();
+  Future<MemoryTheme> detectTheme(String text) async =>
+      _themeDetector.detectThemeForContent(text);
 
-    final themeScores = <MemoryTheme, int>{};
-    for (final theme in MemoryTheme.values) {
-      themeScores[theme] = _countKeywordMatches(content, theme);
-    }
-
-    var maxTheme = MemoryTheme.moments;
-    var maxScore = 0;
-    for (final entry in themeScores.entries) {
-      if (entry.value > maxScore) {
-        maxScore = entry.value;
-        maxTheme = entry.key;
-      }
-    }
-
-    return maxTheme;
-  }
-
-  int _countKeywordMatches(String content, MemoryTheme theme) {
-    const keywords = {
-      MemoryTheme.family: [
-        'mom',
-        'dad',
-        'family',
-        'sister',
-        'brother',
-        'parent',
-        'child',
-        'kids',
-      ],
-      MemoryTheme.friends: [
-        'friend',
-        'friends',
-        'hangout',
-        'party',
-        'fun',
-        'laughed',
-      ],
-      MemoryTheme.work: [
-        'work',
-        'job',
-        'meeting',
-        'project',
-        'office',
-        'career',
-      ],
-      MemoryTheme.nature: [
-        'nature',
-        'outside',
-        'sun',
-        'rain',
-        'tree',
-        'flower',
-        'walk',
-        'hike',
-      ],
-      MemoryTheme.gratitude: [
-        'grateful',
-        'thankful',
-        'appreciate',
-        'blessed',
-        'lucky',
-      ],
-      MemoryTheme.reflection: [
-        'think',
-        'feel',
-        'realize',
-        'learn',
-        'wonder',
-        'remember',
-      ],
-      MemoryTheme.travel: [
-        'travel',
-        'trip',
-        'vacation',
-        'flight',
-        'visit',
-        'explore',
-      ],
-      MemoryTheme.creativity: [
-        'create',
-        'art',
-        'write',
-        'music',
-        'make',
-        'design',
-      ],
-      MemoryTheme.health: [
-        'health',
-        'exercise',
-        'workout',
-        'run',
-        'yoga',
-        'sleep',
-      ],
-      MemoryTheme.food: [
-        'food',
-        'eat',
-        'cook',
-        'meal',
-        'dinner',
-        'lunch',
-        'breakfast',
-      ],
-      MemoryTheme.moments: ['today', 'day', 'moment'],
-    };
-
-    final themeKeywords = keywords[theme] ?? [];
-    var count = 0;
-    for (final keyword in themeKeywords) {
-      if (content.contains(keyword)) count++;
-    }
-    return count;
-  }
+  static final ThemeDetectorService _themeDetector = ThemeDetectorService();
 
   @override
   Future<double> analyzeSentiment(String text) async {

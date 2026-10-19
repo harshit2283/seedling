@@ -10,6 +10,9 @@ import 'package:uuid/uuid.dart';
 import '../../constants/prefs_keys.dart';
 import 'sync_models.dart';
 
+/// Metadata namespaces in use (one per sync provider; see SyncProviderType).
+const syncNamespaces = <String>['cloudKit', 'googleDrive'];
+
 /// Persists sync state: change tokens, pending queue, last sync time.
 class SyncMetadata {
   static const _uuid = Uuid();
@@ -121,6 +124,91 @@ class SyncMetadata {
     await _savePendingChanges(current);
   }
 
+  /// Records that could not be decrypted or authenticated (wrong or stale
+  /// key, damaged or forged data). Kept so they can be retried after the
+  /// passphrase is re-entered, without blocking the rest of the pull.
+  static const maxQuarantined = 500;
+
+  List<Map<String, dynamic>> get quarantinedRecords {
+    final raw = _prefs.getString(_key(PrefsKeys.syncQuarantine));
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return [
+        for (final r in jsonDecode(raw) as List<dynamic>)
+          Map<String, dynamic>.from(r as Map),
+      ];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  int get quarantineCount => quarantinedRecords.length;
+
+  /// Replaces the quarantine with [records] (newest per syncUUID, capped).
+  Future<void> setQuarantinedRecords(List<Map<String, dynamic>> records) async {
+    if (records.isEmpty) {
+      await _prefs.remove(_key(PrefsKeys.syncQuarantine));
+      return;
+    }
+    final byUUID = <String, Map<String, dynamic>>{};
+    for (final r in records) {
+      final id = r['syncUUID'];
+      if (id is String) byUUID[id] = r;
+    }
+    var kept = byUUID.values.toList();
+    if (kept.length > maxQuarantined) {
+      kept = kept.sublist(kept.length - maxQuarantined);
+    }
+    await _prefs.setString(_key(PrefsKeys.syncQuarantine), jsonEncode(kept));
+  }
+
+  /// Fingerprint of the sync key last used to push (see
+  /// SyncCryptoService.keyFingerprint). A change means re-push everything.
+  String? get pushedKeyFingerprint =>
+      _prefs.getString(_key(PrefsKeys.syncKeyFingerprint));
+
+  Future<void> setPushedKeyFingerprint(String? value) async {
+    if (value == null) {
+      await _prefs.remove(_key(PrefsKeys.syncKeyFingerprint));
+    } else {
+      await _prefs.setString(_key(PrefsKeys.syncKeyFingerprint), value);
+    }
+  }
+
+  /// After an iOS backup restore, preferences come back but the database does
+  /// not. The restored device must not reuse the original device's id (both
+  /// would write the same change log) or replay its queue, so give it a new
+  /// identity and a clean sync state for every provider.
+  static Future<void> resetForRestoredInstall(SharedPreferences prefs) async {
+    await prefs.remove(PrefsKeys.syncDeviceId);
+    for (final namespace in syncNamespaces) {
+      await SyncMetadata(prefs, namespace: namespace).reset();
+    }
+  }
+
+  /// Persists remote deletes for purged entries right away, for every
+  /// provider whose sync is on, so they survive an app kill before sync runs.
+  static Future<void> queuePurgedDeletes(
+    SharedPreferences prefs,
+    List<({String syncUUID, String? mediaAssetId})> purged,
+  ) async {
+    if (purged.isEmpty) return;
+    final now = DateTime.now();
+    for (final namespace in syncNamespaces) {
+      final meta = SyncMetadata(prefs, namespace: namespace);
+      if (!meta.isEnabled) continue;
+      await meta.addPendingChanges([
+        for (final p in purged)
+          SyncChange(
+            syncUUID: p.syncUUID,
+            changeType: SyncChangeType.delete,
+            timestamp: now,
+            mediaAssetId: p.mediaAssetId,
+          ),
+      ]);
+    }
+  }
+
   /// Remote layout version this device has completed a full upload for.
   int get formatVersion =>
       _prefs.getInt(_key(PrefsKeys.syncFormatVersion)) ?? 0;
@@ -209,6 +297,8 @@ class SyncMetadata {
     await _prefs.remove(_key(PrefsKeys.syncLastSync));
     await _prefs.remove(_key(PrefsKeys.syncPendingQueue));
     await _prefs.remove(_key(PrefsKeys.syncFormatVersion));
+    await _prefs.remove(_key(PrefsKeys.syncQuarantine));
+    await _prefs.remove(_key(PrefsKeys.syncKeyFingerprint));
     await setLastError(null);
   }
 }

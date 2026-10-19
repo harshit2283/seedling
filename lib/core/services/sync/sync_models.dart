@@ -7,6 +7,9 @@ class SyncResult {
   final int pushedCount;
   final int pulledCount;
   final int conflictsResolved;
+
+  /// Records set aside because they couldn't be decrypted/authenticated.
+  final int quarantinedCount;
   final String? errorMessage;
   final DateTime timestamp;
 
@@ -15,6 +18,7 @@ class SyncResult {
     this.pushedCount = 0,
     this.pulledCount = 0,
     this.conflictsResolved = 0,
+    this.quarantinedCount = 0,
     this.errorMessage,
     required this.timestamp,
   });
@@ -23,12 +27,14 @@ class SyncResult {
     int pushed = 0,
     int pulled = 0,
     int conflicts = 0,
+    int quarantined = 0,
   }) {
     return SyncResult(
       success: true,
       pushedCount: pushed,
       pulledCount: pulled,
       conflictsResolved: conflicts,
+      quarantinedCount: quarantined,
       timestamp: DateTime.now(),
     );
   }

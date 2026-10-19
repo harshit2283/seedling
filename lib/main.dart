@@ -12,13 +12,13 @@ import 'core/services/ai/theme_backfill_service.dart';
 import 'core/services/diagnostics_log.dart';
 import 'core/services/error_reporter.dart';
 import 'core/services/export/export_cleanup.dart';
+import 'core/services/media/draft_media_tracker.dart';
 import 'core/services/media/file_storage_service.dart';
 import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
 import 'core/services/security/clock_guard_service.dart';
 import 'core/services/security/ios_data_protection.dart';
 import 'core/services/security/secure_storage.dart';
-import 'core/services/sync/sync_backend.dart';
 import 'core/services/sync/sync_metadata.dart';
 import 'core/services/storage/media_orphan_sweeper.dart';
 import 'core/services/share/share_receiver_service.dart';
@@ -93,15 +93,18 @@ Future<void> _runApp() async {
   // Initialize SharedPreferences for prompts and settings
   final sharedPreferences = await SharedPreferences.getInstance();
   if (database.isFreshStore) {
-    // Preferences survive a backup restore but the store does not, so drop
-    // stale sync change tokens and let the next sync pull everything.
-    for (final provider in SyncProviderType.values) {
-      await SyncMetadata(
-        sharedPreferences,
-        namespace: provider.name,
-      ).setChangeToken(null);
-    }
+    // Preferences survive a backup restore but the store does not: give this
+    // install its own sync device id (sharing one would make two devices
+    // write the same change log) and drop the old queue, tokens and upload
+    // state so the next sync pulls everything and re-uploads cleanly.
+    await SyncMetadata.resetForRestoredInstall(sharedPreferences);
   }
+  // Persist remote deletes for anything just purged from the trash now, not
+  // in memory until sync starts (an app kill would lose them).
+  await SyncMetadata.queuePurgedDeletes(
+    sharedPreferences,
+    database.takePurgedEntries(),
+  );
   // Reminders are opt-in and off by default: the plugin initializes lazily on
   // first reschedule, so startup never waits on a permission prompt.
   final gentleReminderService = GentleReminderService(prefs: sharedPreferences);
@@ -181,6 +184,7 @@ Future<void> _sweepOrphanMedia(
     final deleted = await const MediaOrphanSweeper().sweep(
       mediaDirectory: Directory(fileStorage.basePath),
       referencedPaths: entries.map((e) => e.mediaPath),
+      protectedPaths: DraftMediaTracker.liveDraftPaths,
     );
     if (deleted > 0) debugPrint('Removed $deleted orphaned media files');
   } catch (e, st) {

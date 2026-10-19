@@ -341,21 +341,23 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   @override
-  Future<String?> readKdfSalt() async {
+  Future<Map<String, dynamic>?> readKeyring() async {
     if (!await _ensureReady()) {
       throw StateError('Google Drive not connected');
     }
     final logs = await _logs();
-    return _withRetry(logs.readKdfSalt);
+    return _withRetry(logs.readKeyring);
   }
 
   @override
-  Future<String> publishKdfSalt(String salt) async {
+  Future<Map<String, dynamic>> publishKeyring(
+    Map<String, dynamic> keyring,
+  ) async {
     if (!await _ensureReady()) {
       throw StateError('Google Drive not connected');
     }
     final logs = await _logs();
-    return _withRetry(() => logs.publishKdfSalt(salt));
+    return _withRetry(() => logs.publishKeyring(keyring));
   }
 
   @override

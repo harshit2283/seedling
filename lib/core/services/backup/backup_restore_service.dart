@@ -5,6 +5,8 @@ import '../../../data/models/entry.dart';
 import '../ai/theme_detector_service.dart';
 import '../export/export_service.dart';
 import '../media/file_storage_service.dart';
+import '../sync/sync_engine.dart';
+import '../sync/sync_models.dart';
 
 /// How a backup is applied to the existing library.
 enum BackupImportMode { merge, replace }
@@ -84,6 +86,8 @@ class BackupRestoreService {
       }
     }
 
+    final createdEntries = <Entry>[];
+    final deletedEntries = <Entry>[];
     var importedEntries = 0;
     var importedMediaFiles = 0;
     var skippedDuplicates = 0;
@@ -102,7 +106,11 @@ class BackupRestoreService {
         entryMap: entryMap,
         loaded: loaded,
       );
-      if (restoredMediaPath == null && entryMap['mediaPath'] != null) {
+      final pendingDownload =
+          restoredMediaPath == null && _hasRemoteMedia(entryMap);
+      if (pendingDownload) {
+        warnings.add('media_pending_download');
+      } else if (restoredMediaPath == null && entryMap['mediaPath'] != null) {
         warnings.add('missing_media');
       } else if (restoredMediaPath != null) {
         importedMediaFiles++;
@@ -115,6 +123,7 @@ class BackupRestoreService {
       // Older backups carry no theme: store one so counts stay cheap.
       if (!entry.hasTheme) _themeDetector.assignTheme(entry);
       await _database.saveEntry(entry);
+      createdEntries.add(entry.copy());
       known.add(entryMap);
       importedEntries++;
     }
@@ -127,7 +136,7 @@ class BackupRestoreService {
     if (mode == BackupImportMode.replace) {
       final deleted = _database.getDeletedEntries();
       for (final entry in deleted) {
-        await _database.deleteEntry(entry.id);
+        if (await _database.deleteEntry(entry.id)) deletedEntries.add(entry);
       }
     }
 
@@ -136,7 +145,39 @@ class BackupRestoreService {
       importedMediaFiles: importedMediaFiles,
       skippedDuplicates: skippedDuplicates,
       warnings: warnings,
+      createdEntries: createdEntries,
+      deletedEntries: deletedEntries,
     );
+  }
+
+  /// Queues everything [result] touched through the sync engine: restores
+  /// write the database directly, so without this imported memories never
+  /// reach other devices and replace-mode deletions linger there.
+  ///
+  /// Deletes are queued first and skipped for any syncUUID the restore
+  /// re-created (restoring the same backup over itself must not delete the
+  /// restored entries remotely; the sync queue keeps the latest change).
+  static void queueForSync(ImportResult result, SyncEngine sync) {
+    if (!result.success) return;
+    final recreated = {
+      for (final e in result.createdEntries)
+        if (e.syncUUID != null) e.syncUUID!,
+    };
+    for (final entry in result.deletedEntries) {
+      if (entry.syncUUID == null || recreated.contains(entry.syncUUID)) {
+        continue;
+      }
+      sync.queuePush(entry, SyncChangeType.delete);
+    }
+    for (final entry in result.createdEntries) {
+      sync.queuePush(entry, SyncChangeType.create);
+    }
+  }
+
+  static bool _hasRemoteMedia(Map<String, dynamic> entryMap) {
+    final id = entryMap['mediaAssetId'];
+    final key = entryMap['mediaKey'];
+    return id is String && id.isNotEmpty && key is String && key.isNotEmpty;
   }
 
   /// Builds an [Entry] from one exported entry map.
@@ -211,6 +252,13 @@ class BackupRestoreService {
     if (modifiedAt != null) entry.modifiedAt = modifiedAt;
     // Rehydrate sync identity
     entry.syncUUID = entryMap['syncUUID'] as String?;
+    // Remote media link (encrypted backups only). Without local media the
+    // entry is left with no mediaPath so sync downloads it again.
+    if (_hasRemoteMedia(entryMap)) {
+      entry.mediaAssetId = entryMap['mediaAssetId'] as String;
+      entry.mediaKey = entryMap['mediaKey'] as String;
+      if (restoredMediaPath == null) entry.mediaPath = null;
+    }
     entry.deviceId = entryMap['deviceId'] as String?;
     return entry;
   }
@@ -248,7 +296,7 @@ class BackupRestoreService {
     if (bytes != null) {
       await File(targetPath).writeAsBytes(bytes, flush: true);
     } else {
-      await staged!.copy(targetPath);
+      await FileStorageService.copyAsNewFile(staged!, targetPath);
     }
     return targetPath;
   }

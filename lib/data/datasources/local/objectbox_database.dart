@@ -45,6 +45,10 @@ class ObjectBoxDatabase {
   List<Entry>? _allEntriesCache;
   List<Entry>? _visibleEntriesCache;
 
+  /// When the visible view goes stale on its own: the next locked capsule's
+  /// unlock instant or the start of next year, whichever is first.
+  DateTime? _visibleValidUntil;
+
   static ObjectBoxDatabase? _instance;
 
   /// Directory holding the ObjectBox store files.
@@ -189,37 +193,61 @@ class ObjectBoxDatabase {
     return byDate != 0 ? byDate : b.id.compareTo(a.id);
   }
 
+  /// Caller-facing views hold copies, never the [_plainById] instances, and
+  /// are unmodifiable: a caller mutating a returned entry (e.g. an edit
+  /// screen) cannot corrupt what getEntry/sync/export read next. Copies are
+  /// made once per change, not per read.
   List<Entry> _refreshAllEntriesCache() {
     _ensureAllPlainLoaded();
-    final entries = _plainById.values.where((e) => !e.isDeleted).toList()
-      ..sort(_newestFirst);
+    final copies = <Entry>[
+      for (final e in _plainById.values)
+        if (!e.isDeleted) e.copy(),
+    ]..sort(_newestFirst);
+    final entries = List<Entry>.unmodifiable(copies);
     _allEntriesCache = entries;
     return entries;
   }
 
   List<Entry> _refreshVisibleEntriesCache() {
     _ensureAllPlainLoaded();
-    final startOfYear = DateTime(DateTime.now().year);
-    final entries =
-        _plainById.values
-            .where(
-              (e) =>
-                  !e.isDeleted &&
-                  !e.createdAt.isBefore(startOfYear) &&
-                  !e.isLocked,
-            )
-            .toList()
-          ..sort(_newestFirst);
+    final now = DateTime.now();
+    final startOfYear = DateTime(now.year);
+    var validUntil = DateTime(now.year + 1);
+    final visible = <Entry>[];
+    for (final e in _plainById.values) {
+      if (e.isDeleted || e.createdAt.isBefore(startOfYear)) continue;
+      if (e.isLocked) {
+        final unlock = e.capsuleUnlockDate!.toLocal();
+        if (unlock.isBefore(validUntil)) validUntil = unlock;
+        continue;
+      }
+      visible.add(e.copy());
+    }
+    final entries = List<Entry>.unmodifiable(visible..sort(_newestFirst));
     _visibleEntriesCache = entries;
+    _visibleValidUntil = validUntil;
     return entries;
   }
 
-  /// Plaintext versions of raw query results, decrypting only entries this
-  /// session has not seen yet. Order is preserved.
+  /// Plaintext copies of raw query results, decrypting only entries this
+  /// session has not seen yet. Order is preserved. Copies, so callers can't
+  /// mutate the cache.
   List<Entry> _plain(List<Entry> raw) => [
     for (final entry in raw)
-      _plainById.putIfAbsent(entry.id, () => _decrypted(entry)),
+      _plainById.putIfAbsent(entry.id, () => _decrypted(entry)).copy(),
   ];
+
+  /// Normalises an entry's timestamps to local time. Importers and sync hand
+  /// in UTC DateTimes (`...Z`); ObjectBox returns local ones, so without this
+  /// the cache and freshly-read entries disagree on hour/day/year (tree
+  /// counts, grouping, "on this day").
+  static void _normaliseDates(Entry entry) {
+    entry.createdAt = entry.createdAt.toLocal();
+    entry.deletedAt = entry.deletedAt?.toLocal();
+    entry.capsuleUnlockDate = entry.capsuleUnlockDate?.toLocal();
+    entry.modifiedAt = entry.modifiedAt?.toLocal();
+    entry.lastAnalyzedAt = entry.lastAnalyzedAt?.toLocal();
+  }
 
   /// Decrypts [raw] in place (it is a fresh object from the box) and returns it.
   Entry _decrypted(Entry raw) {
@@ -312,6 +340,7 @@ class ObjectBoxDatabase {
       final yearDeltas = <int, int>{};
       final stored = <Entry>[];
       for (final entry in entries) {
+        _normaliseDates(entry);
         _assignSyncUUIDIfMissing(entry);
         if (!preserveModifiedAt || entry.modifiedAt == null) {
           entry.modifiedAt = now;
@@ -384,7 +413,15 @@ class ObjectBoxDatabase {
 
   /// Get all entries for current year, newest first (excludes soft-deleted)
   List<Entry> getCurrentYearEntries() {
-    return _visibleEntriesCache ?? _refreshVisibleEntriesCache();
+    final cached = _visibleEntriesCache;
+    final validUntil = _visibleValidUntil;
+    if (cached != null &&
+        validUntil != null &&
+        DateTime.now().isBefore(validUntil)) {
+      return cached;
+    }
+    // A capsule unlocked or the year rolled over since the last build.
+    return _refreshVisibleEntriesCache();
   }
 
   /// Get recent entries (limit, excludes soft-deleted)
@@ -546,7 +583,7 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    return [for (final e in _plain(results)) e.copy()];
+    return _plain(results);
   }
 
   /// Every stored entry's syncUUID, including soft-deleted ones (reads only
@@ -867,7 +904,7 @@ class ObjectBoxDatabase {
     final result = query.findFirst();
     query.close();
     if (result == null) return null;
-    return _plain([result]).single.copy();
+    return _plain([result]).single;
   }
 
   /// Get all entries modified since a given timestamp (for sync push)

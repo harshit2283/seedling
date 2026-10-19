@@ -26,6 +26,7 @@ class MediaOrphanSweeper {
   Future<int> sweep({
     required Directory mediaDirectory,
     required Iterable<String?> referencedPaths,
+    Iterable<String> protectedPaths = const [],
     DateTime? now,
   }) async {
     final referencedNames = <String>{};
@@ -36,6 +37,8 @@ class MediaOrphanSweeper {
       referencedNames.add(_fileName(path));
     }
     if (referenceCount == 0) return 0;
+    // Files held by open drafts (see DraftMediaTracker.liveDraftPaths).
+    referencedNames.addAll(protectedPaths.map(_fileName));
     if (!await mediaDirectory.exists()) return 0;
 
     final cutoff = (now ?? DateTime.now()).subtract(minAge);

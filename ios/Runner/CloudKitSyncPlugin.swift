@@ -1,12 +1,18 @@
 import Flutter
 import CloudKit
 
-/// Native iOS CloudKit sync plugin for Seedling
+/// Native iOS CloudKit sync plugin for Seedling.
 ///
-/// Provides iCloud Private Database sync using the default record zone.
-/// All sensitive text fields are expected to be encrypted by the Dart layer
-/// before reaching this plugin. This plugin handles CloudKit record CRUD,
-/// change token management, and encrypted media blobs (CKAsset).
+/// CloudKit is used as a small private file store, exactly like Google
+/// Drive's appData folder: the Dart layer (DriveSyncLogStore) keeps one
+/// change log per device, a keyring and encrypted media blobs as files. Every
+/// file is a `SeedlingFile` record (field `name` + CKAsset `data`) in the
+/// custom zone `SeedlingSync` of the private database. Everything the plugin
+/// stores is already encrypted by Dart; deletions travel as tombstones inside
+/// the logs, so no CloudKit change tokens are needed.
+///
+/// The legacy `SeedlingEntry` records (default zone, written by earlier
+/// builds) are only read, once, so their data migrates.
 ///
 /// Method channel: com.seedling.cloudkit_sync
 public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
@@ -14,16 +20,11 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
     // MARK: - Properties
 
     private let privateDB = CKContainer.default().privateCloudDatabase
+    /// Legacy per-entry record type (read-only).
     private let recordType = "SeedlingEntry"
-
-    /// All entry fields stored in CloudKit records
-    private static let entryFieldKeys: [String] = [
-        "syncUUID", "typeIndex", "createdAt", "modifiedAt",
-        "text", "title", "context", "mood", "tags",
-        "isDeleted", "deletedAt", "detectedTheme", "sentimentScore",
-        "capsuleUnlockDate", "transcription", "mediaPath", "deviceId",
-        "manualLinkIds", "syncEncryptionVersion", "syncEncryptionSalt"
-    ]
+    private let fileRecordType = "SeedlingFile"
+    private let zoneID = CKRecordZone.ID(zoneName: "SeedlingSync", ownerName: CKCurrentUserDefaultName)
+    private var zoneReady = false
 
     // MARK: - Plugin Registration
 
@@ -39,6 +40,7 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
     // MARK: - Method Dispatch
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        let args = call.arguments as? [String: Any] ?? [:]
         switch call.method {
         case "isAvailable":
             checkAvailability(result: result)
@@ -46,90 +48,51 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         case "getAccountStatus":
             getAccountStatus(result: result)
 
-        case "saveRecord":
-            guard let args = call.arguments as? [String: Any] else {
-                result(FlutterError(
-                    code: "INVALID_ARGS",
-                    message: "saveRecord requires a Map argument",
-                    details: nil
-                ))
+        case "fetchLegacyRecords":
+            fetchAllRecords(result: result)
+
+        case "fsList":
+            guard let prefix = args["prefix"] as? String else {
+                invalidArgs(call.method, result)
                 return
             }
-            saveRecord(args: args, result: result)
+            fsList(prefix: prefix, result: result)
 
-        case "deleteRecord":
-            guard let args = call.arguments as? [String: Any],
-                  let syncUUID = args["syncUUID"] as? String else {
-                result(FlutterError(
-                    code: "INVALID_ARGS",
-                    message: "deleteRecord requires syncUUID",
-                    details: nil
-                ))
-                return
-            }
-            deleteRecord(syncUUID: syncUUID, result: result)
-
-        case "fetchChanges":
-            let args = call.arguments as? [String: Any]
-            let changeTokenBase64 = args?["changeToken"] as? String
-            fetchChanges(changeTokenBase64: changeTokenBase64, result: result)
-
-        case "readKeyring":
-            readKeyring(result: result)
-
-        case "publishKeyring":
-            guard let args = call.arguments as? [String: Any],
-                  let kdfSalt = args["kdfSalt"] as? String, !kdfSalt.isEmpty else {
-                result(FlutterError(
-                    code: "INVALID_ARGS",
-                    message: "publishKeyring requires kdfSalt",
-                    details: nil
-                ))
-                return
-            }
-            publishKeyring(kdfSalt: kdfSalt, result: result)
-
-        case "uploadMediaBlob":
-            guard let args = call.arguments as? [String: Any],
-                  let assetId = args["assetId"] as? String,
-                  let sourcePath = args["sourcePath"] as? String else {
-                result(FlutterError(
-                    code: "INVALID_ARGS",
-                    message: "uploadMediaBlob requires assetId and sourcePath",
-                    details: nil
-                ))
-                return
-            }
-            uploadMediaBlob(assetId: assetId, sourcePath: sourcePath, result: result)
-
-        case "downloadMediaBlob":
-            guard let args = call.arguments as? [String: Any],
-                  let assetId = args["assetId"] as? String,
+        case "fsRead":
+            guard let id = args["id"] as? String,
                   let destinationPath = args["destinationPath"] as? String else {
-                result(FlutterError(
-                    code: "INVALID_ARGS",
-                    message: "downloadMediaBlob requires assetId and destinationPath",
-                    details: nil
-                ))
+                invalidArgs(call.method, result)
                 return
             }
-            downloadMediaBlob(assetId: assetId, destinationPath: destinationPath, result: result)
+            fsRead(id: id, destinationPath: destinationPath, result: result)
 
-        case "deleteMediaBlob":
-            guard let args = call.arguments as? [String: Any],
-                  let assetId = args["assetId"] as? String else {
-                result(FlutterError(
-                    code: "INVALID_ARGS",
-                    message: "deleteMediaBlob requires assetId",
-                    details: nil
-                ))
+        case "fsWrite":
+            guard let id = args["id"] as? String,
+                  let name = args["name"] as? String,
+                  let sourcePath = args["sourcePath"] as? String else {
+                invalidArgs(call.method, result)
                 return
             }
-            deleteMediaBlob(assetId: assetId, result: result)
+            fsWrite(id: id, name: name, sourcePath: sourcePath, result: result)
+
+        case "fsDelete":
+            guard let id = args["id"] as? String else {
+                invalidArgs(call.method, result)
+                return
+            }
+            fsDelete(id: id, result: result)
 
         default:
             result(FlutterMethodNotImplemented)
         }
+    }
+
+    private func invalidArgs(_ method: String, _ result: @escaping FlutterResult) {
+        result(FlutterError(
+            code: "INVALID_ARGS",
+            message: "Missing or invalid arguments for \(method)",
+            details: nil
+        ))
     }
 
     // MARK: - isAvailable
@@ -185,145 +148,7 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         }
     }
 
-    // MARK: - saveRecord
-
-    /// Save or update a CKRecord in the private database.
-    /// Uses syncUUID as the CKRecord.ID name for deterministic lookups.
-    private func saveRecord(args: [String: Any], result: @escaping FlutterResult) {
-        guard let syncUUID = args["syncUUID"] as? String else {
-            result(FlutterError(
-                code: "INVALID_ARGS",
-                message: "syncUUID is required",
-                details: nil
-            ))
-            return
-        }
-
-        let recordID = CKRecord.ID(recordName: syncUUID)
-
-        // First fetch the existing record so we can update it (preserving the
-        // server change tag), or create a new one if it does not exist.
-        privateDB.fetch(withRecordID: recordID) { [weak self] existingRecord, fetchError in
-            guard let self = self else { return }
-
-            let record: CKRecord
-            if let existing = existingRecord {
-                record = existing
-            } else {
-                // If the fetch failed because the record doesn't exist, create new
-                record = CKRecord(recordType: self.recordType, recordID: recordID)
-            }
-
-            // Populate fields from args
-            self.populateRecord(record, from: args)
-
-            self.privateDB.save(record) { savedRecord, saveError in
-                DispatchQueue.main.async {
-                    if let saveError = saveError {
-                        self.handleCKError(saveError, result: result)
-                        return
-                    }
-                    guard let savedRecord = savedRecord else {
-                        result(FlutterError(
-                            code: "SAVE_FAILED",
-                            message: "Record saved but returned nil",
-                            details: nil
-                        ))
-                        return
-                    }
-                    result(self.recordToDict(savedRecord))
-                }
-            }
-        }
-    }
-
-    // MARK: - Keyring (per-user key-derivation salt)
-
-    /// One record holds the account's random PBKDF2 salt so every device
-    /// derives the same sync key without the salt being app-wide.
-    private let keyringRecordType = "SeedlingKeyring"
-    private var keyringRecordID: CKRecord.ID { CKRecord.ID(recordName: "seedling-keyring-v1") }
-
-    /// Returns the stored salt, or nil when no keyring exists yet.
-    private func readKeyring(result: @escaping FlutterResult) {
-        privateDB.fetch(withRecordID: keyringRecordID) { record, error in
-            DispatchQueue.main.async {
-                if let ckError = error as? CKError, ckError.code == .unknownItem {
-                    result(nil)
-                    return
-                }
-                if let error = error {
-                    self.handleCKError(error, result: result)
-                    return
-                }
-                result(record?["kdfSalt"] as? String)
-            }
-        }
-    }
-
-    /// Creates the keyring with `kdfSalt` unless one exists, then returns the
-    /// salt in effect. Saving a brand-new CKRecord whose ID already exists
-    /// fails with `.serverRecordChanged`, so the first device wins atomically.
-    private func publishKeyring(kdfSalt: String, result: @escaping FlutterResult) {
-        let record = CKRecord(recordType: keyringRecordType, recordID: keyringRecordID)
-        record["kdfSalt"] = kdfSalt as CKRecordValue
-        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-        operation.savePolicy = .ifServerRecordUnchanged
-        operation.modifyRecordsCompletionBlock = { [weak self] _, _, error in
-            guard let self = self else { return }
-            if let ckError = error as? CKError {
-                let partial = ckError.partialErrorsByItemID?[self.keyringRecordID] as? CKError
-                let code = partial?.code ?? ckError.code
-                if code != .serverRecordChanged {
-                    DispatchQueue.main.async { self.handleCKError(ckError, result: result) }
-                    return
-                }
-            } else if let error = error {
-                DispatchQueue.main.async { self.handleCKError(error, result: result) }
-                return
-            }
-            // Created, or someone else's already exists: report what is stored.
-            self.readKeyring(result: result)
-        }
-        privateDB.add(operation)
-    }
-
-    // MARK: - deleteRecord
-
-    /// Delete a CKRecord by syncUUID from the private database
-    private func deleteRecord(syncUUID: String, result: @escaping FlutterResult) {
-        let recordID = CKRecord.ID(recordName: syncUUID)
-
-        privateDB.delete(withRecordID: recordID) { deletedRecordID, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    self.handleCKError(error, result: result)
-                    return
-                }
-                result(true)
-            }
-        }
-    }
-
-    // MARK: - fetchChanges
-
-    /// Fetch changes from CloudKit.
-    ///
-    /// If a changeToken is provided (base64-encoded), uses CKFetchDatabaseChangesOperation
-    /// and CKFetchRecordZoneChangesOperation to get incremental changes.
-    /// If no changeToken is provided, performs a full fetch using CKQuery.
-    private func fetchChanges(changeTokenBase64: String?, result: @escaping FlutterResult) {
-        if let tokenBase64 = changeTokenBase64,
-           let tokenData = Data(base64Encoded: tokenBase64),
-           let token = try? NSKeyedUnarchiver.unarchivedObject(
-               ofClass: CKServerChangeToken.self,
-               from: tokenData
-           ) {
-            fetchIncrementalChanges(previousToken: token, result: result)
-        } else {
-            fetchAllRecords(result: result)
-        }
-    }
+    // MARK: - Legacy records (read-only migration)
 
     /// Full fetch: query all SeedlingEntry records (used on first sync)
     private func fetchAllRecords(result: @escaping FlutterResult) {
@@ -429,190 +254,81 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         privateDB.add(operation)
     }
 
-    /// Incremental fetch using database and record zone change tokens
-    private func fetchIncrementalChanges(
-        previousToken: CKServerChangeToken,
-        result: @escaping FlutterResult
-    ) {
-        var changedZoneIDs: [CKRecordZone.ID] = []
-        var fetchedRecords: [[String: Any]] = []
-        var deletedUUIDs: [String] = []
-        var newDatabaseToken: CKServerChangeToken?
+    // MARK: - File store (custom zone)
 
-        // Step 1: Fetch database-level changes to find which zones changed
-        let dbChangesOp = CKFetchDatabaseChangesOperation(
-            previousServerChangeToken: previousToken
-        )
-        dbChangesOp.fetchAllChanges = true
-
-        dbChangesOp.recordZoneWithIDChangedBlock = { zoneID in
-            changedZoneIDs.append(zoneID)
-        }
-
-        dbChangesOp.recordZoneWithIDWasDeletedBlock = { _ in
-            // Zone deleted - unlikely for default zone but handle gracefully
-        }
-
-        dbChangesOp.recordZoneWithIDWasPurgedBlock = { _ in
-            // Zone purged
-        }
-
-        dbChangesOp.fetchDatabaseChangesResultBlock = { [weak self] operationResult in
-            guard let self = self else { return }
-
-            switch operationResult {
-            case .success(let (serverChangeToken, _)):
-                newDatabaseToken = serverChangeToken
-
-                if changedZoneIDs.isEmpty {
-                    // No changes in any zone
-                    DispatchQueue.main.async {
-                        let tokenBase64 = self.encodeChangeToken(serverChangeToken)
-                        result([
-                            "records": [] as [[String: Any]],
-                            "deletedUUIDs": [] as [String],
-                            "changeToken": tokenBase64 ?? NSNull()
-                        ] as [String: Any])
-                    }
-                    return
-                }
-
-                // Step 2: Fetch record-level changes from changed zones
-                self.fetchRecordZoneChanges(
-                    zoneIDs: changedZoneIDs,
-                    databaseToken: serverChangeToken,
-                    result: result
-                )
-
-            case .failure(let error):
-                DispatchQueue.main.async {
-                    self.handleCKError(error, result: result)
-                }
-            }
-        }
-
-        privateDB.add(dbChangesOp)
-    }
-
-    /// Fetch record-level changes from the specified zones
-    private func fetchRecordZoneChanges(
-        zoneIDs: [CKRecordZone.ID],
-        databaseToken: CKServerChangeToken,
-        result: @escaping FlutterResult
-    ) {
-        var fetchedRecords: [[String: Any]] = []
-        var deletedUUIDs: [String] = []
-
-        // Build per-zone configurations (no per-zone tokens for default zone)
-        var zoneConfigurations: [CKRecordZone.ID: CKFetchRecordZoneChangesOperation.ZoneConfiguration] = [:]
-        for zoneID in zoneIDs {
-            let config = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
-            config.previousServerChangeToken = nil // We track at database level
-            zoneConfigurations[zoneID] = config
-        }
-
-        let zoneChangesOp = CKFetchRecordZoneChangesOperation(
-            recordZoneIDs: zoneIDs,
-            configurationsByRecordZoneID: zoneConfigurations
-        )
-        zoneChangesOp.fetchAllChanges = true
-
-        zoneChangesOp.recordWasChangedBlock = { [weak self] recordID, recordResult in
-            guard let self = self else { return }
-            switch recordResult {
-            case .success(let record):
-                if record.recordType == self.recordType {
-                    fetchedRecords.append(self.recordToDict(record))
-                }
-            case .failure(_):
-                break
-            }
-        }
-
-        zoneChangesOp.recordWithIDWasDeletedBlock = { recordID, recordType in
-            if recordType == self.recordType {
-                deletedUUIDs.append(recordID.recordName)
-            }
-        }
-
-        zoneChangesOp.fetchRecordZoneChangesResultBlock = { [weak self] operationResult in
-            guard let self = self else { return }
-
-            DispatchQueue.main.async {
-                switch operationResult {
-                case .success:
-                    let tokenBase64 = self.encodeChangeToken(databaseToken)
-                    result([
-                        "records": fetchedRecords,
-                        "deletedUUIDs": deletedUUIDs,
-                        "changeToken": tokenBase64 ?? NSNull()
-                    ] as [String: Any])
-
-                case .failure(let error):
-                    self.handleCKError(error, result: result)
-                }
-            }
-        }
-
-        privateDB.add(zoneChangesOp)
-    }
-
-    // MARK: - Encrypted media blobs
-
-    /// Media files are encrypted in Dart before they reach this plugin; each
-    /// blob is a `SeedlingMedia` record holding one CKAsset. There is no
-    /// path that uploads a plaintext file.
-    private let mediaRecordType = "SeedlingMedia"
-
-    private func mediaRecordID(_ assetId: String) -> CKRecord.ID? {
-        guard UUID(uuidString: assetId) != nil else { return nil }
-        return CKRecord.ID(recordName: "media-\(assetId.lowercased())")
-    }
-
-    private func uploadMediaBlob(assetId: String, sourcePath: String, result: @escaping FlutterResult) {
-        guard let recordID = mediaRecordID(assetId),
-              isPathWithinAllowedSandbox(sourcePath),
-              FileManager.default.fileExists(atPath: sourcePath) else {
-            result(FlutterError(code: "INVALID_ARGS", message: "Bad media upload arguments", details: nil))
+    /// Creates the `SeedlingSync` zone once per launch (saving an existing
+    /// zone is a no-op).
+    private func ensureZone(_ completion: @escaping (Error?) -> Void) {
+        if zoneReady {
+            completion(nil)
             return
         }
-        let record = CKRecord(recordType: mediaRecordType, recordID: recordID)
-        record["blob"] = CKAsset(fileURL: URL(fileURLWithPath: sourcePath))
-        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-        // Blobs are immutable: an existing one (an earlier, interrupted push)
-        // is already the same content.
-        operation.savePolicy = .ifServerRecordUnchanged
-        operation.modifyRecordsCompletionBlock = { _, _, error in
-            DispatchQueue.main.async {
-                if let ckError = error as? CKError {
-                    let partial = ckError.partialErrorsByItemID?[recordID] as? CKError
-                    if (partial?.code ?? ckError.code) == .serverRecordChanged {
-                        result(true)
-                        return
-                    }
-                    self.handleCKError(ckError, result: result)
-                    return
-                }
-                if let error = error {
-                    self.handleCKError(error, result: result)
-                    return
-                }
-                result(true)
+        let operation = CKModifyRecordZonesOperation(
+            recordZonesToSave: [CKRecordZone(zoneID: zoneID)],
+            recordZoneIDsToDelete: nil
+        )
+        operation.modifyRecordZonesCompletionBlock = { [weak self] _, _, error in
+            if error == nil {
+                self?.zoneReady = true
             }
+            completion(error)
         }
         privateDB.add(operation)
     }
 
-    /// Copies the blob to `destinationPath`; returns false if it doesn't exist.
-    private func downloadMediaBlob(assetId: String, destinationPath: String, result: @escaping FlutterResult) {
-        guard let recordID = mediaRecordID(assetId),
-              isPathWithinAllowedSandbox(destinationPath) else {
-            result(FlutterError(code: "INVALID_ARGS", message: "Bad media download arguments", details: nil))
+    private func fileRecordID(_ id: String) -> CKRecord.ID {
+        return CKRecord.ID(recordName: id, zoneID: zoneID)
+    }
+
+    /// Lists `[{id, name}]` for every file whose name starts with `prefix`.
+    /// A zone-changes fetch from no token returns every record in the zone,
+    /// so no queryable index is needed; only the `name` key is downloaded.
+    private func fsList(prefix: String, result: @escaping FlutterResult) {
+        ensureZone { [weak self] error in
+            guard let self = self else { return }
+            if let error = error {
+                DispatchQueue.main.async { self.handleCKError(error, result: result) }
+                return
+            }
+            var files: [[String: String]] = []
+            let configuration = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+            configuration.previousServerChangeToken = nil
+            configuration.desiredKeys = ["name"]
+            let operation = CKFetchRecordZoneChangesOperation(
+                recordZoneIDs: [self.zoneID],
+                configurationsByRecordZoneID: [self.zoneID: configuration]
+            )
+            operation.fetchAllChanges = true
+            operation.recordChangedBlock = { record in
+                if record.recordType == self.fileRecordType,
+                   let name = record["name"] as? String,
+                   name.hasPrefix(prefix) {
+                    files.append(["id": record.recordID.recordName, "name": name])
+                }
+            }
+            operation.fetchRecordZoneChangesCompletionBlock = { error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        self.handleCKError(error, result: result)
+                        return
+                    }
+                    result(files)
+                }
+            }
+            self.privateDB.add(operation)
+        }
+    }
+
+    /// Copies file `id` to `destinationPath`. Returns false if it doesn't exist.
+    private func fsRead(id: String, destinationPath: String, result: @escaping FlutterResult) {
+        guard isPathWithinAllowedSandbox(destinationPath) else {
+            invalidArgs("fsRead", result)
             return
         }
-        privateDB.fetch(withRecordID: recordID) { record, error in
+        privateDB.fetch(withRecordID: fileRecordID(id)) { record, error in
             DispatchQueue.main.async {
-                if let ckError = error as? CKError, ckError.code == .unknownItem {
+                if let ckError = error as? CKError,
+                   ckError.code == .unknownItem || ckError.code == .zoneNotFound {
                     result(false)
                     return
                 }
@@ -620,7 +336,8 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                     self.handleCKError(error, result: result)
                     return
                 }
-                guard let asset = record?["blob"] as? CKAsset, let url = asset.fileURL else {
+                guard let asset = record?["data"] as? CKAsset,
+                      let assetURL = asset.fileURL else {
                     result(false)
                     return
                 }
@@ -634,23 +351,59 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                     if FileManager.default.fileExists(atPath: destinationPath) {
                         try FileManager.default.removeItem(at: destination)
                     }
-                    try FileManager.default.copyItem(at: url, to: destination)
+                    try FileManager.default.copyItem(at: assetURL, to: destination)
                     result(true)
                 } catch {
-                    result(FlutterError(code: "COPY_ERROR", message: error.localizedDescription, details: nil))
+                    result(FlutterError(
+                        code: "COPY_ERROR",
+                        message: error.localizedDescription,
+                        details: nil
+                    ))
                 }
             }
         }
     }
 
-    private func deleteMediaBlob(assetId: String, result: @escaping FlutterResult) {
-        guard let recordID = mediaRecordID(assetId) else {
-            result(FlutterError(code: "INVALID_ARGS", message: "Bad asset id", details: nil))
+    /// Creates or replaces file `id`. Each file has a single writer (a
+    /// device's own log) or is immutable (media, keyring), so overwriting
+    /// with `.allKeys` is safe and needs no change tag.
+    private func fsWrite(id: String, name: String, sourcePath: String, result: @escaping FlutterResult) {
+        guard isPathWithinAllowedSandbox(sourcePath),
+              FileManager.default.fileExists(atPath: sourcePath) else {
+            invalidArgs("fsWrite", result)
             return
         }
-        privateDB.delete(withRecordID: recordID) { _, error in
+        ensureZone { [weak self] error in
+            guard let self = self else { return }
+            if let error = error {
+                DispatchQueue.main.async { self.handleCKError(error, result: result) }
+                return
+            }
+            let record = CKRecord(recordType: self.fileRecordType, recordID: self.fileRecordID(id))
+            record["name"] = name as CKRecordValue
+            record["data"] = CKAsset(fileURL: URL(fileURLWithPath: sourcePath))
+            let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+            operation.savePolicy = .allKeys
+            operation.modifyRecordsCompletionBlock = { _, _, error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        self.handleCKError(error, result: result)
+                        return
+                    }
+                    result(true)
+                }
+            }
+            self.privateDB.add(operation)
+        }
+    }
+
+    /// Deletes file `id`; a file that is already gone counts as deleted, so a
+    /// retried delete can never jam the push queue.
+    private func fsDelete(id: String, result: @escaping FlutterResult) {
+        privateDB.delete(withRecordID: fileRecordID(id)) { _, error in
             DispatchQueue.main.async {
-                if let ckError = error as? CKError, ckError.code == .unknownItem {
+                if let ckError = error as? CKError,
+                   ckError.code == .unknownItem || ckError.code == .zoneNotFound {
                     result(true)
                     return
                 }
@@ -663,7 +416,7 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         }
     }
 
-    // MARK: - Record Field Mapping
+    // MARK: - Helpers
 
     private func isPathWithinAllowedSandbox(_ path: String) -> Bool {
         let destinationURL = URL(fileURLWithPath: path).resolvingSymlinksInPath()
@@ -684,94 +437,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         return allowedRoots.contains { root in
             let rootPath = root.resolvingSymlinksInPath().path
             return destinationPath == rootPath || destinationPath.hasPrefix(rootPath + "/")
-        }
-    }
-
-    /// Populate a CKRecord's fields from the Dart-side dictionary
-    private func populateRecord(_ record: CKRecord, from args: [String: Any]) {
-        // String fields
-        if let v = args["syncUUID"] as? String { record["syncUUID"] = v as CKRecordValue }
-        if let v = args["text"] as? String { record["text"] = v as CKRecordValue }
-        else { record["text"] = nil }
-
-        if let v = args["title"] as? String { record["title"] = v as CKRecordValue }
-        else { record["title"] = nil }
-
-        if let v = args["context"] as? String { record["context"] = v as CKRecordValue }
-        else { record["context"] = nil }
-
-        if let v = args["mood"] as? String { record["mood"] = v as CKRecordValue }
-        else { record["mood"] = nil }
-
-        if let v = args["tags"] as? String { record["tags"] = v as CKRecordValue }
-        else { record["tags"] = nil }
-
-        if let v = args["detectedTheme"] as? String { record["detectedTheme"] = v as CKRecordValue }
-        else { record["detectedTheme"] = nil }
-
-        if let v = args["transcription"] as? String { record["transcription"] = v as CKRecordValue }
-        else { record["transcription"] = nil }
-
-        if let v = args["mediaPath"] as? String { record["mediaPath"] = v as CKRecordValue }
-        else { record["mediaPath"] = nil }
-
-        if let v = args["deviceId"] as? String { record["deviceId"] = v as CKRecordValue }
-        else { record["deviceId"] = nil }
-
-        if let v = args["manualLinkIds"] as? String { record["manualLinkIds"] = v as CKRecordValue }
-        else { record["manualLinkIds"] = nil }
-
-        // Encryption envelope written by the Dart layer. Without these the
-        // encrypted fields can never be decrypted on another device (the
-        // per-push salt is needed to derive the key), so they must round-trip.
-        if let v = args["syncEncryptionSalt"] as? String { record["syncEncryptionSalt"] = v as CKRecordValue }
-        else { record["syncEncryptionSalt"] = nil }
-        if let v = args["syncEncryptionVersion"] as? Int { record["syncEncryptionVersion"] = v as CKRecordValue }
-        else { record["syncEncryptionVersion"] = nil }
-
-        // Int fields
-        if let v = args["typeIndex"] as? Int { record["typeIndex"] = v as CKRecordValue }
-
-        // Bool fields (Flutter sends bool as int sometimes)
-        if let v = args["isDeleted"] {
-            if let boolVal = v as? Bool {
-                record["isDeleted"] = (boolVal ? 1 : 0) as CKRecordValue
-            } else if let intVal = v as? Int {
-                record["isDeleted"] = intVal as CKRecordValue
-            }
-        }
-
-        // Double fields
-        if let v = args["sentimentScore"] as? Double { record["sentimentScore"] = v as CKRecordValue }
-        else { record["sentimentScore"] = nil }
-
-        // DateTime fields (passed as milliseconds since epoch from Dart)
-        if let v = args["createdAt"] as? Int64 {
-            record["createdAt"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        } else if let v = args["createdAt"] as? Int {
-            record["createdAt"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        }
-
-        if let v = args["modifiedAt"] as? Int64 {
-            record["modifiedAt"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        } else if let v = args["modifiedAt"] as? Int {
-            record["modifiedAt"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        }
-
-        if let v = args["deletedAt"] as? Int64 {
-            record["deletedAt"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        } else if let v = args["deletedAt"] as? Int {
-            record["deletedAt"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        } else {
-            record["deletedAt"] = nil
-        }
-
-        if let v = args["capsuleUnlockDate"] as? Int64 {
-            record["capsuleUnlockDate"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        } else if let v = args["capsuleUnlockDate"] as? Int {
-            record["capsuleUnlockDate"] = Date(timeIntervalSince1970: Double(v) / 1000.0) as CKRecordValue
-        } else {
-            record["capsuleUnlockDate"] = nil
         }
     }
 
@@ -847,22 +512,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         dict["hasMediaAsset"] = record["mediaAsset"] is CKAsset
 
         return dict
-    }
-
-    // MARK: - Change Token Encoding
-
-    /// Encode a CKServerChangeToken to a base64 string for storage in SharedPreferences
-    private func encodeChangeToken(_ token: CKServerChangeToken) -> String? {
-        do {
-            let data = try NSKeyedArchiver.archivedData(
-                withRootObject: token,
-                requiringSecureCoding: true
-            )
-            return data.base64EncodedString()
-        } catch {
-            NSLog("[CloudKitSync] Failed to encode change token: \(error)")
-            return nil
-        }
     }
 
     // MARK: - Error Handling

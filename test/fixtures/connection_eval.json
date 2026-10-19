@@ -1,0 +1,805 @@
+{
+ "description": "One simulated user's journal (64 entries, Jan-Oct 2026) with hand-labelled related memories per query entry (every other entry of the same story plus hand-picked cross links), for evaluating ConnectionFinderService. Entries without a cluster are same-day distractors. Queries in the mum/miso/anxiety/sourdough clusters are held out (split=test) and were not used for tuning.",
+ "version": 1,
+ "entries": [
+  {
+   "id": 1,
+   "date": "2026-01-04",
+   "text": "Grandad's cough is worse. Mum drove him to the GP this morning.",
+   "cluster": "grandad"
+  },
+  {
+   "id": 2,
+   "date": "2026-01-04",
+   "text": "The bins went out late again, foxes got into them"
+  },
+  {
+   "id": 3,
+   "date": "2026-01-19",
+   "text": "Visited Grandad in the hospital. He told the nurses about his war medals.",
+   "cluster": "grandad"
+  },
+  {
+   "id": 4,
+   "date": "2026-02-02",
+   "text": "Grandad died last night, peacefully, with Mum holding his hand.",
+   "cluster": "grandad"
+  },
+  {
+   "id": 5,
+   "date": "2026-02-02",
+   "text": "Snow on the hills behind the station this morning"
+  },
+  {
+   "id": 6,
+   "date": "2026-02-10",
+   "text": "The funeral. We played his favourite Glenn Miller record and everyone cried.",
+   "cluster": "grandad"
+  },
+  {
+   "id": 7,
+   "date": "2026-03-15",
+   "text": "Found his old pocket watch in the shed. Still ticks. Smells of his pipe.",
+   "cluster": "grandad"
+  },
+  {
+   "id": 8,
+   "date": "2026-05-20",
+   "text": "Grief caught me in the hardware store, the aisle where he bought his nails",
+   "cluster": "grandad"
+  },
+  {
+   "id": 9,
+   "date": "2026-03-01",
+   "text": "Booked flights to Lisbon for April! Five days, just me and Sam.",
+   "cluster": "lisbon"
+  },
+  {
+   "id": 10,
+   "date": "2026-03-01",
+   "text": "Lovely quiet Sunday, read most of a novel on the sofa"
+  },
+  {
+   "id": 11,
+   "date": "2026-04-10",
+   "text": "Landed in Lisbon. The light on the tiles is unreal.",
+   "cluster": "lisbon"
+  },
+  {
+   "id": 12,
+   "date": "2026-04-11",
+   "text": "Rode tram 28 up to Alfama, Sam nearly fell off laughing",
+   "cluster": "lisbon"
+  },
+  {
+   "id": 13,
+   "date": "2026-04-12",
+   "text": "Pastel de nata still warm from the oven in Belém. Ate three.",
+   "cluster": "lisbon"
+  },
+  {
+   "id": 14,
+   "date": "2026-04-12",
+   "text": "Work emails piling up while I'm away, ignoring them"
+  },
+  {
+   "id": 15,
+   "date": "2026-04-15",
+   "text": "Back from Lisbon. Unpacking sand and sardine tins.",
+   "cluster": "lisbon"
+  },
+  {
+   "id": 16,
+   "date": "2026-01-08",
+   "text": "Started Couch to 5K. Week 1, run 1. Lungs on fire.",
+   "cluster": "running"
+  },
+  {
+   "id": 17,
+   "date": "2026-02-14",
+   "text": "Couch to 5K week 6, ran 20 minutes without stopping",
+   "cluster": "running"
+  },
+  {
+   "id": 18,
+   "date": "2026-03-09",
+   "text": "Ran my first parkrun! 5k in 34 minutes, the marshals cheered",
+   "cluster": "running"
+  },
+  {
+   "id": 19,
+   "date": "2026-03-09",
+   "text": "Leo has a cold, lots of tissues and cartoons today"
+  },
+  {
+   "id": 20,
+   "date": "2026-04-26",
+   "text": "Signed up for a 10k in June. What have I done.",
+   "cluster": "running"
+  },
+  {
+   "id": 21,
+   "date": "2026-06-21",
+   "text": "Finished the 10k! 1:08, legs gone, medal on the fridge",
+   "cluster": "running"
+  },
+  {
+   "id": 22,
+   "date": "2026-01-25",
+   "text": "Brunch with Priya, she's engaged!! The ring is gorgeous",
+   "cluster": "priya"
+  },
+  {
+   "id": 23,
+   "date": "2026-05-02",
+   "text": "Priya's wedding. Danced till 2am, her mum fed everyone",
+   "cluster": "priya"
+  },
+  {
+   "id": 24,
+   "date": "2026-05-02",
+   "text": "Bought new shoes for the wedding and they pinched all night"
+  },
+  {
+   "id": 25,
+   "date": "2026-09-14",
+   "text": "Priya had her baby, a girl called Anaya. Cried on the phone.",
+   "cluster": "priya"
+  },
+  {
+   "id": 26,
+   "date": "2026-10-03",
+   "text": "Met Anaya for the first time. Priya looks tired and happy.",
+   "cluster": "priya"
+  },
+  {
+   "id": 27,
+   "date": "2026-02-21",
+   "text": "Leo rode his bike without stabilisers today!",
+   "cluster": "leo"
+  },
+  {
+   "id": 28,
+   "date": "2026-03-20",
+   "text": "Leo's school play, he was a sheep and forgot to baa",
+   "cluster": "leo"
+  },
+  {
+   "id": 29,
+   "date": "2026-04-30",
+   "text": "Leo lost his first tooth, made the tooth fairy write a note",
+   "cluster": "leo"
+  },
+  {
+   "id": 30,
+   "date": "2026-06-05",
+   "text": "Leo asked why the moon follows the car. I didn't know.",
+   "cluster": "leo"
+  },
+  {
+   "id": 31,
+   "date": "2026-06-05",
+   "text": "The printer jammed three times before the meeting"
+  },
+  {
+   "id": 32,
+   "date": "2026-08-30",
+   "text": "Leo starts Year 2 next week, he wants a dinosaur lunchbox",
+   "cluster": "leo"
+  },
+  {
+   "id": 33,
+   "date": "2026-03-28",
+   "text": "First day on the allotment, dug out a barrow of bindweed",
+   "cluster": "allotment"
+  },
+  {
+   "id": 34,
+   "date": "2026-05-10",
+   "text": "Planted the tomatoes and courgettes on the allotment",
+   "cluster": "allotment"
+  },
+  {
+   "id": 35,
+   "date": "2026-07-19",
+   "text": "First courgette from the allotment, grilled it with garlic",
+   "cluster": "allotment"
+  },
+  {
+   "id": 36,
+   "date": "2026-08-24",
+   "text": "Tomatoes everywhere on the allotment, giving them to the neighbours",
+   "cluster": "allotment"
+  },
+  {
+   "id": 37,
+   "date": "2026-02-05",
+   "text": "Kick-off for Project Atlas, the new booking system. Nervous.",
+   "cluster": "atlas"
+  },
+  {
+   "id": 38,
+   "date": "2026-04-22",
+   "text": "Atlas demo to the leadership team went better than expected",
+   "cluster": "atlas"
+  },
+  {
+   "id": 39,
+   "date": "2026-06-30",
+   "text": "We launched Atlas! Team drinks after, Marcus gave a speech",
+   "cluster": "atlas"
+  },
+  {
+   "id": 40,
+   "date": "2026-07-07",
+   "text": "First week of Atlas in production, only two bugs reported",
+   "cluster": "atlas"
+  },
+  {
+   "id": 41,
+   "date": "2026-07-07",
+   "text": "Hot evening, ate ice lollies on the back step"
+  },
+  {
+   "id": 42,
+   "date": "2026-01-30",
+   "text": "First pottery class, my bowl collapsed on the wheel",
+   "cluster": "pottery"
+  },
+  {
+   "id": 43,
+   "date": "2026-02-27",
+   "text": "Pottery: finally centred the clay! A small wonky cup.",
+   "cluster": "pottery"
+  },
+  {
+   "id": 44,
+   "date": "2026-03-27",
+   "text": "Glazed my cups in a speckled blue, kiln firing next week",
+   "cluster": "pottery"
+  },
+  {
+   "id": 45,
+   "date": "2026-04-03",
+   "text": "Picked up my cups from the kiln, the blue came out perfect",
+   "cluster": "pottery"
+  },
+  {
+   "id": 46,
+   "date": "2026-01-12",
+   "text": "Long phone call with Mum, she's lonely since Dad's knee op",
+   "cluster": "mum"
+  },
+  {
+   "id": 47,
+   "date": "2026-06-12",
+   "text": "Mum's 70th birthday, we took her for afternoon tea",
+   "cluster": "mum"
+  },
+  {
+   "id": 48,
+   "date": "2026-06-12",
+   "text": "Bus was rammed, stood all the way into town"
+  },
+  {
+   "id": 49,
+   "date": "2026-07-26",
+   "text": "Helped Mum in her garden, she showed me Grandad's roses",
+   "cluster": "mum"
+  },
+  {
+   "id": 50,
+   "date": "2026-01-15",
+   "text": "Miso the cat brought in a live mouse at 3am",
+   "cluster": "miso"
+  },
+  {
+   "id": 51,
+   "date": "2026-05-27",
+   "text": "Miso sleeping in a sunbeam on the landing all afternoon",
+   "cluster": "miso"
+  },
+  {
+   "id": 52,
+   "date": "2026-09-02",
+   "text": "Took Miso to the vet, she's fine, just fat",
+   "cluster": "miso"
+  },
+  {
+   "id": 53,
+   "date": "2026-02-18",
+   "text": "Panic attack on the train to work, did the breathing thing",
+   "cluster": "anxiety"
+  },
+  {
+   "id": 54,
+   "date": "2026-03-04",
+   "text": "First therapy session with Dr Okafor. Talked about the panic attacks.",
+   "cluster": "anxiety"
+  },
+  {
+   "id": 55,
+   "date": "2026-05-13",
+   "text": "Dr Okafor says I'm making real progress. Haven't had a panic attack in a month.",
+   "cluster": "anxiety"
+  },
+  {
+   "id": 56,
+   "date": "2026-01-21",
+   "text": "Started a sourdough starter, named it Doughy McDoughface",
+   "cluster": "sourdough"
+  },
+  {
+   "id": 57,
+   "date": "2026-02-08",
+   "text": "First sourdough loaf, flat as a pancake but tasty",
+   "cluster": "sourdough"
+  },
+  {
+   "id": 58,
+   "date": "2026-03-22",
+   "text": "Proper sourdough at last, big ear, open crumb",
+   "cluster": "sourdough"
+  },
+  {
+   "id": 59,
+   "date": "2026-04-18",
+   "text": "Rain all day, stayed in and did a jigsaw"
+  },
+  {
+   "id": 60,
+   "date": "2026-08-03",
+   "text": "Ice cream van played Greensleeves out of tune"
+  },
+  {
+   "id": 61,
+   "date": "2026-09-20",
+   "text": "Found a fiver in my winter coat"
+  },
+  {
+   "id": 62,
+   "date": "2026-10-11",
+   "text": "Clocks went back, extra hour in bed"
+  },
+  {
+   "id": 63,
+   "date": "2026-06-28",
+   "text": "Saw a heron at the canal on my lunch walk"
+  },
+  {
+   "id": 64,
+   "date": "2026-07-14",
+   "text": "Long day, early night"
+  }
+ ],
+ "queries": [
+  {
+   "query": 1,
+   "related": [
+    3,
+    4,
+    6,
+    7,
+    8,
+    49
+   ],
+   "split": "train"
+  },
+  {
+   "query": 3,
+   "related": [
+    1,
+    4,
+    6,
+    7,
+    8,
+    49
+   ],
+   "split": "train"
+  },
+  {
+   "query": 4,
+   "related": [
+    1,
+    3,
+    6,
+    7,
+    8,
+    49
+   ],
+   "split": "train"
+  },
+  {
+   "query": 6,
+   "related": [
+    1,
+    3,
+    4,
+    7,
+    8,
+    49
+   ],
+   "split": "train"
+  },
+  {
+   "query": 7,
+   "related": [
+    1,
+    3,
+    4,
+    6,
+    8,
+    49
+   ],
+   "split": "train"
+  },
+  {
+   "query": 8,
+   "related": [
+    1,
+    3,
+    4,
+    6,
+    7,
+    49
+   ],
+   "split": "train"
+  },
+  {
+   "query": 9,
+   "related": [
+    11,
+    12,
+    13,
+    15
+   ],
+   "split": "train"
+  },
+  {
+   "query": 11,
+   "related": [
+    9,
+    12,
+    13,
+    15
+   ],
+   "split": "train"
+  },
+  {
+   "query": 12,
+   "related": [
+    9,
+    11,
+    13,
+    15
+   ],
+   "split": "train"
+  },
+  {
+   "query": 13,
+   "related": [
+    9,
+    11,
+    12,
+    15
+   ],
+   "split": "train"
+  },
+  {
+   "query": 15,
+   "related": [
+    9,
+    11,
+    12,
+    13
+   ],
+   "split": "train"
+  },
+  {
+   "query": 16,
+   "related": [
+    17,
+    18,
+    20,
+    21
+   ],
+   "split": "train"
+  },
+  {
+   "query": 17,
+   "related": [
+    16,
+    18,
+    20,
+    21
+   ],
+   "split": "train"
+  },
+  {
+   "query": 18,
+   "related": [
+    16,
+    17,
+    20,
+    21
+   ],
+   "split": "train"
+  },
+  {
+   "query": 20,
+   "related": [
+    16,
+    17,
+    18,
+    21
+   ],
+   "split": "train"
+  },
+  {
+   "query": 21,
+   "related": [
+    16,
+    17,
+    18,
+    20
+   ],
+   "split": "train"
+  },
+  {
+   "query": 22,
+   "related": [
+    23,
+    25,
+    26
+   ],
+   "split": "train"
+  },
+  {
+   "query": 23,
+   "related": [
+    22,
+    24,
+    25,
+    26
+   ],
+   "split": "train"
+  },
+  {
+   "query": 25,
+   "related": [
+    22,
+    23,
+    26
+   ],
+   "split": "train"
+  },
+  {
+   "query": 26,
+   "related": [
+    22,
+    23,
+    25
+   ],
+   "split": "train"
+  },
+  {
+   "query": 27,
+   "related": [
+    28,
+    29,
+    30,
+    32
+   ],
+   "split": "train"
+  },
+  {
+   "query": 29,
+   "related": [
+    27,
+    28,
+    30,
+    32
+   ],
+   "split": "train"
+  },
+  {
+   "query": 30,
+   "related": [
+    27,
+    28,
+    29,
+    32
+   ],
+   "split": "train"
+  },
+  {
+   "query": 32,
+   "related": [
+    27,
+    28,
+    29,
+    30
+   ],
+   "split": "train"
+  },
+  {
+   "query": 33,
+   "related": [
+    34,
+    35,
+    36
+   ],
+   "split": "train"
+  },
+  {
+   "query": 34,
+   "related": [
+    33,
+    35,
+    36
+   ],
+   "split": "train"
+  },
+  {
+   "query": 35,
+   "related": [
+    33,
+    34,
+    36
+   ],
+   "split": "train"
+  },
+  {
+   "query": 36,
+   "related": [
+    33,
+    34,
+    35
+   ],
+   "split": "train"
+  },
+  {
+   "query": 37,
+   "related": [
+    38,
+    39,
+    40
+   ],
+   "split": "train"
+  },
+  {
+   "query": 38,
+   "related": [
+    37,
+    39,
+    40
+   ],
+   "split": "train"
+  },
+  {
+   "query": 39,
+   "related": [
+    37,
+    38,
+    40
+   ],
+   "split": "train"
+  },
+  {
+   "query": 42,
+   "related": [
+    43,
+    44,
+    45
+   ],
+   "split": "train"
+  },
+  {
+   "query": 43,
+   "related": [
+    42,
+    44,
+    45
+   ],
+   "split": "train"
+  },
+  {
+   "query": 45,
+   "related": [
+    42,
+    43,
+    44
+   ],
+   "split": "train"
+  },
+  {
+   "query": 46,
+   "related": [
+    47,
+    49
+   ],
+   "split": "test"
+  },
+  {
+   "query": 47,
+   "related": [
+    46,
+    49
+   ],
+   "split": "test"
+  },
+  {
+   "query": 49,
+   "related": [
+    7,
+    46,
+    47
+   ],
+   "split": "test"
+  },
+  {
+   "query": 50,
+   "related": [
+    51,
+    52
+   ],
+   "split": "test"
+  },
+  {
+   "query": 52,
+   "related": [
+    50,
+    51
+   ],
+   "split": "test"
+  },
+  {
+   "query": 53,
+   "related": [
+    54,
+    55
+   ],
+   "split": "test"
+  },
+  {
+   "query": 54,
+   "related": [
+    53,
+    55
+   ],
+   "split": "test"
+  },
+  {
+   "query": 55,
+   "related": [
+    53,
+    54
+   ],
+   "split": "test"
+  },
+  {
+   "query": 56,
+   "related": [
+    57,
+    58
+   ],
+   "split": "test"
+  },
+  {
+   "query": 57,
+   "related": [
+    56,
+    58
+   ],
+   "split": "test"
+  },
+  {
+   "query": 58,
+   "related": [
+    56,
+    57
+   ],
+   "split": "test"
+  }
+ ]
+}
