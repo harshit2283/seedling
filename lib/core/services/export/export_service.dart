@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../data/models/entry.dart';
 import '../error_reporter.dart';
+import '../media/file_storage_service.dart';
 import 'export_cleanup.dart';
 
 /// Presents the platform share sheet for [file]. Injectable for tests.
@@ -248,8 +249,14 @@ class ExportService {
       final mediaPath = entry.mediaPath;
       if (mediaPath == null || mediaPath.isEmpty) continue;
       if (!hasValidMediaBasePath) continue;
-      final mediaFile = File(mediaPath);
-      if (!await mediaFile.exists()) continue;
+      // Stored paths go stale when iOS moves the app container; re-anchor
+      // them on the current media directory instead of silently skipping.
+      final resolvedPath = await FileStorageService.resolveMediaPath(
+        mediaPath,
+        baseDir: Directory(resolvedMediaBasePath),
+      );
+      if (resolvedPath == null) continue;
+      final mediaFile = File(resolvedPath);
       final resolvedFilePath = await mediaFile.resolveSymbolicLinks();
       if (!resolvedFilePath.startsWith(
         '$resolvedMediaBasePath${Platform.pathSeparator}',

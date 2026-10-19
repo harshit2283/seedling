@@ -251,4 +251,35 @@ void main() {
       file.deleteSync();
     }
   });
+
+  test('exportToZip includes media whose stored path went stale', () async {
+    final mediaRoot = await Directory.systemTemp.createTemp('export_media');
+    try {
+      final photo = File('${mediaRoot.path}/photos/abc.jpg')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync([1, 2, 3]);
+      expect(photo.existsSync(), isTrue);
+      final entry = Entry.photo(
+        mediaPath:
+            '/var/mobile/Containers/Data/Application/OLD/Library/'
+            'Application Support/media/photos/abc.jpg',
+      )..id = 7;
+
+      final service = ExportService();
+      final result = await service.exportToZip([entry], mediaRoot.path);
+      expect(result.success, isTrue);
+
+      final archive = ZipDecoder().decodeBytes(
+        File(result.filePath!).readAsBytesSync(),
+      );
+      final media = archive.files.where(
+        (f) => f.name == 'media/photos/abc.jpg',
+      );
+      expect(media, hasLength(1));
+      expect(media.first.content, [1, 2, 3]);
+      File(result.filePath!).deleteSync();
+    } finally {
+      mediaRoot.deleteSync(recursive: true);
+    }
+  });
 }
