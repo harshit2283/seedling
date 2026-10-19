@@ -374,15 +374,24 @@ class _StageLine extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          !calm && count > 0
-              ? '$description · $count ${count == 1 ? 'memory' : 'memories'}'
-              : description,
+          description,
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: palette.textSecondary,
             height: 1.4,
           ),
         ),
+        if (!calm && count > 0) ...[
+          const SizedBox(height: 2),
+          Text(
+            '$count ${count == 1 ? 'memory' : 'memories'}',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.textMuted,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ],
     );
   }

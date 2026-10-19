@@ -15,7 +15,7 @@ class EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'Every tree begins with one memory.',
+            'Every tree begins\nwith one memory.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: palette.textPrimary,
