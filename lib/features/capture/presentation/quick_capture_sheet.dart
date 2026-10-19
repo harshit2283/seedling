@@ -7,7 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/haptic_service.dart';
@@ -206,7 +207,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
     final mutedText = Theme.of(
       context,
-    ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted);
+    ).textTheme.bodySmall?.copyWith(color: context.palette.textSecondary);
 
     final content = PopScope(
       canPop: false,
@@ -235,7 +236,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                 decoration: BoxDecoration(
                   color: PlatformUtils.isIOS
                       ? CupertinoColors.systemGrey3
-                      : SeedlingColors.lightBark,
+                      : context.palette.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -323,10 +324,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: SeedlingColors.error.withValues(alpha: 0.12),
+                    color: context.palette.error.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: SeedlingColors.error.withValues(alpha: 0.4),
+                      color: context.palette.error.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Row(
@@ -334,14 +335,14 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                       Icon(
                         AdaptiveIcons.error,
                         size: 18,
-                        color: SeedlingColors.error,
+                        color: context.palette.error,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _saveError!,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: SeedlingColors.error),
+                              ?.copyWith(color: context.palette.error),
                         ),
                       ),
                     ],
@@ -371,13 +372,14 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                         : 'Save memory',
                     child: CupertinoButton(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 10,
+                        horizontal: 20,
+                        vertical: 12,
                       ),
+                      minimumSize: const Size(44, 44),
                       color: _canSave()
-                          ? SeedlingColors.forestGreen
-                          : Theme.of(context).dividerColor,
-                      borderRadius: BorderRadius.circular(12),
+                          ? context.palette.primaryFill
+                          : context.palette.surfaceMuted,
+                      borderRadius: SeedlingRadius.button,
                       onPressed: _canSave()
                           ? () {
                               HapticFeedback.selectionClick();
@@ -388,14 +390,13 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                             }
                           : null,
                       child: Text(
-                        _sealAsCapsule ? 'SAVE CAPSULE' : 'SAVE MEMORY',
+                        _sealAsCapsule ? 'Seal capsule' : 'Save memory',
                         style: TextStyle(
                           color: _canSave()
-                              ? Colors.white
-                              : SeedlingColors.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6,
+                              ? context.palette.onPrimaryFill
+                              : context.palette.textSecondary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -411,16 +412,14 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
     // Wrap with glass effect on iOS
     return GlassSheet(
-      backgroundColor:
-          Theme.of(context).cardTheme.color ??
-          Theme.of(context).colorScheme.surface,
+      backgroundColor: context.palette.surface,
       opacity: PlatformUtils.isIOS ? 0.85 : 1.0,
       child: content,
     );
   }
 
   Widget _buildTextField() {
-    final textColor = Theme.of(context).colorScheme.onSurface;
+    final textColor = context.palette.textPrimary;
     if (PlatformUtils.isIOS) {
       return CupertinoTextField(
         key: const ValueKey('capture-text'),
@@ -454,7 +453,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         hintText: _getHintText(),
         hintStyle: Theme.of(
           context,
-        ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
+        ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
         border: InputBorder.none,
         filled: false,
       ),
@@ -497,7 +496,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
             style: style,
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: style?.copyWith(color: SeedlingColors.textMuted),
+              hintStyle: style?.copyWith(color: context.palette.textMuted),
               border: InputBorder.none,
               filled: false,
               isDense: true,
@@ -516,7 +515,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     return Stack(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(PlatformUtils.isIOS ? 16 : 12),
+          borderRadius: SeedlingRadius.card,
           child: Image.file(
             File(_photoPath!),
             height: 150,
@@ -525,11 +524,11 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
             semanticLabel: 'Attached photo',
             errorBuilder: (_, _, _) => Container(
               height: 150,
-              color: SeedlingColors.accentPhoto.withValues(alpha: 0.12),
+              color: context.palette.accentPhoto.withValues(alpha: 0.12),
               alignment: Alignment.center,
               child: Icon(
                 AdaptiveIcons.photo,
-                color: SeedlingColors.accentPhoto,
+                color: context.palette.accentPhoto,
               ),
             ),
           ),
@@ -545,12 +544,12 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
+                  color: context.palette.mediaScrim,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
-                  color: Colors.white,
+                  color: context.palette.onMedia,
                   size: 18,
                 ),
               ),
@@ -570,7 +569,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           icon: AdaptiveIcons.photo,
           label: 'Photo',
           semanticLabel: _photoPath == null ? 'Add a photo' : 'Replace photo',
-          color: SeedlingColors.accentPhoto,
+          color: context.palette.accentPhoto,
           active: _photoPath != null,
           enabled: attachEnabled && !_isPickingPhoto,
           onTap: _attachPhoto,
@@ -581,8 +580,8 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           label: 'Title',
           semanticLabel: _showTitle ? 'Remove title' : 'Add a title',
           color: _explicitType == EntryType.ritual
-              ? SeedlingColors.accentRitual
-              : SeedlingColors.accentObject,
+              ? context.palette.accentRitual
+              : context.palette.accentObject,
           active: _showTitle,
           enabled:
               _explicitType != EntryType.ritual &&
@@ -606,7 +605,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                   label: 'Let go',
                   semanticLabel: 'Let go mode',
                   hint: 'For releasing something you want to leave behind',
-                  color: SeedlingColors.accentRelease,
+                  color: context.palette.accentRelease,
                   selected: _explicitType == EntryType.release,
                   enabled: deliberateEnabled,
                   onTap: () => _toggleExplicit(EntryType.release),
@@ -618,7 +617,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                   label: 'Ritual',
                   semanticLabel: 'Ritual mode',
                   hint: 'For a moment that keeps coming back',
-                  color: SeedlingColors.accentRitual,
+                  color: context.palette.accentRitual,
                   selected: _explicitType == EntryType.ritual,
                   enabled: deliberateEnabled,
                   onTap: () => _toggleExplicit(EntryType.ritual),
@@ -630,7 +629,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                       ? 'Capsule mode enabled'
                       : 'Enable capsule mode',
                   hint: 'Adds an unlock date before this memory can be opened',
-                  color: SeedlingColors.themeGratitude,
+                  color: context.palette.accentGold,
                   selected: _sealAsCapsule,
                   enabled: true,
                   onTap: () {
@@ -670,7 +669,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         child: _AttachButtonFace(
           icon: AdaptiveIcons.mic,
           label: 'Voice',
-          color: SeedlingColors.accentVoice,
+          color: context.palette.accentVoice,
           active: active,
           enabled: enabled,
         ),
@@ -890,8 +889,8 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
 
   Widget _buildCapsuleControls() {
     final selectedDate = _capsuleUnlockDate;
-    final textColor = Theme.of(context).colorScheme.onSurface;
-    final accent = SeedlingColors.themeGratitude;
+    final textColor = context.palette.textPrimary;
+    final accent = context.palette.accentGold;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -908,7 +907,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               Icon(CupertinoIcons.lock_shield, size: 16, color: accent),
               const SizedBox(width: 8),
               Text(
-                'Sealed Capsule',
+                'Sealed capsule',
                 style: TextStyle(
                   color: textColor,
                   fontWeight: FontWeight.w600,
@@ -921,7 +920,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           Row(
             children: [
               _buildCapsuleDateChip(
-                label: '1 Month',
+                label: '1 month',
                 onTap: () => setState(
                   () => _capsuleUnlockDate = DateTime.now().add(
                     const Duration(days: 30),
@@ -931,7 +930,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               ),
               const SizedBox(width: 8),
               _buildCapsuleDateChip(
-                label: '1 Year',
+                label: '1 year',
                 onTap: () => setState(
                   () => _capsuleUnlockDate = DateTime.now().add(
                     const Duration(days: 365),
@@ -957,8 +956,8 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                 : 'Unlocks on ${_formatCapsuleDate(selectedDate)}',
             style: TextStyle(
               color: selectedDate == null
-                  ? SeedlingColors.textMuted
-                  : SeedlingColors.themeGratitude,
+                  ? context.palette.textSecondary
+                  : context.palette.inkFor(accent),
               fontSize: 12,
               fontWeight: selectedDate == null
                   ? FontWeight.w400
@@ -980,29 +979,31 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       selected: active,
       label: 'Capsule unlock $label',
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: AnimatedContainer(
           duration: _motion(180),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: active
-                ? SeedlingColors.themeGratitude.withValues(alpha: 0.2)
-                : Theme.of(context).cardTheme.color ??
-                      Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(14),
+                ? context.palette.accentGold.withValues(alpha: 0.2)
+                : context.palette.card,
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: active
-                  ? SeedlingColors.themeGratitude
+                  ? context.palette.accentGold
                   : Theme.of(context).dividerColor,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               color: active
-                  ? SeedlingColors.themeGratitude
-                  : SeedlingColors.textSecondary,
+                  ? context.palette.inkFor(context.palette.accentGold)
+                  : context.palette.textSecondary,
               fontWeight: active ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
@@ -1389,7 +1390,9 @@ class _AttachButtonFace extends StatelessWidget {
   Widget build(BuildContext context) {
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final tint = active ? color : SeedlingColors.textMuted;
+    final palette = context.palette;
+    final tint = active ? color : palette.textSecondary;
+    final labelColor = active ? palette.inkFor(color) : palette.textSecondary;
     return AnimatedOpacity(
       duration: reduceMotion
           ? Duration.zero
@@ -1414,8 +1417,8 @@ class _AttachButtonFace extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
-                color: tint,
+                fontSize: 12,
+                color: labelColor,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
@@ -1447,20 +1450,22 @@ class _AttachButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final VoidCallback? handleTap = enabled
+        ? () {
+            HapticFeedback.selectionClick();
+            onTap();
+          }
+        : null;
     return Semantics(
       button: true,
       enabled: enabled,
       selected: active,
       label: semanticLabel,
+      onTap: handleTap,
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: enabled
-            ? () {
-                HapticFeedback.selectionClick();
-                onTap();
-              }
-            : null,
+        onTap: handleTap,
         child: _AttachButtonFace(
           icon: icon,
           label: label,
@@ -1502,7 +1507,15 @@ class _ModeChip extends StatelessWidget {
     final duration = reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 200);
-    final tint = selected ? color : SeedlingColors.textMuted;
+    final palette = context.palette;
+    final tint = selected ? color : palette.textSecondary;
+    final VoidCallback? handleTap = enabled
+        ? () {
+            HapticFeedback.selectionClick();
+            onTap();
+          }
+        : null;
+    final labelColor = selected ? palette.inkFor(color) : palette.textSecondary;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: Semantics(
@@ -1511,18 +1524,14 @@ class _ModeChip extends StatelessWidget {
         enabled: enabled,
         label: semanticLabel,
         hint: hint,
+        onTap: handleTap,
         excludeSemantics: true,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: enabled
-              ? () {
-                  HapticFeedback.selectionClick();
-                  onTap();
-                }
-              : null,
+          onTap: handleTap,
           child: AnimatedOpacity(
             duration: duration,
-            opacity: enabled ? (selected ? 1 : 0.7) : 0.3,
+            opacity: enabled ? 1 : 0.4,
             child: AnimatedContainer(
               duration: duration,
               curve: Curves.easeOutCubic,
@@ -1535,9 +1544,7 @@ class _ModeChip extends StatelessWidget {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: selected
-                      ? color
-                      : Theme.of(context).dividerColor.withValues(alpha: 0.6),
+                  color: selected ? color : palette.border,
                   width: selected ? 1.5 : 1,
                 ),
               ),
@@ -1549,8 +1556,8 @@ class _ModeChip extends StatelessWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 12,
-                      color: tint,
+                      fontSize: 13,
+                      color: labelColor,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
@@ -1576,9 +1583,7 @@ class _SaveHairline extends StatelessWidget {
       child: LinearProgressIndicator(
         minHeight: 2,
         backgroundColor: Colors.transparent,
-        valueColor: const AlwaysStoppedAnimation<Color>(
-          SeedlingColors.forestGreen,
-        ),
+        valueColor: AlwaysStoppedAnimation<Color>(context.palette.primary),
       ),
     );
   }

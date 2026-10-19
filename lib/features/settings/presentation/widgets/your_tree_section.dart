@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -27,7 +27,7 @@ class YourTreeSection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.tree,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: Text(calm ? 'Your tree' : (tree?.stateName ?? 'Seed')),
             subtitle: Text(tree?.stateDescription ?? 'Plant your first memory'),
@@ -37,7 +37,7 @@ class YourTreeSection extends ConsumerWidget {
               leading: buildSettingsIconBox(
                 context,
                 AdaptiveIcons.list,
-                SeedlingColors.forestGreen,
+                context.palette.primary,
               ),
               title: Text('$entryCount memories'),
               subtitle: const Text('This year'),
@@ -46,13 +46,13 @@ class YourTreeSection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.leaf,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text(calmTitle),
             subtitle: const Text(calmSubtitle),
             trailing: CupertinoSwitch(
               value: calm,
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primary,
               onChanged: (value) =>
                   ref.read(calmModeProvider.notifier).setEnabled(value),
             ),
@@ -61,7 +61,7 @@ class YourTreeSection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.clock,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Show past years on home'),
             subtitle: Text(
@@ -71,7 +71,7 @@ class YourTreeSection extends ConsumerWidget {
             ),
             trailing: CupertinoSwitch(
               value: homeFeedScope == HomeFeedScope.allYears,
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primaryFill,
               onChanged: (value) {
                 ref
                     .read(homeFeedScopeProvider.notifier)

@@ -80,18 +80,53 @@ class SyncMetadata {
     }
   }
 
-  Future<void> addPendingChange(SyncChange change) async {
+  Future<void> addPendingChange(SyncChange change) =>
+      addPendingChanges([change]);
+
+  /// Queue changes; a newer change for the same syncUUID replaces the older
+  /// one (latest wins). A replacement always gets a strictly later timestamp
+  /// than the change it replaces, so a push that snapshotted the old change
+  /// can tell it apart (see [removePendingChanges]).
+  Future<void> addPendingChanges(List<SyncChange> changes) async {
+    if (changes.isEmpty) return;
+    final byUUID = {for (final c in pendingChanges) c.syncUUID: c};
+    for (var change in changes) {
+      final replaced = byUUID[change.syncUUID];
+      if (replaced != null && !change.timestamp.isAfter(replaced.timestamp)) {
+        change = SyncChange(
+          syncUUID: change.syncUUID,
+          changeType: change.changeType,
+          timestamp: replaced.timestamp.add(const Duration(milliseconds: 1)),
+          mediaAssetId: change.mediaAssetId ?? replaced.mediaAssetId,
+        );
+      }
+      byUUID.remove(change.syncUUID);
+      byUUID[change.syncUUID] = change;
+    }
+    await _savePendingChanges(byUUID.values.toList());
+  }
+
+  /// Remove exactly the [handled] changes (same syncUUID, type and
+  /// timestamp). A change queued for the same entry after the push took its
+  /// snapshot is kept, so edits made while a push is in flight are not lost.
+  Future<void> removePendingChanges(List<SyncChange> handled) async {
+    if (handled.isEmpty) return;
+    String key(SyncChange c) =>
+        '${c.syncUUID}|${c.changeType.name}|${c.timestamp.millisecondsSinceEpoch}';
+    final handledKeys = handled.map(key).toSet();
     final current = pendingChanges;
-    // Replace existing change for same syncUUID (latest wins)
-    current.removeWhere((c) => c.syncUUID == change.syncUUID);
-    current.add(change);
+    final before = current.length;
+    current.removeWhere((c) => handledKeys.contains(key(c)));
+    if (current.length == before) return;
     await _savePendingChanges(current);
   }
 
-  Future<void> removePendingChanges(List<String> syncUUIDs) async {
-    final current = pendingChanges;
-    current.removeWhere((c) => syncUUIDs.contains(c.syncUUID));
-    await _savePendingChanges(current);
+  /// Remote layout version this device has completed a full upload for.
+  int get formatVersion =>
+      _prefs.getInt(_key(PrefsKeys.syncFormatVersion)) ?? 0;
+
+  Future<void> setFormatVersion(int version) async {
+    await _prefs.setInt(_key(PrefsKeys.syncFormatVersion), version);
   }
 
   Future<void> clearPendingChanges() async {
@@ -173,6 +208,7 @@ class SyncMetadata {
     await _prefs.remove(_key(PrefsKeys.syncChangeToken));
     await _prefs.remove(_key(PrefsKeys.syncLastSync));
     await _prefs.remove(_key(PrefsKeys.syncPendingQueue));
+    await _prefs.remove(_key(PrefsKeys.syncFormatVersion));
     await setLastError(null);
   }
 }

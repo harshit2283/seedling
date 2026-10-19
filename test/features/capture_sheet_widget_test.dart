@@ -140,7 +140,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('SAVE MEMORY'), findsOneWidget);
+      expect(find.text('Save memory'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'Something I noticed');
       await tester.pump();
@@ -157,7 +157,7 @@ void main() {
         'The light on the kitchen table this morning',
       );
       await tester.pump();
-      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
       final saved = savedEntries();
@@ -171,7 +171,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField), 'rain, again');
       await tester.pump();
-      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
       expect(savedEntries().single.type, EntryType.fragment);
@@ -194,7 +194,7 @@ void main() {
       await tester.pump();
       expect(find.text('Saving as an object'), findsOneWidget);
 
-      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
       final entry = savedEntries().single;
@@ -219,7 +219,7 @@ void main() {
         'The argument',
       );
       await tester.pump();
-      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
       expect(savedEntries().single.type, EntryType.release);
@@ -239,7 +239,7 @@ void main() {
         'Sunday pancakes',
       );
       await tester.pump();
-      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
       final entry = savedEntries().single;
@@ -271,7 +271,7 @@ void main() {
         'The grudge I carried all summer',
       );
       await tester.pump();
-      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
     }
 

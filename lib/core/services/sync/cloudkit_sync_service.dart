@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'sync_backend.dart';
 import '../error_reporter.dart';
@@ -9,7 +11,6 @@ import '../error_reporter.dart';
 /// marshals data between Dart and native.
 class CloudKitSyncService implements SyncBackend {
   static const _channel = MethodChannel('com.seedling.cloudkit_sync');
-  static const _assetFieldName = 'mediaAsset';
 
   /// Check if iCloud is available (user signed in, container accessible)
   @override
@@ -47,6 +48,42 @@ class CloudKitSyncService implements SyncBackend {
   @override
   Future<void> deleteRecord(String syncUUID) async {
     await _channel.invokeMethod<void>('deleteRecord', {'syncUUID': syncUUID});
+  }
+
+  @override
+  Future<void> saveRecords(List<Map<String, dynamic>> records) async {
+    for (final record in records) {
+      await saveRecord(record);
+    }
+  }
+
+  @override
+  Future<void> deleteRecords(List<String> syncUUIDs) async {
+    for (final syncUUID in syncUUIDs) {
+      await deleteRecord(syncUUID);
+    }
+  }
+
+  /// Per-user key salt, stored in a single `SeedlingKeyring` record.
+  @override
+  Future<String?> readKdfSalt() async {
+    return _channel.invokeMethod<String>('readKeyring');
+  }
+
+  /// CloudKit refuses to create a record that already exists, so the first
+  /// device to publish wins atomically; the native side returns the winner.
+  @override
+  Future<String> publishKdfSalt(String salt) async {
+    final winner = await _channel.invokeMethod<String>('publishKeyring', {
+      'kdfSalt': salt,
+    });
+    if (winner == null || winner.isEmpty) {
+      throw PlatformException(
+        code: 'KEYRING_FAILED',
+        message: 'Could not read the sync keyring',
+      );
+    }
+    return winner;
   }
 
   @override
@@ -89,23 +126,28 @@ class CloudKitSyncService implements SyncBackend {
     }
   }
 
-  /// Download a media asset from CloudKit
+  /// Encrypted media lives in its own `SeedlingMedia` record as a CKAsset
+  /// (the file is already ciphertext; see SyncMediaCrypto).
   @override
-  Future<String?> downloadAsset(String syncUUID, String targetPath) async {
-    try {
-      final result = await _channel.invokeMethod<String>('downloadAsset', {
-        'syncUUID': syncUUID,
-        'destinationPath': targetPath,
-        'fieldName': _assetFieldName,
-      });
-      return result;
-    } on PlatformException catch (e) {
-      const ErrorReporter().report(
-        e,
-        context: 'CloudKitSyncService.downloadAsset',
-      );
-      return null;
-    }
+  Future<void> uploadMediaBlob(String assetId, File ciphertext) async {
+    await _channel.invokeMethod<void>('uploadMediaBlob', {
+      'assetId': assetId,
+      'sourcePath': ciphertext.path,
+    });
+  }
+
+  @override
+  Future<bool> downloadMediaBlob(String assetId, File target) async {
+    final found = await _channel.invokeMethod<bool>('downloadMediaBlob', {
+      'assetId': assetId,
+      'destinationPath': target.path,
+    });
+    return found ?? false;
+  }
+
+  @override
+  Future<void> deleteMediaBlob(String assetId) async {
+    await _channel.invokeMethod<void>('deleteMediaBlob', {'assetId': assetId});
   }
 
   @override

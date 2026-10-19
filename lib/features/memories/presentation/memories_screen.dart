@@ -10,6 +10,8 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
@@ -134,7 +136,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
         border: null,
         middle: const Text('Memories'),
         leading: CupertinoNavigationBarBackButton(
-          color: SeedlingColors.forestGreen,
+          color: context.palette.primary,
           onPressed: () => Navigator.of(context).pop(),
         ),
         trailing: Row(
@@ -147,9 +149,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                 child: CupertinoButton(
                   padding: const EdgeInsets.only(right: 4),
                   onPressed: () => _openReader(context, filteredEntries),
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.rectangle_stack,
-                    color: SeedlingColors.forestGreen,
+                    color: context.palette.primary,
                     size: 22,
                   ),
                 ),
@@ -167,7 +169,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                     _isGridView
                         ? CupertinoIcons.list_bullet
                         : CupertinoIcons.square_grid_2x2,
-                    color: SeedlingColors.forestGreen,
+                    color: context.palette.primary,
                     size: 22,
                   ),
                 ),
@@ -224,14 +226,14 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
           if (filteredEntries.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.style_outlined),
-              color: SeedlingColors.forestGreen,
+              color: context.palette.primary,
               tooltip: 'Reader mode',
               onPressed: () => _openReader(context, filteredEntries),
             ),
           if (collageEnabled)
             IconButton(
               icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-              color: SeedlingColors.forestGreen,
+              color: context.palette.primary,
               tooltip: _isGridView ? 'List view' : 'Grid view',
               onPressed: _toggleGridView,
             ),
@@ -279,7 +281,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
           },
           child: Icon(
             isOldest ? CupertinoIcons.arrow_up : CupertinoIcons.arrow_down,
-            color: SeedlingColors.forestGreen,
+            color: context.palette.primary,
             size: 22,
           ),
         ),
@@ -288,7 +290,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
 
     return IconButton(
       icon: Icon(isOldest ? Icons.arrow_upward : Icons.arrow_downward),
-      color: SeedlingColors.forestGreen,
+      color: context.palette.primary,
       tooltip: isOldest ? 'Oldest first' : 'Newest first',
       onPressed: () {
         HapticFeedback.selectionClick();
@@ -367,15 +369,15 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               focusNode: _searchFocusNode,
               decoration: InputDecoration(
                 hintText: 'Search memories...',
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search,
-                  color: SeedlingColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
                 suffixIcon: filterState.searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.clear,
-                          color: SeedlingColors.textMuted,
+                          color: context.palette.textMuted,
                         ),
                         onPressed: () {
                           _cancelPendingSearch();
@@ -485,98 +487,78 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     int count,
   ) {
     final isSelected = filterState.themeFilters.contains(theme);
-    final color = _getThemeColor(theme);
+    final color = context.palette.themeColor(theme.name);
+    final ink = context.palette.inkFor(color);
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.selectionClick();
         _cancelPendingSearch();
         ref.read(memoriesPageProvider.notifier).reset();
         ref.read(memoriesFilterProvider.notifier).toggleThemeFilter(theme);
       },
-      child: Semantics(
-        button: true,
-        selected: isSelected,
-        label: '${theme.displayName} filter, $count memories',
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? color.withValues(alpha: 0.2)
-                : Theme.of(context).cardTheme.color ??
-                      Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? color : Theme.of(context).dividerColor,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                theme.displayName,
-                style: TextStyle(
-                  color: isSelected ? color : SeedlingColors.textMuted,
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
+      child: _ChipHitArea(
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          label: '${theme.displayName} filter, $count memories',
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.2)
+                  : context.palette.card,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isSelected ? color : Theme.of(context).dividerColor,
+                width: 1,
               ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? color.withValues(alpha: 0.2)
-                      : Theme.of(context).dividerColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '$count',
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  theme.displayName,
                   style: TextStyle(
-                    color: isSelected ? color : SeedlingColors.textMuted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
+                    color: isSelected ? ink : context.palette.textSecondary,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? color.withValues(alpha: 0.2)
+                        : Theme.of(context).dividerColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      color: isSelected ? ink : context.palette.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Color _getThemeColor(MemoryTheme theme) {
-    switch (theme) {
-      case MemoryTheme.family:
-        return SeedlingColors.themeFamily;
-      case MemoryTheme.friends:
-        return SeedlingColors.themeFriends;
-      case MemoryTheme.work:
-        return SeedlingColors.themeWork;
-      case MemoryTheme.nature:
-        return SeedlingColors.themeNature;
-      case MemoryTheme.gratitude:
-        return SeedlingColors.themeGratitude;
-      case MemoryTheme.reflection:
-        return SeedlingColors.themeReflection;
-      case MemoryTheme.travel:
-        return SeedlingColors.themeTravel;
-      case MemoryTheme.creativity:
-        return SeedlingColors.themeCreativity;
-      case MemoryTheme.health:
-        return SeedlingColors.themeHealth;
-      case MemoryTheme.food:
-        return SeedlingColors.themeFood;
-      case MemoryTheme.moments:
-        return SeedlingColors.themeMoments;
-    }
-  }
-
   Widget _buildClearFiltersChip(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.selectionClick();
         _cancelPendingSearch();
@@ -585,9 +567,11 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
         ref.read(memoriesFilterProvider.notifier).clearAllFilters();
       },
       child: Container(
+        constraints: const BoxConstraints(minHeight: 44),
+        alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: SeedlingColors.error.withValues(alpha: 0.15),
+          color: context.palette.error.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -596,13 +580,13 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
             Icon(
               PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
               size: 14,
-              color: SeedlingColors.error,
+              color: context.palette.error,
             ),
             const SizedBox(width: 4),
             Text(
               'Clear',
               style: TextStyle(
-                color: SeedlingColors.error,
+                color: context.palette.error,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -622,47 +606,52 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     final color = _getTypeColor(type);
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.selectionClick();
         _cancelPendingSearch();
         ref.read(memoriesPageProvider.notifier).reset();
         ref.read(memoriesFilterProvider.notifier).toggleTypeFilter(type);
       },
-      child: Semantics(
-        button: true,
-        selected: isSelected,
-        label: '${_getTypeName(type)} filter',
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? color.withValues(alpha: 0.2)
-                : Theme.of(context).dividerColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected ? color : Colors.transparent,
-              width: 1.5,
+      child: _ChipHitArea(
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          label: '${_getTypeName(type)} filter',
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.2)
+                  : context.palette.surfaceMuted,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? color : Colors.transparent,
+                width: 1.5,
+              ),
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _getTypeIcon(type),
-                size: 14,
-                color: isSelected ? color : SeedlingColors.textSecondary,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _getTypeName(type),
-                style: TextStyle(
-                  color: isSelected ? color : SeedlingColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _getTypeIcon(type),
+                  size: 16,
+                  color: isSelected ? color : context.palette.textSecondary,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  _getTypeName(type),
+                  style: TextStyle(
+                    color: isSelected
+                        ? context.palette.inkFor(color)
+                        : context.palette.textSecondary,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -680,13 +669,13 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: SeedlingColors.paleGreen.withValues(alpha: 0.3),
+                color: context.palette.primaryContainer.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 AdaptiveIcons.leaf,
                 size: 40,
-                color: SeedlingColors.leafGreen,
+                color: context.palette.primary,
               ),
             ),
             const SizedBox(height: 24),
@@ -698,7 +687,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
             Text(
               'Your memories will appear here\nas you capture them.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -709,7 +698,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               'The first one can be tiny.',
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
             ),
           ],
         ),
@@ -724,21 +713,25 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
       showQuickCaptureSheet(context);
     }
 
+    final palette = context.palette;
     final label = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(AdaptiveIcons.leaf, size: 18, color: Colors.white),
+        Icon(AdaptiveIcons.leaf, size: 18, color: palette.onPrimaryFill),
         const SizedBox(width: 8),
-        const Text(
+        Text(
           'Plant a memory',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: palette.onPrimaryFill,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
     if (PlatformUtils.isIOS) {
       return CupertinoButton(
-        color: SeedlingColors.forestGreen,
-        borderRadius: BorderRadius.circular(20),
+        color: palette.primaryFill,
+        borderRadius: SeedlingRadius.button,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         onPressed: plant,
         child: label,
@@ -746,9 +739,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
     }
     return FilledButton(
       style: FilledButton.styleFrom(
-        backgroundColor: SeedlingColors.forestGreen,
+        backgroundColor: palette.primaryFill,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.button),
       ),
       onPressed: plant,
       child: label,
@@ -768,7 +761,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
             Icon(
               PlatformUtils.isIOS ? CupertinoIcons.search : Icons.search_off,
               size: 48,
-              color: SeedlingColors.textMuted,
+              color: context.palette.textMuted,
             ),
             const SizedBox(height: 16),
             Text(
@@ -782,7 +775,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                   : 'Try changing your filters',
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
             ),
             const SizedBox(height: 16),
             TextButton(
@@ -794,7 +787,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               },
               child: Text(
                 'Clear all filters',
-                style: TextStyle(color: SeedlingColors.forestGreen),
+                style: TextStyle(color: context.palette.primary),
               ),
             ),
           ],
@@ -921,7 +914,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               child: Text(
                 group.dateLabel,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -954,14 +947,14 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                 ? CupertinoIcons.doc_text
                 : Icons.article_outlined,
             size: 48,
-            color: SeedlingColors.textMuted.withValues(alpha: 0.4),
+            color: context.palette.textMuted.withValues(alpha: 0.4),
           ),
           const SizedBox(height: 12),
           Text(
             'Select a memory',
             style: Theme.of(
               context,
-            ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
+            ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
           ),
         ],
       ),
@@ -1002,10 +995,10 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
   Widget _buildMemoriesList(BuildContext context, List<Entry> entries) {
     final groupedSections = _groupEntriesBySection(entries);
     final recentlyInsertedId = ref.watch(recentlyInsertedEntryIdProvider);
-    final headerBackground = Theme.of(
-      context,
-    ).scaffoldBackgroundColor.withValues(alpha: 0.7);
-    final headerTextColor = SeedlingColors.textSecondary;
+    // Nearly opaque solid fill: pinned headers with a BackdropFilter
+    // re-blur the list on every scroll frame.
+    final headerBackground = context.palette.background.withValues(alpha: 0.94);
+    final headerTextColor = context.palette.textSecondary;
 
     final scrollView = CustomScrollView(
       controller: _listScrollController,
@@ -1141,12 +1134,12 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 22),
       alignment: Alignment.centerRight,
       decoration: BoxDecoration(
-        color: SeedlingColors.error.withValues(alpha: 0.18),
+        color: context.palette.error.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
         PlatformUtils.isIOS ? CupertinoIcons.trash : Icons.delete_outline,
-        color: SeedlingColors.error,
+        color: context.palette.error,
         size: 22,
       ),
     );
@@ -1344,7 +1337,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                 HapticFeedback.lightImpact();
               },
               style: TextButton.styleFrom(
-                foregroundColor: SeedlingColors.error,
+                foregroundColor: context.palette.error,
               ),
               child: const Text('Delete'),
             ),
@@ -1487,23 +1480,18 @@ class _StickySectionHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          height: _height,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          color: backgroundColor,
-          alignment: Alignment.centerLeft,
-          child: Semantics(
-            header: true,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+    return Container(
+      height: _height,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      color: backgroundColor,
+      alignment: Alignment.centerLeft,
+      child: Semantics(
+        header: true,
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: textColor,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -1591,7 +1579,7 @@ class _TimelineScrubberState extends State<_TimelineScrubber> {
                       child: Container(
                         width: _trackWidth,
                         decoration: BoxDecoration(
-                          color: SeedlingColors.textMuted.withValues(
+                          color: context.palette.textMuted.withValues(
                             alpha: _dragging ? 0.55 : 0.25,
                           ),
                           borderRadius: BorderRadius.circular(2),
@@ -1630,7 +1618,7 @@ class _TimelineScrubberState extends State<_TimelineScrubber> {
                               widget.label!,
                               style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(
-                                    color: SeedlingColors.textPrimary,
+                                    color: context.palette.textPrimary,
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
@@ -1748,17 +1736,19 @@ class _UndoPillState extends State<_UndoPill>
             child: Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
               decoration: BoxDecoration(
-                color: SeedlingColors.warmBrown.withValues(alpha: 0.55),
+                color: context.palette.secondary.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                border: Border.all(
+                  color: context.palette.onMedia.withValues(alpha: 0.08),
+                ),
               ),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
                       widget.label,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.palette.onMedia,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1768,19 +1758,19 @@ class _UndoPillState extends State<_UndoPill>
                       ? CupertinoButton(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           onPressed: widget.onUndo,
-                          child: const Text(
+                          child: Text(
                             'Undo',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: context.palette.onMedia,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         )
                       : TextButton(
                           onPressed: widget.onUndo,
-                          child: const Text(
+                          child: Text(
                             'Undo',
-                            style: TextStyle(color: Colors.white),
+                            style: TextStyle(color: context.palette.onMedia),
                           ),
                         ),
                 ],
@@ -1840,6 +1830,22 @@ class _NewlyInsertedCardState extends State<_NewlyInsertedCard>
     return FadeTransition(
       opacity: _fade,
       child: SlideTransition(position: _slide, child: widget.child),
+    );
+  }
+}
+
+/// Gives a compact filter chip a 44pt-tall hit area (Apple HIG minimum)
+/// without making the visible pill any taller.
+class _ChipHitArea extends StatelessWidget {
+  const _ChipHitArea({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+      child: Center(widthFactor: 1, child: child),
     );
   }
 }

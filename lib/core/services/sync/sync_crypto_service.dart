@@ -29,6 +29,33 @@ class SyncPayloadCryptoException extends SyncCryptoException {
   const SyncPayloadCryptoException(super.message);
 }
 
+/// Thrown for a remote record that carries no encryption envelope.
+///
+/// Every record this app has ever pushed is encrypted and versioned, so an
+/// unversioned record is either foreign or tampered with. Its "plaintext"
+/// fields must never be imported (they could be anything, including another
+/// record's ciphertext). Sync skips such records rather than failing.
+class SyncUnversionedRecordException extends SyncPayloadCryptoException {
+  const SyncUnversionedRecordException()
+    : super('Sync record has no encryption version; ignored.');
+}
+
+/// Thrown when the remote sync space's key salt differs from the one this
+/// device's key was derived with (e.g. two devices enabled sync at the same
+/// moment). Re-entering the passphrase re-derives the key with the shared
+/// salt.
+class SyncKeySaltMismatchException extends SyncPassphraseMissingException {
+  const SyncKeySaltMismatchException()
+    : super(
+        'Your sync key needs refreshing. Re-enter your sync passphrase in '
+        'Settings > Privacy > Sync passphrase.',
+      );
+}
+
+/// Reads the per-user key salt from the remote sync space, creating it on
+/// first use. Must return the same salt on every device of the account.
+typedef SyncKdfSaltProvider = Future<List<int>> Function();
+
 const _missingPassphraseText =
     'Sync passphrase is not set. Add it in Settings > Privacy > Sync passphrase.';
 
@@ -53,9 +80,14 @@ class SyncPassphraseReentryRequiredException
 /// - Each sync batch picks a random record salt, and the per-record AES key is
 ///   HKDF(master, record salt). HKDF is cheap, so pulling many records no
 ///   longer re-runs PBKDF2 per record; derived keys are also cached per salt.
-/// - The PBKDF2 salt is a fixed, app-specific value so every device that
-///   knows the passphrase derives the same master key without needing a
-///   shared salt distribution channel.
+/// - v4: the PBKDF2 salt is random per user. It lives in the user's own
+///   remote sync space (a small keyring next to the synced records, created
+///   on first enable by [SyncKdfSaltProvider]) and every device reads it
+///   before deriving, so all devices get the same master key while cracking
+///   work can't be reused across Seedling users.
+/// - v3 (pre-release only): the salt was a fixed app-wide value. Keys stored
+///   that way keep working; the next [setPassphrase] moves to v4 and keeps
+///   the v3 key alongside so v3 records stay readable.
 ///
 /// Migration from v2 (raw passphrase at rest): on first use the stored
 /// passphrase is stretched into the v3 master key, the raw passphrase is
@@ -64,7 +96,8 @@ class SyncPassphraseReentryRequiredException
 /// be read. v2 records arriving in a later session need the passphrase
 /// re-entered ([SyncPassphraseReentryRequiredException]).
 class SyncCryptoService {
-  static const int syncEncryptionVersion = 3;
+  static const int syncEncryptionVersion = 4;
+  static const int _fixedSaltVersion = 3;
   static const int _legacyPassphraseVersion = 2;
   static const _legacyPassphraseStorageId = 'seedling_sync_passphrase_v2';
   static const _keyMaterialStorageId = 'seedling_sync_key_v3';
@@ -88,15 +121,25 @@ class SyncCryptoService {
     'tags',
     'transcription',
     'detectedTheme',
+    'manualLinkIds',
+    // Per-file key for the encrypted media blob (see SyncMediaCrypto).
+    'mediaKey',
   ];
 
   final FlutterSecureStorage _secureStorage;
   final AesGcm _aesGcm;
   final Pbkdf2 _pbkdf2;
   final Hkdf _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
+  final SyncKdfSaltProvider? _kdfSaltProvider;
 
-  /// v3 master key, cached after the first secure-storage read.
+  /// Current master key and the record version it encrypts as (4 with a
+  /// per-user salt; 3 for a pre-release fixed-salt key).
   Uint8List? _masterKey;
+  int _masterVersion = syncEncryptionVersion;
+  List<int>? _masterKdfSaltBytes;
+
+  /// Fixed-salt (v3) key kept after moving to v4, to read v3 records.
+  Uint8List? _fixedSaltKey;
 
   /// Raw passphrase, memory-only, used solely to read legacy v2 records.
   String? _sessionPassphrase;
@@ -108,7 +151,9 @@ class SyncCryptoService {
     FlutterSecureStorage? secureStorage,
     AesGcm? aesGcm,
     Pbkdf2? pbkdf2,
-  }) : _secureStorage = secureStorage ?? createSeedlingSecureStorage(),
+    SyncKdfSaltProvider? kdfSaltProvider,
+  }) : _kdfSaltProvider = kdfSaltProvider,
+       _secureStorage = secureStorage ?? createSeedlingSecureStorage(),
        _aesGcm = aesGcm ?? AesGcm.with256bits(),
        _pbkdf2 =
            pbkdf2 ??
@@ -133,18 +178,74 @@ class SyncCryptoService {
         'Passphrase must be at least 8 characters.',
       );
     }
-    final master = await _deriveMasterKey(normalized);
-    await _storeMasterKey(master);
+    // Keep v3 (fixed-salt) records readable after moving to a per-user salt.
+    Uint8List? fixedSaltKey;
+    try {
+      await _loadMasterKey();
+      fixedSaltKey = _masterVersion == _fixedSaltVersion
+          ? _masterKey
+          : _fixedSaltKey;
+    } on SyncPassphraseMissingException {
+      fixedSaltKey = null;
+    }
+
+    final provider = _kdfSaltProvider;
+    final List<int> kdfSalt;
+    final int version;
+    if (provider != null) {
+      kdfSalt = await provider();
+      version = syncEncryptionVersion;
+    } else {
+      // No remote keyring available (tests, tooling): app-wide salt.
+      kdfSalt = utf8.encode(_masterKdfSalt);
+      version = _fixedSaltVersion;
+    }
+    final master = await _pbkdf2Bytes(normalized, salt: kdfSalt);
+    if (version == _fixedSaltVersion) fixedSaltKey = null;
+    await _storeMasterKey(
+      master,
+      version: version,
+      kdfSalt: kdfSalt,
+      fixedSaltKey: fixedSaltKey,
+    );
     await _secureStorage.write(key: _legacyPassphraseStorageId, value: null);
     _recordKeyCache.clear();
     _masterKey = master;
+    _masterVersion = version;
+    _masterKdfSaltBytes = kdfSalt;
+    _fixedSaltKey = fixedSaltKey;
     _sessionPassphrase = normalized;
+  }
+
+  /// Whether this device's key was derived with [kdfSalt] (the salt in the
+  /// remote keyring). False when no key is set up.
+  Future<bool> usesKdfSalt(List<int> kdfSalt) async {
+    try {
+      await _loadMasterKey();
+    } on SyncPassphraseMissingException {
+      return false;
+    }
+    final own = _masterKdfSaltBytes;
+    if (own == null || own.length != kdfSalt.length) return false;
+    for (var i = 0; i < own.length; i++) {
+      if (own[i] != kdfSalt[i]) return false;
+    }
+    return true;
   }
 
   Future<SyncEncryptionSession> createEncryptionSession() async {
     final salt = _randomBytes(16);
-    final keyBytes = await _recordKeyV3(salt);
-    return SyncEncryptionSession._(salt: salt, keyBytes: keyBytes);
+    final master = await _loadMasterKey();
+    final keyBytes = await _recordKeyFromMaster(
+      master,
+      salt,
+      version: _masterVersion,
+    );
+    return SyncEncryptionSession._(
+      salt: salt,
+      keyBytes: keyBytes,
+      version: _masterVersion,
+    );
   }
 
   Future<Map<String, dynamic>> encryptRecordFields(
@@ -159,7 +260,7 @@ class SyncCryptoService {
         output[field] = await _encryptValue(value, activeSession.keyBytes);
       }
     }
-    output['syncEncryptionVersion'] = syncEncryptionVersion;
+    output['syncEncryptionVersion'] = activeSession.version;
     output[_saltField] = base64Encode(activeSession.salt);
     return output;
   }
@@ -170,7 +271,7 @@ class SyncCryptoService {
     final output = Map<String, dynamic>.from(record);
     final version = output['syncEncryptionVersion'];
     if (version == null) {
-      return output;
+      throw const SyncUnversionedRecordException();
     }
     final keyBytes = await _resolveKeyBytesForVersion(output, version);
     for (final field in _encryptedFields) {
@@ -187,16 +288,28 @@ class SyncCryptoService {
     Object version,
   ) async {
     if (version != syncEncryptionVersion &&
+        version != _fixedSaltVersion &&
         version != _legacyPassphraseVersion) {
       throw SyncPayloadCryptoException(
         'Unsupported sync encryption version: $version',
       );
     }
     final saltBytes = _readRecordSalt(record);
-    if (version == syncEncryptionVersion) {
-      return _recordKeyV3(saltBytes);
+    if (version == _legacyPassphraseVersion) {
+      return _recordKeyLegacyV2(saltBytes);
     }
-    return _recordKeyLegacyV2(saltBytes);
+    final master = await _loadMasterKey();
+    if (version == _masterVersion) {
+      return _recordKeyFromMaster(master, saltBytes, version: _masterVersion);
+    }
+    if (version == _fixedSaltVersion) {
+      final fixed = _fixedSaltKey;
+      if (fixed == null) throw const SyncPassphraseReentryRequiredException();
+      return _recordKeyFromMaster(fixed, saltBytes, version: _fixedSaltVersion);
+    }
+    // A v4 record while this device still has a pre-release v3 key: the
+    // passphrase must be re-entered to derive the per-user-salt key.
+    throw const SyncKeySaltMismatchException();
   }
 
   Uint8List _readRecordSalt(Map<String, dynamic> record) {
@@ -215,11 +328,14 @@ class SyncCryptoService {
     }
   }
 
-  Future<Uint8List> _recordKeyV3(List<int> salt) async {
-    final cacheKey = '$syncEncryptionVersion:${base64Encode(salt)}';
+  Future<Uint8List> _recordKeyFromMaster(
+    Uint8List master,
+    List<int> salt, {
+    required int version,
+  }) async {
+    final cacheKey = '$version:${base64Encode(salt)}';
     final cached = _recordKeyCache[cacheKey];
     if (cached != null) return cached;
-    final master = await _loadMasterKey();
     final derived = await _hkdf.deriveKey(
       secretKey: SecretKey(master),
       nonce: salt,
@@ -256,41 +372,68 @@ class SyncCryptoService {
       _masterKey = master;
       return master;
     }
+    // Migration from v2 (raw passphrase at rest) below.
 
     final legacy = await _secureStorage.read(key: _legacyPassphraseStorageId);
     if (legacy == null || legacy.isEmpty) {
       throw const SyncPassphraseMissingException();
     }
-    final master = await _deriveMasterKey(legacy);
-    await _storeMasterKey(master);
+    final provider = _kdfSaltProvider;
+    final List<int> kdfSalt;
+    final int version;
+    if (provider != null) {
+      kdfSalt = await provider();
+      version = syncEncryptionVersion;
+    } else {
+      kdfSalt = utf8.encode(_masterKdfSalt);
+      version = _fixedSaltVersion;
+    }
+    final master = await _pbkdf2Bytes(legacy, salt: kdfSalt);
+    await _storeMasterKey(master, version: version, kdfSalt: kdfSalt);
     await _secureStorage.write(key: _legacyPassphraseStorageId, value: null);
     _masterKey = master;
+    _masterVersion = version;
+    _masterKdfSaltBytes = kdfSalt;
     _sessionPassphrase = legacy;
     return master;
   }
 
-  Future<Uint8List> _deriveMasterKey(String passphrase) {
-    return _pbkdf2Bytes(passphrase, salt: utf8.encode(_masterKdfSalt));
-  }
-
-  Future<void> _storeMasterKey(Uint8List master) {
+  Future<void> _storeMasterKey(
+    Uint8List master, {
+    required int version,
+    required List<int> kdfSalt,
+    Uint8List? fixedSaltKey,
+  }) {
     return _secureStorage.write(
       key: _keyMaterialStorageId,
       value: jsonEncode({
-        'v': syncEncryptionVersion,
+        'v': version,
         'kdf': 'pbkdf2-sha256',
         'iterations': _kdfIterations,
-        'salt': base64Encode(utf8.encode(_masterKdfSalt)),
+        'salt': base64Encode(kdfSalt),
         'key': base64Encode(master),
+        if (fixedSaltKey != null) 'v3Key': base64Encode(fixedSaltKey),
       }),
     );
   }
 
+  /// Parses stored key material, setting the master's version, KDF salt and
+  /// any kept fixed-salt key. Pre-release material without a 'v' is v3.
   Uint8List _parseKeyMaterial(String material) {
     try {
       final decoded = jsonDecode(material) as Map<String, dynamic>;
       final key = base64Decode(decoded['key'] as String);
       if (key.length != 32) throw const FormatException('bad key length');
+      final version = (decoded['v'] as num?)?.toInt() ?? _fixedSaltVersion;
+      final salt = decoded['salt'] as String?;
+      final v3Key = decoded['v3Key'] as String?;
+      _masterVersion = version == syncEncryptionVersion
+          ? syncEncryptionVersion
+          : _fixedSaltVersion;
+      _masterKdfSaltBytes = salt == null ? null : base64Decode(salt);
+      _fixedSaltKey = _masterVersion == _fixedSaltVersion
+          ? Uint8List.fromList(key)
+          : (v3Key == null ? null : Uint8List.fromList(base64Decode(v3Key)));
       return Uint8List.fromList(key);
     } catch (_) {
       throw const SyncPassphraseMissingException();
@@ -362,9 +505,13 @@ class SyncEncryptionSession {
   final Uint8List _salt;
   final Uint8List _keyBytes;
 
+  /// The record encryption version this session's key belongs to.
+  final int version;
+
   const SyncEncryptionSession._({
     required Uint8List salt,
     required Uint8List keyBytes,
+    required this.version,
   }) : _salt = salt,
        _keyBytes = keyBytes;
 

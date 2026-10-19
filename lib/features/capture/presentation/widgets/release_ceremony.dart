@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
 
@@ -134,12 +136,10 @@ class _ReleaseCeremonyState extends State<ReleaseCeremony>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final background = theme.scaffoldBackgroundColor.withValues(alpha: 0.94);
-    final muted = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
+    final palette = context.palette;
+    final isDark = palette.isDark;
+    final background = palette.background.withValues(alpha: 0.94);
+    final muted = palette.textSecondary;
     final words = widget.text?.trim();
 
     return PopScope(
@@ -220,7 +220,7 @@ class _ReleaseCeremonyState extends State<ReleaseCeremony>
           fontFamily: PlatformUtils.isIOS ? null : 'Georgia',
           fontStyle: FontStyle.italic,
           height: 1.4,
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+          color: context.palette.textPrimary.withValues(alpha: 0.85),
         ),
       ),
     );
@@ -238,22 +238,20 @@ class _ReleaseCeremonyState extends State<ReleaseCeremony>
           Text(
             "You've set it down.",
             style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurface,
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             child: CupertinoButton(
-              color: SeedlingColors.forestGreen,
-              borderRadius: BorderRadius.circular(
-                PlatformUtils.isIOS ? 14 : 12,
-              ),
+              color: context.palette.primaryFill,
+              borderRadius: SeedlingRadius.button,
               onPressed: _keep,
-              child: const Text(
+              child: Text(
                 'Keep it in the tree',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: context.palette.onPrimaryFill,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -267,7 +265,7 @@ class _ReleaseCeremonyState extends State<ReleaseCeremony>
               child: Text(
                 'Let it go completely',
                 style: TextStyle(
-                  color: theme.colorScheme.onSurface,
+                  color: context.palette.textPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -289,7 +287,7 @@ class _ReleaseCeremonyState extends State<ReleaseCeremony>
           Text(
             "It's gone.",
             style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurface,
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 6),

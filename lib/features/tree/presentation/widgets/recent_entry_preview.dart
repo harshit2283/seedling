@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../data/models/entry.dart';
 
 /// Preview card showing a recent memory entry
@@ -21,13 +23,13 @@ class RecentEntryPreview extends StatelessWidget {
           color:
               Theme.of(context).cardTheme.color ??
               Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: SeedlingRadius.card,
           border: Border.all(
             color: Theme.of(context).dividerColor.withValues(alpha: 0.9),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: context.palette.shadow,
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -52,7 +54,7 @@ class RecentEntryPreview extends StatelessWidget {
                   Text(
                     entry.displayContent,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: SeedlingColors.textPrimary,
+                      color: context.palette.textPrimary,
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 1,
@@ -62,7 +64,7 @@ class RecentEntryPreview extends StatelessWidget {
                   Text(
                     _formatDate(entry.createdAt),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: SeedlingColors.textSecondary,
+                      color: context.palette.textSecondary,
                       fontSize: 11,
                       letterSpacing: 0.2,
                     ),
@@ -72,7 +74,7 @@ class RecentEntryPreview extends StatelessWidget {
             ),
             Icon(
               PlatformUtils.isIOS ? Icons.arrow_forward : Icons.chevron_right,
-              color: SeedlingColors.textMuted,
+              color: context.palette.textMuted,
               size: 16,
             ),
           ],

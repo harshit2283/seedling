@@ -23,6 +23,9 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(<String, dynamic>{});
+    registerFallbackValue(<Map<String, dynamic>>[]);
+    registerFallbackValue(<String>[]);
+    registerFallbackValue(<Entry>[]);
     registerFallbackValue(Entry());
     registerFallbackValue(_FakeSyncEncryptionSession());
   });
@@ -97,7 +100,7 @@ void main() {
         () =>
             database.getEntryBySyncUUID('550e8400-e29b-41d4-a716-446655440001'),
       ).thenReturn(entry);
-      when(() => backend.saveRecord(any())).thenAnswer((_) async {});
+      when(() => backend.saveRecords(any())).thenAnswer((_) async {});
 
       final engine = SyncEngine(
         database: database,
@@ -111,7 +114,7 @@ void main() {
       expect(result.success, isTrue);
       expect(result.pushedCount, 1);
       expect(metadata.pendingChanges, isEmpty);
-      verify(() => backend.saveRecord(any())).called(1);
+      verify(() => backend.saveRecords(any())).called(1);
       verify(
         () => crypto.encryptRecordFields(any(), session: any(named: 'session')),
       ).called(1);
@@ -161,7 +164,7 @@ void main() {
         when(
           () => crypto.createEncryptionSession(),
         ).thenAnswer((_) async => sharedSession);
-        when(() => backend.saveRecord(any())).thenAnswer((_) async {});
+        when(() => backend.saveRecords(any())).thenAnswer((_) async {});
 
         final engine = SyncEngine(
           database: database,
@@ -215,8 +218,18 @@ void main() {
             '550e8400-e29b-41d4-a716-446655440101',
           ),
         ).thenReturn(entry);
-        when(() => backend.saveRecord(any())).thenAnswer((_) async {});
-        when(() => database.saveEntry(any())).thenAnswer((_) async => entry);
+        when(() => backend.saveRecords(any())).thenAnswer((_) async {});
+        when(
+          () => database.saveEntries(
+            any(),
+            preserveModifiedAt: any(named: 'preserveModifiedAt'),
+          ),
+        ).thenAnswer((i) async => i.positionalArguments.first as List<Entry>);
+        when(
+          () => database.getEntryBySyncUUID(
+            '550e8400-e29b-41d4-a716-446655440102',
+          ),
+        ).thenReturn(null);
         when(
           () => backend.fetchChanges(changeToken: any(named: 'changeToken')),
         ).thenAnswer(
@@ -246,14 +259,21 @@ void main() {
 
         await engine.push();
         final capturedRecord =
-            verify(() => backend.saveRecord(captureAny())).captured.single
-                as Map<String, dynamic>;
+            (verify(() => backend.saveRecords(captureAny())).captured.single
+                    as List<Map<String, dynamic>>)
+                .single;
         expect(capturedRecord['mediaPath'], 'photos/abc.jpg');
 
         await engine.pull();
         final pulledEntry =
-            verify(() => database.saveEntry(captureAny())).captured.single
-                as Entry;
+            (verify(
+                      () => database.saveEntries(
+                        captureAny(),
+                        preserveModifiedAt: true,
+                      ),
+                    ).captured.single
+                    as List<Entry>)
+                .single;
         expect(pulledEntry.mediaPath, '/app/docs/media/photos/from-remote.jpg');
       },
     );
@@ -271,9 +291,7 @@ void main() {
         ),
       );
 
-      when(
-        () => backend.deleteRecord('550e8400-e29b-41d4-a716-446655440002'),
-      ).thenAnswer((_) async {});
+      when(() => backend.deleteRecords(any())).thenAnswer((_) async {});
 
       final engine = SyncEngine(
         database: database,
@@ -287,7 +305,7 @@ void main() {
       expect(result.success, isTrue);
       expect(result.pushedCount, 1);
       verify(
-        () => backend.deleteRecord('550e8400-e29b-41d4-a716-446655440002'),
+        () => backend.deleteRecords(['550e8400-e29b-41d4-a716-446655440002']),
       ).called(1);
       expect(metadata.pendingChanges, isEmpty);
     });
@@ -307,7 +325,12 @@ void main() {
         () =>
             database.getEntryBySyncUUID('550e8400-e29b-41d4-a716-446655440003'),
       ).thenReturn(local);
-      when(() => database.updateEntry(any())).thenReturn(null);
+      when(
+        () => database.saveEntries(
+          any(),
+          preserveModifiedAt: any(named: 'preserveModifiedAt'),
+        ),
+      ).thenAnswer((i) async => i.positionalArguments.first as List<Entry>);
       when(
         () => backend.fetchChanges(changeToken: any(named: 'changeToken')),
       ).thenAnswer(
@@ -339,7 +362,17 @@ void main() {
       expect(result.success, isTrue);
       expect(result.conflictsResolved, 1);
       expect(local.text, 'new remote');
-      verify(() => database.updateEntry(local)).called(1);
+      final saved =
+          verify(
+                () => database.saveEntries(
+                  captureAny(),
+                  preserveModifiedAt: true,
+                ),
+              ).captured.single
+              as List<Entry>;
+      expect(saved.single, same(local));
+      // The remote modifiedAt is kept (not replaced by "now").
+      expect(local.modifiedAt, DateTime(2025, 1, 1));
       expect(metadata.changeToken, 'token-1');
       expect(engine.currentState, SyncState.idle);
     });
@@ -421,7 +454,7 @@ void main() {
         expect(result.success, isFalse);
         expect(result.errorMessage, contains('Sync passphrase is not set'));
         expect(metadata.lastError, contains('Sync passphrase is not set'));
-        verifyNever(() => backend.saveRecord(any()));
+        verifyNever(() => backend.saveRecords(any()));
       },
     );
 
@@ -469,7 +502,7 @@ void main() {
         when(
           () => crypto.createEncryptionSession(),
         ).thenAnswer((_) async => sharedSession);
-        when(() => backend.saveRecord(any())).thenAnswer((_) async {});
+        when(() => backend.saveRecords(any())).thenAnswer((_) async {});
 
         final engine = SyncEngine(
           database: database,

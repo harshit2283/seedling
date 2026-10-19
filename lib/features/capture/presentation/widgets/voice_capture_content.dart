@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/media/audio_playback_service.dart';
 import '../../../../core/services/media/voice_recording_service.dart';
@@ -187,14 +188,14 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: _isRecording
                 ? SeedlingColors.accentVoice
-                : SeedlingColors.textPrimary,
+                : context.palette.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           _isRecording ? _formatDuration(_currentDuration) : 'Max 2 minutes',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: SeedlingColors.textMuted,
+            color: context.palette.textMuted,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
@@ -250,7 +251,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                     PlatformUtils.isIOS ? CupertinoIcons.mic_fill : Icons.mic,
                     size: 40,
                     color: _isRecording
-                        ? Colors.white
+                        ? context.palette.onMedia
                         : SeedlingColors.accentVoice,
                   ),
                 ),
@@ -326,13 +327,13 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                       'Voice memo',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: SeedlingColors.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     Text(
                       _formatDuration(effectiveDuration),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: SeedlingColors.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ],
@@ -360,7 +361,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                         ),
                         child: Icon(
                           _playbackIcon,
-                          color: Colors.white,
+                          color: context.palette.onPrimaryFill,
                           size: 20,
                         ),
                       ),
@@ -383,14 +384,14 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: context.palette.surfaceMuted,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           PlatformUtils.isIOS
                               ? CupertinoIcons.xmark
                               : Icons.close,
-                          color: SeedlingColors.textSecondary,
+                          color: context.palette.textSecondary,
                           size: 18,
                         ),
                       ),
@@ -420,14 +421,14 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
             Text(
               _formatDuration(_playbackPosition),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
             Text(
               _formatDuration(effectiveDuration),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -454,7 +455,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
           color: CupertinoColors.placeholderText,
           fontSize: 16,
         ),
-        style: const TextStyle(fontSize: 16, color: SeedlingColors.textPrimary),
+        style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
         decoration: const BoxDecoration(color: Colors.transparent),
         padding: EdgeInsets.zero,
         onChanged: widget.onTextChanged,
@@ -471,7 +472,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
         hintText: 'Add a note (optional)',
         hintStyle: Theme.of(
           context,
-        ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
+        ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
         border: InputBorder.none,
         filled: false,
       ),

@@ -9,7 +9,12 @@ import '../../../core/services/security/clock_guard_service.dart';
 import '../../../objectbox.g.dart';
 import '../../models/entry.dart';
 import '../../models/ritual.dart';
+import '../../models/sync_id.dart';
 import '../../models/tree.dart';
+
+/// An entry removed by [ObjectBoxDatabase.purgeExpiredEntries], as sync
+/// needs to know it (to delete the remote record and media blob).
+typedef PurgedEntry = ({String syncUUID, String? mediaAssetId});
 
 /// ObjectBox database singleton for local storage
 /// Handles all CRUD operations for entries and trees
@@ -28,7 +33,15 @@ class ObjectBoxDatabase {
   final _entriesController = StreamController<List<Entry>>.broadcast();
   final _capsulesController = StreamController<List<Entry>>.broadcast();
 
-  // Cached decrypted entry lists, invalidated on every mutation.
+  // Plaintext copies of stored entries, keyed by id. Every write in this
+  // class keeps it current (we already hold the plaintext when writing), so
+  // reads after a write never re-decrypt the store. Entries are decrypted at
+  // most once per session, the first time they are read.
+  final Map<int, Entry> _plainById = {};
+  bool _plainComplete = false;
+
+  // Sorted views derived from [_plainById]; rebuilt (sort only, no
+  // decryption) after a write.
   List<Entry>? _allEntriesCache;
   List<Entry>? _visibleEntriesCache;
 
@@ -97,6 +110,8 @@ class ObjectBoxDatabase {
     await db._encryptionService.init();
     db._encryptPlaintextRituals();
 
+    db._migrateLegacySyncUUIDs();
+
     // Ensure current year's tree exists
     await db._ensureCurrentYearTree();
 
@@ -151,53 +166,65 @@ class ObjectBoxDatabase {
   }
 
   void _emitEntries() {
-    _entriesController.add(_refreshVisibleEntriesCache());
+    _entriesController.add(getCurrentYearEntries());
   }
 
-  /// Invalidate cached decrypted entry lists. Call before every mutation emit
-  /// so the next reader triggers a fresh load.
+  /// Drop the sorted views. The plaintext map stays valid: writers update it.
   void _invalidateEntryCaches() {
     _allEntriesCache = null;
     _visibleEntriesCache = null;
   }
 
+  /// Make sure every stored entry has a plaintext copy in [_plainById].
+  void _ensureAllPlainLoaded() {
+    if (_plainComplete) return;
+    for (final raw in _entryBox.getAll()) {
+      _plainById.putIfAbsent(raw.id, () => _decrypted(raw));
+    }
+    _plainComplete = true;
+  }
+
+  static int _newestFirst(Entry a, Entry b) {
+    final byDate = b.createdAt.compareTo(a.createdAt);
+    return byDate != 0 ? byDate : b.id.compareTo(a.id);
+  }
+
   List<Entry> _refreshAllEntriesCache() {
-    final entries = _queryAllEntries();
+    _ensureAllPlainLoaded();
+    final entries = _plainById.values.where((e) => !e.isDeleted).toList()
+      ..sort(_newestFirst);
     _allEntriesCache = entries;
     return entries;
   }
 
   List<Entry> _refreshVisibleEntriesCache() {
-    final entries = _queryVisibleEntries();
+    _ensureAllPlainLoaded();
+    final startOfYear = DateTime(DateTime.now().year);
+    final entries =
+        _plainById.values
+            .where(
+              (e) =>
+                  !e.isDeleted &&
+                  !e.createdAt.isBefore(startOfYear) &&
+                  !e.isLocked,
+            )
+            .toList()
+          ..sort(_newestFirst);
     _visibleEntriesCache = entries;
     return entries;
   }
 
-  List<Entry> _queryAllEntries() {
-    final query = _entryBox
-        .query(Entry_.isDeleted.equals(false))
-        .order(Entry_.createdAt, flags: Order.descending)
-        .build();
-    final results = query.find();
-    query.close();
-    _decryptEntries(results);
-    return results;
-  }
+  /// Plaintext versions of raw query results, decrypting only entries this
+  /// session has not seen yet. Order is preserved.
+  List<Entry> _plain(List<Entry> raw) => [
+    for (final entry in raw)
+      _plainById.putIfAbsent(entry.id, () => _decrypted(entry)),
+  ];
 
-  List<Entry> _queryVisibleEntries() {
-    final startOfYear = DateTime(DateTime.now().year);
-    final query = _entryBox
-        .query(
-          Entry_.createdAt
-              .greaterOrEqual(startOfYear.millisecondsSinceEpoch)
-              .and(Entry_.isDeleted.equals(false)),
-        )
-        .order(Entry_.createdAt, flags: Order.descending)
-        .build();
-    final results = query.find();
-    query.close();
-    _decryptEntries(results);
-    return results.where((entry) => !entry.isLocked).toList();
+  /// Decrypts [raw] in place (it is a fresh object from the box) and returns it.
+  Entry _decrypted(Entry raw) {
+    _decryptEntryFields(raw);
+    return raw;
   }
 
   // ============== Tree Operations ==============
@@ -253,35 +280,107 @@ class ObjectBoxDatabase {
 
   // ============== Entry Operations ==============
 
-  /// Save a new entry and update tree count
+  /// Save an entry (new or existing) and keep tree counts in step.
   Future<Entry> saveEntry(Entry entry) async {
-    entry.modifiedAt = DateTime.now();
-    _encryptEntryFields(entry);
-    final id = _entryBox.put(entry);
-    entry.id = id;
+    _writeEntries([entry]);
+    return entry;
+  }
 
-    // Update tree count
-    await _adjustTreeCountForEntryYear(entry, increment: true);
+  /// Save many entries in a single transaction with a single change
+  /// notification. Tree counts are adjusted from each entry's previous stored
+  /// state, so inserting soft-deleted entries or flipping isDeleted keeps
+  /// counts correct.
+  ///
+  /// With [preserveModifiedAt] the entries keep their own modifiedAt (sync
+  /// merges must not make a remote change look like a newer local edit).
+  Future<List<Entry>> saveEntries(
+    List<Entry> entries, {
+    bool preserveModifiedAt = false,
+  }) async {
+    _writeEntries(entries, preserveModifiedAt: preserveModifiedAt);
+    return entries;
+  }
 
-    // Notify listeners
+  /// The single write path for entries. Encrypts copies (the caller's
+  /// objects stay plaintext), applies tree-count deltas, refreshes the
+  /// plaintext cache and notifies listeners once.
+  void _writeEntries(List<Entry> entries, {bool preserveModifiedAt = false}) {
+    if (entries.isEmpty) return;
+    final now = DateTime.now();
+    var touchesCapsules = false;
+    _store.runInTransaction(TxMode.write, () {
+      final yearDeltas = <int, int>{};
+      final stored = <Entry>[];
+      for (final entry in entries) {
+        _assignSyncUUIDIfMissing(entry);
+        if (!preserveModifiedAt || entry.modifiedAt == null) {
+          entry.modifiedAt = now;
+        }
+        final previous = entry.id != 0 ? _entryBox.get(entry.id) : null;
+        if (previous != null && !previous.isDeleted) {
+          yearDeltas.update(
+            previous.createdAt.year,
+            (d) => d - 1,
+            ifAbsent: () => -1,
+          );
+        }
+        if (!entry.isDeleted) {
+          yearDeltas.update(
+            entry.createdAt.year,
+            (d) => d + 1,
+            ifAbsent: () => 1,
+          );
+        }
+        if (entry.isCapsule || (previous?.isCapsule ?? false)) {
+          touchesCapsules = true;
+        }
+        stored.add(_encryptedCopy(entry));
+      }
+      final ids = _entryBox.putMany(stored);
+      for (var i = 0; i < entries.length; i++) {
+        entries[i].id = ids[i];
+      }
+      _applyTreeDeltas(yearDeltas);
+    });
+    for (final entry in entries) {
+      entry.invalidateSearchCache();
+      _plainById[entry.id] = entry.copy();
+    }
+
     _invalidateEntryCaches();
     _emitCurrentTree();
     _emitEntries();
-    if (entry.isCapsule) {
-      _emitCapsules();
+    if (touchesCapsules) _emitCapsules();
+  }
+
+  void _applyTreeDeltas(Map<int, int> yearDeltas) {
+    for (final MapEntry(key: year, value: delta) in yearDeltas.entries) {
+      if (delta == 0) continue;
+      final tree = getTreeForYear(year) ?? Tree(year: year);
+      for (var i = 0; i < delta.abs(); i++) {
+        delta > 0 ? tree.addEntry() : tree.removeEntry();
+      }
+      _treeBox.put(tree);
     }
-
-    _decryptEntryFields(entry);
-    return entry;
   }
 
-  /// Get an entry by ID
-  Entry? getEntry(int id) {
-    final entry = _entryBox.get(id);
-    if (entry == null) return null;
-    _decryptEntryFields(entry);
-    return entry;
+  Entry _encryptedCopy(Entry entry) {
+    final copy = entry.copy();
+    _encryptEntryFields(copy);
+    return copy;
   }
+
+  /// Plaintext copy of the stored entry [id], or null.
+  Entry? _plainForId(int id) {
+    final cached = _plainById[id];
+    if (cached != null) return cached;
+    final raw = _entryBox.get(id);
+    if (raw == null) return null;
+    return _plainById[id] = _decrypted(raw);
+  }
+
+  /// Get an entry by ID. Returns a private copy the caller may mutate.
+  Entry? getEntry(int id) => _plainForId(id)?.copy();
 
   /// Get all entries for current year, newest first (excludes soft-deleted)
   List<Entry> getCurrentYearEntries() {
@@ -297,8 +396,9 @@ class ObjectBoxDatabase {
     query.limit = limit;
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results.where((entry) => !entry.isLocked).take(limit).toList();
+    return _plain(
+      results,
+    ).where((entry) => !entry.isLocked).take(limit).toList();
   }
 
   /// Get all entries (excludes soft-deleted)
@@ -325,8 +425,7 @@ class ObjectBoxDatabase {
     query.limit = limit;
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   /// Count entries with optional year and deletion filters.
@@ -347,24 +446,14 @@ class ObjectBoxDatabase {
 
   /// Soft delete an entry (recoverable for 30 days) and update tree count
   Future<bool> softDeleteEntry(int id) async {
-    final entry = _entryBox.get(id);
+    final entry = _plainForId(id)?.copy();
     if (entry == null || entry.isDeleted) return false;
 
     entry.isDeleted = true;
     entry.deletedAt = DateTime.now().toUtc();
-    // Bump modifiedAt so sync treats the deletion as a newer change and
-    // propagates it to other devices.
-    entry.modifiedAt = DateTime.now();
-    _entryBox.put(entry);
-
-    // Update tree count
-    await _adjustTreeCountForEntryYear(entry, increment: false);
-
-    // Notify listeners
-    _invalidateEntryCaches();
-    _emitCurrentTree();
-    _emitEntries();
-
+    // _writeEntries bumps modifiedAt, so sync treats the deletion as a newer
+    // change and propagates it; it also decrements the tree count.
+    _writeEntries([entry]);
     return true;
   }
 
@@ -372,7 +461,7 @@ class ObjectBoxDatabase {
   Future<bool> deleteEntry(int id) async {
     final entry = _entryBox.get(id);
     if (entry != null && !entry.isDeleted) {
-      await _adjustTreeCountForEntryYear(entry, increment: false);
+      _applyTreeDeltas({entry.createdAt.year: -1});
     }
 
     if (entry != null) {
@@ -380,6 +469,7 @@ class ObjectBoxDatabase {
     }
 
     final removed = _entryBox.remove(id);
+    _plainById.remove(id);
 
     // Notify listeners
     _invalidateEntryCaches();
@@ -409,22 +499,12 @@ class ObjectBoxDatabase {
 
   /// Restore a soft-deleted entry
   Future<bool> restoreEntry(int id) async {
-    final entry = _entryBox.get(id);
+    final entry = _plainForId(id)?.copy();
     if (entry == null || !entry.isDeleted) return false;
 
     entry.isDeleted = false;
     entry.deletedAt = null;
-    entry.modifiedAt = DateTime.now();
-    _entryBox.put(entry);
-
-    // Update tree count
-    await _adjustTreeCountForEntryYear(entry, increment: true);
-
-    // Notify listeners
-    _invalidateEntryCaches();
-    _emitCurrentTree();
-    _emitEntries();
-
+    _writeEntries([entry]);
     return true;
   }
 
@@ -436,8 +516,46 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
+  }
+
+  /// syncUUIDs of entries purged this session that sync has not yet been
+  /// told about. Drained by [takePurgedSyncUUIDs].
+  final List<PurgedEntry> _purged = [];
+
+  /// Returns (and forgets) the syncUUIDs of entries [purgeExpiredEntries]
+  /// removed, so the sync engine can queue remote deletes. Without this, the
+  /// remote tombstone (isDeleted=true record) lingered forever and could be
+  /// pulled back onto devices.
+  List<PurgedEntry> takePurgedEntries() {
+    final taken = List<PurgedEntry>.of(_purged);
+    _purged.clear();
+    return taken;
+  }
+
+  /// Live entries whose media blob is known remotely but not on this device
+  /// yet (pulled from another device, or an interrupted download).
+  List<Entry> getEntriesNeedingMediaDownload() {
+    final query = _entryBox
+        .query(
+          Entry_.mediaAssetId
+              .notNull()
+              .and(Entry_.mediaPath.isNull())
+              .and(Entry_.isDeleted.equals(false)),
+        )
+        .build();
+    final results = query.find();
+    query.close();
+    return [for (final e in _plain(results)) e.copy()];
+  }
+
+  /// Every stored entry's syncUUID, including soft-deleted ones (reads only
+  /// the indexed column; nothing is decrypted).
+  List<String> getAllSyncUUIDs() {
+    final query = _entryBox.query(Entry_.syncUUID.notNull()).build();
+    final ids = query.property(Entry_.syncUUID).find();
+    query.close();
+    return ids.where(SyncId.isValid).toList();
   }
 
   /// Purge entries deleted more than 30 days ago
@@ -465,6 +583,12 @@ class ObjectBoxDatabase {
 
     final ids = expiredEntries.map((e) => e.id).toList();
     final removed = _entryBox.removeMany(ids);
+    ids.forEach(_plainById.remove);
+    _purged.addAll([
+      for (final e in expiredEntries)
+        if (SyncId.isValid(e.syncUUID))
+          (syncUUID: e.syncUUID!, mediaAssetId: e.mediaAssetId),
+    ]);
 
     if (removed > 0) {
       _invalidateEntryCaches();
@@ -475,13 +599,11 @@ class ObjectBoxDatabase {
     return removed;
   }
 
-  /// Update an entry
+  /// Update an entry. The caller's object stays plaintext (callers such as
+  /// the detail screen keep using it), and tree counts follow any isDeleted
+  /// change.
   void updateEntry(Entry entry) {
-    entry.modifiedAt = DateTime.now();
-    _encryptEntryFields(entry);
-    _entryBox.put(entry);
-    _invalidateEntryCaches();
-    _emitEntries();
+    _writeEntries([entry]);
   }
 
   /// Watch entries for changes (current year, newest first)
@@ -535,8 +657,7 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   /// Get only locked capsules
@@ -568,14 +689,14 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   /// Get entries from previous years that match today's month and day.
   ///
-  /// Excludes the current year at the query level to avoid decrypting
-  /// entries that will never match.
+  /// Excludes the current year at the query level, and filters by date and
+  /// lock state (plaintext columns) before anything is decrypted, so only
+  /// the handful of matches are ever decrypted.
   List<Entry> getEntriesOnThisDay() {
     final today = DateTime.now();
     final startOfYear = DateTime(today.year).millisecondsSinceEpoch;
@@ -591,13 +712,14 @@ class ObjectBoxDatabase {
         .build();
     final pastEntries = query.find();
     query.close();
-    _decryptEntries(pastEntries);
 
-    return pastEntries.where((entry) {
-      if (entry.isLocked) return false;
-      return entry.createdAt.month == today.month &&
-          entry.createdAt.day == today.day;
-    }).toList();
+    return _plain(
+      pastEntries.where((entry) {
+        if (entry.isLocked) return false;
+        return entry.createdAt.month == today.month &&
+            entry.createdAt.day == today.day;
+      }).toList(),
+    );
   }
 
   /// Save a capsule entry (same as saveEntry but with semantic naming)
@@ -666,6 +788,8 @@ class ObjectBoxDatabase {
   /// Permanently clears all entries and tree growth data.
   Future<void> clearAllData() async {
     _entryBox.removeAll();
+    _plainById.clear();
+    _plainComplete = false;
     _treeBox.removeAll();
     await _ensureCurrentYearTree();
     _invalidateEntryCaches();
@@ -674,28 +798,76 @@ class ObjectBoxDatabase {
     _emitCapsules();
   }
 
-  Future<void> _adjustTreeCountForEntryYear(
-    Entry entry, {
-    required bool increment,
-  }) async {
-    final tree = await _ensureTreeForYear(entry.createdAt.year);
-    if (increment) {
-      tree.addEntry();
-    } else {
-      tree.removeEntry();
+  // ============== Sync Operations (Phase 5) ==============
+
+  void _assignSyncUUIDIfMissing(Entry entry) {
+    final current = entry.syncUUID;
+    if (current == null || current.isEmpty) {
+      entry.syncUUID = SyncId.generate();
     }
-    _treeBox.put(tree);
   }
 
-  // ============== Sync Operations (Phase 5) ==============
+  /// One-time repair for stores written by older builds:
+  /// - entries without a syncUUID get one, so links and sync can find them;
+  /// - legacy non-UUID ids (base36 timestamps minted by the old link editor)
+  ///   are replaced by v4 UUIDs, and every manualLinkIds list that referenced
+  ///   them is rewritten, so the links survive. Previously sync replaced those
+  ///   ids on push and the links silently broke.
+  ///
+  /// Cheap when there is nothing to do: only the syncUUID column is read.
+  void _migrateLegacySyncUUIDs() {
+    final probe = _entryBox.query().build();
+    final ids = probe.property(Entry_.syncUUID).find();
+    final total = probe.count();
+    probe.close();
+    final needsWork =
+        ids.length < total || ids.any((id) => !SyncId.isValid(id));
+    if (!needsWork) return;
+
+    _store.runInTransaction(TxMode.write, () {
+      final renamed = <String, String>{};
+      final changed = <Entry>[];
+      for (final entry in _entryBox.getAll()) {
+        final current = entry.syncUUID;
+        if (SyncId.isValid(current)) continue;
+        final replacement = SyncId.generate();
+        if (current != null && current.isNotEmpty) {
+          renamed[current] = replacement;
+        }
+        entry.syncUUID = replacement;
+        changed.add(entry);
+      }
+      if (changed.isNotEmpty) _entryBox.putMany(changed);
+      if (renamed.isEmpty) return;
+
+      final linkQuery = _entryBox.query(Entry_.manualLinkIds.notNull()).build();
+      final linking = linkQuery.find();
+      linkQuery.close();
+      final relinked = <Entry>[];
+      for (final entry in linking) {
+        final raw = _encryptionService.decryptField(entry.manualLinkIds);
+        if (raw == null || raw.isEmpty) continue;
+        final parts = raw.split(',');
+        if (!parts.any((part) => renamed.containsKey(part.trim()))) continue;
+        final rewritten = [
+          for (final part in parts) renamed[part.trim()] ?? part,
+        ];
+        entry.manualLinkIds = _encryptionService.encryptField(
+          rewritten.join(','),
+        );
+        relinked.add(entry);
+      }
+      if (relinked.isNotEmpty) _entryBox.putMany(relinked);
+    });
+  }
 
   /// Find an entry by its sync UUID (for cloud sync merge)
   Entry? getEntryBySyncUUID(String syncUUID) {
     final query = _entryBox.query(Entry_.syncUUID.equals(syncUUID)).build();
     final result = query.findFirst();
     query.close();
-    if (result != null) _decryptEntryFields(result);
-    return result;
+    if (result == null) return null;
+    return _plain([result]).single.copy();
   }
 
   /// Get all entries modified since a given timestamp (for sync push)
@@ -706,8 +878,7 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   Query<Entry> _buildEntriesQuery({
@@ -761,12 +932,7 @@ class ObjectBoxDatabase {
     entry.connectionIds = _encryptionService.encryptField(entry.connectionIds);
     entry.manualLinkIds = _encryptionService.encryptField(entry.manualLinkIds);
     entry.transcription = _encryptionService.encryptField(entry.transcription);
-  }
-
-  void _decryptEntries(List<Entry> entries) {
-    for (final entry in entries) {
-      _decryptEntryFields(entry);
-    }
+    entry.mediaKey = _encryptionService.encryptField(entry.mediaKey);
   }
 
   void _decryptEntryFields(Entry entry) {
@@ -791,6 +957,7 @@ class ObjectBoxDatabase {
     entry.connectionIds = decryptOrPreserve(entry.connectionIds);
     entry.manualLinkIds = decryptOrPreserve(entry.manualLinkIds);
     entry.transcription = decryptOrPreserve(entry.transcription);
+    entry.mediaKey = decryptOrPreserve(entry.mediaKey);
   }
 
   // ============ Ritual Operations ============
@@ -892,18 +1059,33 @@ class ObjectBoxDatabase {
         .build();
     final results = query.find();
     query.close();
-    _decryptEntries(results);
-    return results;
+    return _plain(results);
   }
 
   // ============ Manual Link Operations ============
 
-  /// Load entries by their syncUUIDs (for manual linking)
+  /// Load entries by their syncUUIDs (for manual linking).
+  ///
+  /// Links can point at memories from any year, so this searches every year
+  /// via the syncUUID index (soft-deleted entries and locked capsules are
+  /// left out, as they are everywhere else in the UI).
   List<Entry> getEntriesBySyncUUIDs(List<String> uuids) {
     if (uuids.isEmpty) return [];
-    // Filter all visible entries by syncUUID match
-    return getVisibleEntries()
-        .where((e) => e.syncUUID != null && uuids.contains(e.syncUUID!))
-        .toList();
+    final now = _trustedNowUtc().millisecondsSinceEpoch;
+    final notLocked = Entry_.capsuleUnlockDate.isNull().or(
+      Entry_.capsuleUnlockDate.lessOrEqual(now),
+    );
+    final query = _entryBox
+        .query(
+          Entry_.syncUUID
+              .oneOf(uuids.toSet().toList())
+              .and(Entry_.isDeleted.equals(false))
+              .and(notLocked),
+        )
+        .order(Entry_.createdAt, flags: Order.descending)
+        .build();
+    final results = query.find();
+    query.close();
+    return _plain(results);
   }
 }

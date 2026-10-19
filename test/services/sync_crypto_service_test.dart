@@ -231,6 +231,132 @@ void main() {
     );
   });
 
+  group('SyncCryptoService per-user key salt', () {
+    const passphrase = 'correct horse battery staple';
+    final accountSalt = List<int>.generate(32, (i) => 200 - i);
+
+    test(
+      'devices sharing the keyring salt interoperate; others cannot',
+      () async {
+        final storageA = _MockSecureStorage();
+        final valuesA = <String, String>{};
+        _wireStorage(storageA, valuesA);
+        final deviceA = SyncCryptoService(
+          secureStorage: storageA,
+          kdfSaltProvider: () async => accountSalt,
+        );
+        await deviceA.setPassphrase(passphrase);
+
+        final storageB = _MockSecureStorage();
+        _wireStorage(storageB, <String, String>{});
+        final deviceB = SyncCryptoService(
+          secureStorage: storageB,
+          kdfSaltProvider: () async => accountSalt,
+        );
+        await deviceB.setPassphrase(passphrase);
+
+        final encrypted = await deviceA.encryptRecordFields(<String, dynamic>{
+          'text': 'shared',
+        });
+        expect(encrypted['syncEncryptionVersion'], 4);
+        expect(
+          (await deviceB.decryptRecordFields(encrypted))['text'],
+          'shared',
+        );
+        expect(await deviceB.usesKdfSalt(accountSalt), isTrue);
+
+        // Same passphrase, different account (different salt): the key, and so
+        // any precomputed cracking work, is not shared.
+        final storageC = _MockSecureStorage();
+        _wireStorage(storageC, <String, String>{});
+        final otherUser = SyncCryptoService(
+          secureStorage: storageC,
+          kdfSaltProvider: () async => List<int>.filled(32, 1),
+        );
+        await otherUser.setPassphrase(passphrase);
+        await expectLater(
+          () => otherUser.decryptRecordFields(encrypted),
+          throwsA(isA<SyncPayloadCryptoException>()),
+        );
+        // The stored key material records the per-user salt, not the app one.
+        final material =
+            jsonDecode(valuesA['seedling_sync_key_v3']!)
+                as Map<String, dynamic>;
+        expect(base64Decode(material['salt'] as String), accountSalt);
+      },
+    );
+
+    test(
+      'fixed-salt (v3) keys keep working and migrate on next passphrase',
+      () async {
+        final storage = _MockSecureStorage();
+        final values = <String, String>{};
+        _wireStorage(storage, values);
+        // Pre-release build: no keyring, app-wide salt.
+        final old = SyncCryptoService(secureStorage: storage);
+        await old.setPassphrase(passphrase);
+        final v3Record = await old.encryptRecordFields(<String, dynamic>{
+          'text': 'from the fixed-salt days',
+        });
+        expect(v3Record['syncEncryptionVersion'], 3);
+
+        // Upgraded build with a keyring: the stored v3 key still works as-is.
+        final upgraded = SyncCryptoService(
+          secureStorage: storage,
+          kdfSaltProvider: () async => accountSalt,
+        );
+        expect(
+          (await upgraded.decryptRecordFields(v3Record))['text'],
+          'from the fixed-salt days',
+        );
+        expect(await upgraded.usesKdfSalt(accountSalt), isFalse);
+
+        // Re-entering the passphrase moves to the per-user salt (v4) and
+        // keeps the v3 key so old records stay readable, across restarts.
+        await upgraded.setPassphrase(passphrase);
+        final restarted = SyncCryptoService(
+          secureStorage: storage,
+          kdfSaltProvider: () async => accountSalt,
+        );
+        expect(await restarted.usesKdfSalt(accountSalt), isTrue);
+        final v4Record = await restarted.encryptRecordFields(<String, dynamic>{
+          'text': 'per-user salt',
+        });
+        expect(v4Record['syncEncryptionVersion'], 4);
+        expect(
+          (await restarted.decryptRecordFields(v3Record))['text'],
+          'from the fixed-salt days',
+        );
+        expect(
+          (await restarted.decryptRecordFields(v4Record))['text'],
+          'per-user salt',
+        );
+      },
+    );
+
+    test('a v3-only device asks for the passphrase on v4 records', () async {
+      final storage = _MockSecureStorage();
+      _wireStorage(storage, <String, String>{});
+      final v3Device = SyncCryptoService(secureStorage: storage);
+      await v3Device.setPassphrase(passphrase);
+
+      final otherStorage = _MockSecureStorage();
+      _wireStorage(otherStorage, <String, String>{});
+      final v4Device = SyncCryptoService(
+        secureStorage: otherStorage,
+        kdfSaltProvider: () async => accountSalt,
+      );
+      await v4Device.setPassphrase(passphrase);
+      final v4Record = await v4Device.encryptRecordFields(<String, dynamic>{
+        'text': 'x',
+      });
+      await expectLater(
+        () => v3Device.decryptRecordFields(v4Record),
+        throwsA(isA<SyncKeySaltMismatchException>()),
+      );
+    });
+  });
+
   group('SyncCryptoService', () {
     test(
       'encrypts and decrypts sync fields with current version marker',
@@ -238,7 +364,10 @@ void main() {
         final storage = _MockSecureStorage();
         final values = <String, String>{};
         _wireStorage(storage, values);
-        final service = SyncCryptoService(secureStorage: storage);
+        final service = SyncCryptoService(
+          secureStorage: storage,
+          kdfSaltProvider: () async => List<int>.filled(32, 7),
+        );
         await service.setPassphrase('correct horse battery staple');
 
         final record = <String, dynamic>{
@@ -323,19 +452,68 @@ void main() {
       },
     );
 
-    test('treats legacy records without version as plaintext', () async {
+    test('rejects records without an encryption version', () async {
       final storage = _MockSecureStorage();
       final values = <String, String>{};
       _wireStorage(storage, values);
       final service = SyncCryptoService(secureStorage: storage);
+      await service.setPassphrase('correct horse battery staple');
 
-      final legacy = await service.decryptRecordFields(<String, dynamic>{
-        'syncUUID': '550e8400-e29b-41d4-a716-446655440098',
-        'text': 'legacy plaintext',
+      // Unversioned "plaintext" must never be imported as-is.
+      await expectLater(
+        () => service.decryptRecordFields(<String, dynamic>{
+          'syncUUID': '550e8400-e29b-41d4-a716-446655440098',
+          'text': 'injected plaintext',
+        }),
+        throwsA(isA<SyncUnversionedRecordException>()),
+      );
+    });
+
+    test('encrypts manual links and decrypts a batch with one key', () async {
+      final storage = _MockSecureStorage();
+      final values = <String, String>{};
+      _wireStorage(storage, values);
+      final service = SyncCryptoService(secureStorage: storage);
+      await service.setPassphrase('correct horse battery staple');
+
+      final session = await service.createEncryptionSession();
+      final records = [
+        for (var i = 0; i < 3; i++)
+          await service.encryptRecordFields(<String, dynamic>{
+            'text': 'note $i',
+            'manualLinkIds': '550e8400-e29b-41d4-a716-44665544000$i',
+          }, session: session),
+      ];
+      expect(records.first['manualLinkIds'], startsWith('syncenc:v1:'));
+      final decrypted = [
+        for (final r in records) await service.decryptRecordFields(r),
+      ];
+      expect(decrypted.map((r) => r['text']), ['note 0', 'note 1', 'note 2']);
+      expect(
+        decrypted.last['manualLinkIds'],
+        '550e8400-e29b-41d4-a716-446655440002',
+      );
+    });
+
+    test('the media file key is encrypted in the record', () async {
+      final storage = _MockSecureStorage();
+      _wireStorage(storage, <String, String>{});
+      final service = SyncCryptoService(
+        secureStorage: storage,
+        kdfSaltProvider: () async => List<int>.filled(32, 5),
+      );
+      await service.setPassphrase('correct horse battery staple');
+      const fileKey = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJA==';
+      final encrypted = await service.encryptRecordFields(<String, dynamic>{
+        'mediaAssetId': '550e8400-e29b-41d4-a716-446655440077',
+        'mediaKey': fileKey,
       });
-
-      expect(legacy['text'], 'legacy plaintext');
-      expect(legacy['syncEncryptionVersion'], isNull);
+      expect(encrypted['mediaKey'], startsWith('syncenc:v1:'));
+      expect(encrypted['mediaAssetId'], '550e8400-e29b-41d4-a716-446655440077');
+      expect(
+        (await service.decryptRecordFields(encrypted))['mediaKey'],
+        fileKey,
+      );
     });
 
     test('throws user-facing error when passphrase is missing', () async {

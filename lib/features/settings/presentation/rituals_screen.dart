@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/presentation/seedling_iconography.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/platform/platform_utils.dart';
@@ -30,7 +30,7 @@ class RitualsScreen extends ConsumerWidget {
           child: ritualsAsync.when(
             data: (rituals) => _buildList(context, ref, rituals),
             loading: () => const Center(child: CupertinoActivityIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
+            error: (_, _) => const _RitualsUnavailable(),
           ),
         ),
       );
@@ -41,7 +41,7 @@ class RitualsScreen extends ConsumerWidget {
       body: ritualsAsync.when(
         data: (rituals) => _buildList(context, ref, rituals),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (_, _) => const _RitualsUnavailable(),
       ),
     );
   }
@@ -58,13 +58,15 @@ class RitualsScreen extends ConsumerWidget {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: SeedlingColors.paleGreen.withValues(alpha: 0.28),
+                  color: context.palette.primaryContainer.withValues(
+                    alpha: 0.28,
+                  ),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.spa_outlined,
                   size: 34,
-                  color: SeedlingColors.forestGreen,
+                  color: context.palette.primary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -73,14 +75,14 @@ class RitualsScreen extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: SeedlingColors.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Patterns become rituals once you confirm them in Settings.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: SeedlingColors.textSecondary),
+                style: TextStyle(color: context.palette.textSecondary),
               ),
               const SizedBox(height: 16),
               PlatformUtils.isIOS
@@ -143,29 +145,29 @@ class RitualsScreen extends ConsumerWidget {
     return ListView(
       children: [
         if (active.isNotEmpty) ...[
-          _sectionHeader('Active'),
+          _sectionHeader(context, 'Active'),
           ...active.map((r) => _buildTileMaterial(context, ref, r)),
         ],
         if (paused.isNotEmpty) ...[
-          _sectionHeader('Paused'),
+          _sectionHeader(context, 'Paused'),
           ...paused.map((r) => _buildTileMaterial(context, ref, r)),
         ],
         if (archived.isNotEmpty) ...[
-          _sectionHeader('Archived'),
+          _sectionHeader(context, 'Archived'),
           ...archived.map((r) => _buildTileMaterial(context, ref, r)),
         ],
       ],
     );
   }
 
-  Widget _sectionHeader(String title) => Padding(
+  Widget _sectionHeader(BuildContext context, String title) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
     child: Text(
       title,
       style: TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w600,
-        color: SeedlingColors.textSecondary,
+        color: context.palette.textSecondary,
         letterSpacing: 0.5,
       ),
     ),
@@ -180,7 +182,7 @@ class RitualsScreen extends ConsumerWidget {
     return CupertinoListTile(
       leading: Icon(
         SeedlingIconography.ritualStatusIcon(ritual.status),
-        color: SeedlingColors.forestGreen,
+        color: context.palette.primary,
       ),
       title: Text(ritual.name),
       subtitle: Text(subtitle),
@@ -205,7 +207,7 @@ class RitualsScreen extends ConsumerWidget {
     return ListTile(
       leading: Icon(
         SeedlingIconography.ritualStatusIcon(ritual.status),
-        color: SeedlingColors.forestGreen,
+        color: context.palette.primary,
       ),
       title: Text(ritual.name),
       subtitle: Text(subtitle),
@@ -332,5 +334,28 @@ class RitualsScreen extends ConsumerWidget {
         service.deleteRitual(ritual.id);
         break;
     }
+  }
+}
+
+/// Shown if rituals can't be read. Warm, and never exposes raw errors.
+class _RitualsUnavailable extends StatelessWidget {
+  const _RitualsUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          "Your rituals couldn't be opened just now. "
+          'They are safe. Try again in a moment.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: context.palette.textSecondary,
+            height: 1.5,
+          ),
+        ),
+      ),
+    );
   }
 }

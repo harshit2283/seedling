@@ -10,6 +10,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/seedling_theme.dart';
 import '../../../../core/services/media/file_storage_service.dart';
 import '../../../../data/models/entry.dart';
 
@@ -84,13 +86,11 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color:
-                  Theme.of(context).cardTheme.color ??
-                  Theme.of(context).colorScheme.surface,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
+                  color: context.palette.shadow,
                   blurRadius: 26,
                   offset: const Offset(0, 12),
                 ),
@@ -109,7 +109,7 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
                         width: 42,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: SeedlingColors.lightBark,
+                          color: context.palette.border,
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -122,7 +122,7 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
                             'Share memory',
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(
-                                  color: SeedlingColors.textPrimary,
+                                  color: context.palette.textPrimary,
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -131,22 +131,22 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
                             ? CupertinoButton(
                                 padding: EdgeInsets.zero,
                                 onPressed: () => Navigator.of(context).pop(),
-                                child: const Icon(
+                                child: Icon(
                                   CupertinoIcons.xmark,
-                                  color: SeedlingColors.textSecondary,
+                                  color: context.palette.textSecondary,
                                 ),
                               )
                             : IconButton(
                                 onPressed: () => Navigator.of(context).pop(),
                                 icon: const Icon(Icons.close),
-                                color: SeedlingColors.textSecondary,
+                                color: context.palette.textSecondary,
                               ),
                       ],
                     ),
                     Text(
                       'Create a polished card for chat apps and social posts.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: SeedlingColors.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -243,7 +243,7 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
                 Text(
                   'The branded card will be shared either way.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
               ],
@@ -280,12 +280,12 @@ class _MemoryShareSheetState extends State<MemoryShareSheet> {
     return FilledButton.icon(
       onPressed: _isSharing ? null : _share,
       icon: _isSharing
-          ? const SizedBox(
+          ? SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Colors.white,
+                color: context.palette.onPrimaryFill,
               ),
             )
           : const Icon(Icons.share_outlined),
@@ -365,6 +365,15 @@ class _MemoryShareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The card is rendered to an image and shared outside the app, so it
+    // keeps its paper look regardless of the viewer's dark mode.
+    return Theme(
+      data: SeedlingTheme.light,
+      child: Builder(builder: _buildCard),
+    );
+  }
+
+  Widget _buildCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -383,7 +392,7 @@ class _MemoryShareCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: context.palette.shadow,
               blurRadius: 18,
               offset: const Offset(0, 10),
             ),
@@ -409,7 +418,7 @@ class _MemoryShareCard extends StatelessWidget {
                 child: Text(
                   caption,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: SeedlingColors.textPrimary,
+                    color: context.palette.textPrimary,
                     height: 1.45,
                   ),
                 ),
@@ -419,7 +428,7 @@ class _MemoryShareCard extends StatelessWidget {
             Text(
               'Seedling',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: SeedlingColors.textMuted,
+                color: context.palette.textMuted,
                 letterSpacing: 3,
                 fontWeight: FontWeight.w700,
               ),
@@ -435,11 +444,11 @@ class _MemoryShareCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'SPECIMEN',
+          'A memory, kept',
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: SeedlingColors.textMuted,
-            letterSpacing: 3,
-            fontWeight: FontWeight.w700,
+            color: context.palette.textSecondary,
+            fontStyle: FontStyle.italic,
+            letterSpacing: 0.3,
           ),
         ),
         const SizedBox(height: 10),
@@ -465,7 +474,7 @@ class _MemoryShareCard extends StatelessWidget {
               child: Text(
                 DateFormat('MMMM d, y').format(entry.createdAt),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
             ),
@@ -524,7 +533,7 @@ class _MemoryShareCard extends StatelessWidget {
                   Text(
                     'Voice memo',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: SeedlingColors.textPrimary,
+                      color: context.palette.textPrimary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -560,7 +569,7 @@ class _MemoryShareCard extends StatelessWidget {
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -603,7 +612,7 @@ class _MemoryShareCard extends StatelessWidget {
         Text(
           title,
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: SeedlingColors.textPrimary,
+            color: context.palette.textPrimary,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -613,7 +622,7 @@ class _MemoryShareCard extends StatelessWidget {
           maxLines: 6,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: SeedlingColors.textSecondary,
+            color: context.palette.textSecondary,
             height: 1.5,
           ),
         ),

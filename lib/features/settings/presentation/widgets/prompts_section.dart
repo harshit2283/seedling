@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/notifications/gentle_reminder_service.dart';
 import '../../../../core/services/providers.dart';
@@ -30,13 +30,13 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.sparkles,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Gentle Prompts'),
             subtitle: const Text('Thoughtful suggestions on the home screen'),
             trailing: CupertinoSwitch(
               value: ref.watch(promptsEnabledProvider),
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primaryFill,
               onChanged: (value) {
                 ref.read(promptSelectorProvider).setEnabled(value);
                 ref.invalidate(promptsEnabledProvider);
@@ -47,7 +47,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.time,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Your moment'),
             subtitle: Text(intentionSubtitle),
@@ -58,13 +58,13 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.bell,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Gentle Reminder'),
             subtitle: const Text('Quiet reminder when no memories are added'),
             trailing: CupertinoSwitch(
               value: reminderSettings.enabled,
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primaryFill,
               onChanged: (value) {
                 ref.read(reminderSettingsProvider.notifier).setEnabled(value);
               },
@@ -75,7 +75,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
               leading: buildSettingsIconBox(
                 context,
                 CupertinoIcons.calendar,
-                SeedlingColors.forestGreen,
+                context.palette.primary,
               ),
               title: const Text('Reminder cadence'),
               subtitle: Text(reminderSettings.cadence.label),
@@ -87,7 +87,7 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
               leading: buildSettingsIconBox(
                 context,
                 CupertinoIcons.time,
-                SeedlingColors.forestGreen,
+                context.palette.primary,
               ),
               title: const Text('Reminder time'),
               subtitle: Text(
@@ -100,13 +100,13 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.leaf_arrow_circlepath,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('A memory from your tree'),
             subtitle: const Text('Once a week, a quiet nudge to look back'),
             trailing: CupertinoSwitch(
               value: ref.watch(resurfaceNotificationsEnabledProvider),
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primaryFill,
               onChanged: (value) {
                 ref
                     .read(resurfaceNotificationsEnabledProvider.notifier)

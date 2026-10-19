@@ -7,7 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/router.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -90,13 +91,9 @@ class _ResurfaceCardBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final secondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final accent = isDark
-        ? SeedlingColors.leafGreenDark
-        : SeedlingColors.leafGreen;
+    final palette = context.palette;
+    final secondary = palette.textSecondary;
+    final accent = palette.primary;
     final when = _whenLabel(context);
     final entry = memory.entry;
 
@@ -119,6 +116,7 @@ class _ResurfaceCardBody extends StatelessWidget {
             Semantics(
               button: true,
               label: 'Hide until tomorrow',
+              onTap: onDismiss,
               excludeSemantics: true,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -143,7 +141,7 @@ class _ResurfaceCardBody extends StatelessWidget {
         Text(
           entry.displayContent,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface,
+            color: palette.textPrimary,
             height: 1.45,
           ),
           maxLines: 3,
@@ -160,10 +158,9 @@ class _ResurfaceCardBody extends StatelessWidget {
       ],
     );
 
-    final radius = PlatformUtils.isIOS ? 20.0 : 12.0;
     final card = PlatformUtils.isIOS
         ? ClipRRect(
-            borderRadius: BorderRadius.circular(radius),
+            borderRadius: SeedlingRadius.card,
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
               child: Container(
@@ -173,7 +170,7 @@ class _ResurfaceCardBody extends StatelessWidget {
                   color: CupertinoColors.systemBackground
                       .resolveFrom(context)
                       .withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(radius),
+                  borderRadius: SeedlingRadius.card,
                   border: Border.all(
                     color: CupertinoColors.separator
                         .resolveFrom(context)
@@ -188,9 +185,9 @@ class _ResurfaceCardBody extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
             decoration: BoxDecoration(
-              color: theme.cardTheme.color ?? theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: theme.dividerColor),
+              color: palette.card,
+              borderRadius: SeedlingRadius.card,
+              border: Border.all(color: palette.border),
             ),
             child: content,
           );

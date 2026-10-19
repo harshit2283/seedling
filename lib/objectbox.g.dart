@@ -24,7 +24,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(1, 980722598120104709),
     name: 'Entry',
-    lastPropertyId: const obx_int.IdUid(23, 8840600702752248780),
+    lastPropertyId: const obx_int.IdUid(25, 3378884658581427632),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -126,12 +126,6 @@ final _entities = <obx_int.ModelEntity>[
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(17, 4822441182230169529),
-        name: 'connectedIds',
-        type: 27,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
         id: const obx_int.IdUid(18, 7049565280661572356),
         name: 'capsuleUnlockDate',
         type: 10,
@@ -148,13 +142,15 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(20, 5287589025787022643),
         name: 'syncUUID',
         type: 9,
-        flags: 0,
+        flags: 2048,
+        indexId: const obx_int.IdUid(4, 8635589592904350413),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(21, 2626856446788976910),
         name: 'modifiedAt',
         type: 10,
-        flags: 0,
+        flags: 8,
+        indexId: const obx_int.IdUid(5, 6316197321341892688),
       ),
       obx_int.ModelProperty(
         id: const obx_int.IdUid(22, 3618374170569244160),
@@ -165,6 +161,18 @@ final _entities = <obx_int.ModelEntity>[
       obx_int.ModelProperty(
         id: const obx_int.IdUid(23, 8840600702752248780),
         name: 'manualLinkIds',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(24, 8754591307827403872),
+        name: 'mediaAssetId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(25, 3378884658581427632),
+        name: 'mediaKey',
         type: 9,
         flags: 0,
       ),
@@ -334,12 +342,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
     lastEntityId: const obx_int.IdUid(3, 8814026308694728405),
-    lastIndexId: const obx_int.IdUid(3, 5594065671377155778),
+    lastIndexId: const obx_int.IdUid(5, 6316197321341892688),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
     retiredIndexUids: const [],
-    retiredPropertyUids: const [],
+    retiredPropertyUids: const [4822441182230169529],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -380,7 +388,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final connectionIdsOffset = object.connectionIds == null
             ? null
             : fbb.writeString(object.connectionIds!);
-        final connectedIdsOffset = fbb.writeListInt64(object.connectedIds);
         final transcriptionOffset = object.transcription == null
             ? null
             : fbb.writeString(object.transcription!);
@@ -393,7 +400,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final manualLinkIdsOffset = object.manualLinkIds == null
             ? null
             : fbb.writeString(object.manualLinkIds!);
-        fbb.startTable(24);
+        final mediaAssetIdOffset = object.mediaAssetId == null
+            ? null
+            : fbb.writeString(object.mediaAssetId!);
+        final mediaKeyOffset = object.mediaKey == null
+            ? null
+            : fbb.writeString(object.mediaKey!);
+        fbb.startTable(26);
         fbb.addInt64(0, object.id);
         fbb.addInt64(1, object.createdAt.millisecondsSinceEpoch);
         fbb.addInt64(2, object.typeIndex);
@@ -410,13 +423,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(13, connectionIdsOffset);
         fbb.addFloat64(14, object.sentimentScore);
         fbb.addInt64(15, object.lastAnalyzedAt?.millisecondsSinceEpoch);
-        fbb.addOffset(16, connectedIdsOffset);
         fbb.addInt64(17, object.capsuleUnlockDate?.millisecondsSinceEpoch);
         fbb.addOffset(18, transcriptionOffset);
         fbb.addOffset(19, syncUUIDOffset);
         fbb.addInt64(20, object.modifiedAt?.millisecondsSinceEpoch);
         fbb.addOffset(21, deviceIdOffset);
         fbb.addOffset(22, manualLinkIdsOffset);
+        fbb.addOffset(23, mediaAssetIdOffset);
+        fbb.addOffset(24, mediaKeyOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -523,35 +537,38 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final deviceIdParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 46);
-        final object =
-            Entry(
-                id: idParam,
-                createdAt: createdAtParam,
-                typeIndex: typeIndexParam,
-                text: textParam,
-                mediaPath: mediaPathParam,
-                title: titleParam,
-                context: contextParam,
-                mood: moodParam,
-                tags: tagsParam,
-                isReleased: isReleasedParam,
-                isDeleted: isDeletedParam,
-                deletedAt: deletedAtParam,
-                detectedTheme: detectedThemeParam,
-                connectionIds: connectionIdsParam,
-                manualLinkIds: manualLinkIdsParam,
-                sentimentScore: sentimentScoreParam,
-                lastAnalyzedAt: lastAnalyzedAtParam,
-                capsuleUnlockDate: capsuleUnlockDateParam,
-                transcription: transcriptionParam,
-                syncUUID: syncUUIDParam,
-                modifiedAt: modifiedAtParam,
-                deviceId: deviceIdParam,
-              )
-              ..connectedIds = const fb.ListReader<int>(
-                fb.Int64Reader(),
-                lazy: false,
-              ).vTableGet(buffer, rootOffset, 36, []);
+        final mediaAssetIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 50);
+        final mediaKeyParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 52);
+        final object = Entry(
+          id: idParam,
+          createdAt: createdAtParam,
+          typeIndex: typeIndexParam,
+          text: textParam,
+          mediaPath: mediaPathParam,
+          title: titleParam,
+          context: contextParam,
+          mood: moodParam,
+          tags: tagsParam,
+          isReleased: isReleasedParam,
+          isDeleted: isDeletedParam,
+          deletedAt: deletedAtParam,
+          detectedTheme: detectedThemeParam,
+          connectionIds: connectionIdsParam,
+          manualLinkIds: manualLinkIdsParam,
+          sentimentScore: sentimentScoreParam,
+          lastAnalyzedAt: lastAnalyzedAtParam,
+          capsuleUnlockDate: capsuleUnlockDateParam,
+          transcription: transcriptionParam,
+          syncUUID: syncUUIDParam,
+          modifiedAt: modifiedAtParam,
+          deviceId: deviceIdParam,
+          mediaAssetId: mediaAssetIdParam,
+          mediaKey: mediaKeyParam,
+        );
 
         return object;
       },
@@ -804,39 +821,44 @@ class Entry_ {
     _entities[0].properties[15],
   );
 
-  /// See [Entry.connectedIds].
-  static final connectedIds = obx.QueryIntegerVectorProperty<Entry>(
-    _entities[0].properties[16],
-  );
-
   /// See [Entry.capsuleUnlockDate].
   static final capsuleUnlockDate = obx.QueryDateProperty<Entry>(
-    _entities[0].properties[17],
+    _entities[0].properties[16],
   );
 
   /// See [Entry.transcription].
   static final transcription = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[18],
+    _entities[0].properties[17],
   );
 
   /// See [Entry.syncUUID].
   static final syncUUID = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[19],
+    _entities[0].properties[18],
   );
 
   /// See [Entry.modifiedAt].
   static final modifiedAt = obx.QueryDateProperty<Entry>(
-    _entities[0].properties[20],
+    _entities[0].properties[19],
   );
 
   /// See [Entry.deviceId].
   static final deviceId = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[21],
+    _entities[0].properties[20],
   );
 
   /// See [Entry.manualLinkIds].
   static final manualLinkIds = obx.QueryStringProperty<Entry>(
+    _entities[0].properties[21],
+  );
+
+  /// See [Entry.mediaAssetId].
+  static final mediaAssetId = obx.QueryStringProperty<Entry>(
     _entities[0].properties[22],
+  );
+
+  /// See [Entry.mediaKey].
+  static final mediaKey = obx.QueryStringProperty<Entry>(
+    _entities[0].properties[23],
   );
 }
 

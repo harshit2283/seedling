@@ -269,6 +269,22 @@ void main() {
       ).called(1);
     });
 
+    test('saveEdit (links, transcription) saves then queues a push', () {
+      final entry = Entry.voice(mediaPath: 'voices/a.m4a')
+        ..id = 15
+        ..syncUUID = '550e8400-e29b-41d4-a716-446655440015'
+        ..manualLinkIds = '550e8400-e29b-41d4-a716-446655440016'
+        ..transcription = 'spoken';
+      when(() => mockDb.updateEntry(any())).thenReturn(null);
+
+      container.read(entryCreatorProvider.notifier).saveEdit(entry);
+
+      verifyInOrder([
+        () => mockDb.updateEntry(entry),
+        () => mockSyncEngine.queuePush(entry, SyncChangeType.update),
+      ]);
+    });
+
     test('updateEntryText does nothing if entry not found', () async {
       when(() => mockDb.getEntry(99)).thenReturn(null);
 

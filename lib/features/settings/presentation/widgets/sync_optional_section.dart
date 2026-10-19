@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -30,13 +30,13 @@ class SyncOptionalSection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.cloud,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Cloud sync (optional)'),
             subtitle: Text(subtitle),
             trailing: CupertinoSwitch(
               value: cloudSyncEnabled,
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primaryFill,
               onChanged: (value) => _setEnabled(ref, value),
             ),
             onTap: () => _showDisclosure(context, ref),
@@ -60,12 +60,14 @@ class SyncOptionalSection extends ConsumerWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: SeedlingColors.paleGreen.withValues(alpha: 0.5),
+                    color: context.palette.primaryContainer.withValues(
+                      alpha: 0.5,
+                    ),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     AdaptiveIcons.cloud,
-                    color: SeedlingColors.forestGreen,
+                    color: context.palette.primary,
                     size: 20,
                   ),
                 ),
@@ -84,7 +86,7 @@ class SyncOptionalSection extends ConsumerWidget {
                       Text(
                         subtitle,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: SeedlingColors.textMuted,
+                          color: context.palette.textMuted,
                         ),
                       ),
                     ],
@@ -92,7 +94,7 @@ class SyncOptionalSection extends ConsumerWidget {
                 ),
                 Switch(
                   value: cloudSyncEnabled,
-                  activeThumbColor: SeedlingColors.forestGreen,
+                  activeThumbColor: context.palette.primary,
                   onChanged: (value) => _setEnabled(ref, value),
                 ),
               ],

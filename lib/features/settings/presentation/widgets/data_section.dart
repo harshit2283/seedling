@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/router.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/backup/backup_restore_service.dart';
@@ -41,7 +41,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.download,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Export as JSON'),
             subtitle: const Text('Entries without media'),
@@ -54,7 +54,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.archivebox,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Export as ZIP'),
             subtitle: const Text('Entries with all media'),
@@ -67,7 +67,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.doc_text,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Export as Markdown'),
             subtitle: const Text('Readable files, opens in Obsidian'),
@@ -80,7 +80,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.lock,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Encrypted Backup'),
             subtitle: const Text('Password-protected .seedling file'),
@@ -93,7 +93,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.download,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Import Encrypted Backup'),
             subtitle: const Text('Restore from .seedling file'),
@@ -106,7 +106,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.download,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Import Archive (ZIP)'),
             subtitle: const Text('Restore from .zip export'),
@@ -119,7 +119,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.tray_arrow_down,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Import from Day One / Markdown'),
             subtitle: const Text('Day One JSON or Markdown export (.zip)'),
@@ -132,7 +132,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.refresh,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Rebuild Tree Counts'),
             subtitle: const Text('Repair yearly growth totals'),
@@ -225,7 +225,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         leading: buildSettingsIconBox(
           context,
           CupertinoIcons.chart_pie,
-          SeedlingColors.forestGreen,
+          context.palette.primary,
         ),
         title: const Text('Storage Used'),
         additionalInfo: Text(storage.totalFormatted),
@@ -236,7 +236,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         leading: buildSettingsIconBox(
           context,
           CupertinoIcons.chart_pie,
-          SeedlingColors.forestGreen,
+          context.palette.primary,
         ),
         title: const Text('Storage Used'),
         trailing: const CupertinoActivityIndicator(),
@@ -245,7 +245,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         leading: buildSettingsIconBox(
           context,
           CupertinoIcons.chart_pie,
-          SeedlingColors.textMuted,
+          context.palette.textMuted,
           isLight: true,
         ),
         title: const Text('Storage Used'),
@@ -277,9 +277,9 @@ class _DataSectionState extends ConsumerState<DataSection> {
                 color: Theme.of(context).dividerColor,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.pie_chart_outline,
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
                 size: 20,
               ),
             ),
@@ -1017,7 +1017,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
           TextButton(
             onPressed: () =>
                 Navigator.of(context).pop(BackupImportMode.replace),
-            style: TextButton.styleFrom(foregroundColor: SeedlingColors.error),
+            style: TextButton.styleFrom(foregroundColor: context.palette.error),
             child: const Text('Replace'),
           ),
         ],
@@ -1065,7 +1065,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: SeedlingColors.error),
+            style: TextButton.styleFrom(foregroundColor: context.palette.error),
             child: const Text('Replace'),
           ),
         ],

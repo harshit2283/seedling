@@ -105,15 +105,30 @@ class Entry {
   // Cloud Sync Fields (Phase 5)
   // ============================================================================
 
-  /// UUID for cross-device sync identification
+  /// UUID for cross-device sync identification.
+  ///
+  /// Indexed (not @Unique: legacy stores may hold duplicates, and a unique
+  /// constraint would make those stores fail to open). Sync merge and manual
+  /// link resolution look entries up by this on every record.
+  @Index()
   String? syncUUID;
 
   /// When this entry was last modified (for sync conflict resolution)
   @Property(type: PropertyType.date)
+  @Index()
   DateTime? modifiedAt;
 
   /// Device identifier that last modified this entry
   String? deviceId;
+
+  /// Remote id of this entry's encrypted media blob (null until uploaded,
+  /// or for entries without media). With [mediaPath] null it means the file
+  /// still has to be downloaded.
+  String? mediaAssetId;
+
+  /// Base64 per-file key for the media blob. Encrypted at rest like the
+  /// memory text; synced only inside the encrypted record.
+  String? mediaKey;
 
   /// True when one or more encrypted fields could not be decrypted at read-time.
   @Transient()
@@ -146,7 +161,39 @@ class Entry {
     this.syncUUID,
     this.modifiedAt,
     this.deviceId,
+    this.mediaAssetId,
+    this.mediaKey,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  /// A field-for-field copy (persisted fields plus [decryptionFailed]).
+  /// The database uses this so the objects it caches are never the ones
+  /// callers hold and mutate.
+  Entry copy() => Entry(
+    id: id,
+    createdAt: createdAt,
+    typeIndex: typeIndex,
+    text: text,
+    mediaPath: mediaPath,
+    title: title,
+    context: context,
+    mood: mood,
+    tags: tags,
+    isReleased: isReleased,
+    isDeleted: isDeleted,
+    deletedAt: deletedAt,
+    detectedTheme: detectedTheme,
+    connectionIds: connectionIds,
+    manualLinkIds: manualLinkIds,
+    sentimentScore: sentimentScore,
+    lastAnalyzedAt: lastAnalyzedAt,
+    capsuleUnlockDate: capsuleUnlockDate,
+    transcription: transcription,
+    syncUUID: syncUUID,
+    modifiedAt: modifiedAt,
+    deviceId: deviceId,
+    mediaAssetId: mediaAssetId,
+    mediaKey: mediaKey,
+  )..decryptionFailed = decryptionFailed;
 
   /// Create a LINE entry - text that stayed with you
   factory Entry.line({String? text, String? context, String? mood}) {
@@ -265,7 +312,12 @@ class Entry {
   // AI Helper Methods (Phase 4)
   // ============================================================================
 
-  /// Get list of connected entry IDs
+  /// Get list of connected entry IDs.
+  ///
+  /// Transient: this is a view over [connectionIds]. When ObjectBox persisted
+  /// it, the stored value was parsed from the *encrypted* string (always
+  /// empty) and its setter ran after [connectionIds] on every load, wiping it.
+  @Transient()
   List<int> get connectedIds {
     if (connectionIds == null || connectionIds!.isEmpty) return [];
     return connectionIds!

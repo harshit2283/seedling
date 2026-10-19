@@ -181,6 +181,13 @@ class EntryCreatorNotifier extends Notifier<void> {
     ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
   }
 
+  /// Persist an edit made outside the text fields (manual links, a voice
+  /// transcription) and queue it for sync, so it reaches other devices.
+  void saveEdit(Entry entry) {
+    ref.read(databaseProvider).updateEntry(entry);
+    ref.read(syncEngineProvider).queuePush(entry, SyncChangeType.update);
+  }
+
   /// Create a CAPSULE entry (time capsule)
   Future<Entry> createCapsuleEntry(String? text, DateTime unlockDate) async {
     final entry = Entry.capsule(text: text, unlockDate: unlockDate);

@@ -48,16 +48,21 @@ class SyncChange {
   final SyncChangeType changeType;
   final DateTime timestamp;
 
+  /// For deletes: the entry's remote media blob, removed along with it.
+  final String? mediaAssetId;
+
   const SyncChange({
     required this.syncUUID,
     required this.changeType,
     required this.timestamp,
+    this.mediaAssetId,
   });
 
   Map<String, dynamic> toJson() => {
     'syncUUID': syncUUID,
     'changeType': changeType.name,
     'timestamp': timestamp.millisecondsSinceEpoch,
+    if (mediaAssetId != null) 'mediaAssetId': mediaAssetId,
   };
 
   factory SyncChange.fromJson(Map<String, dynamic> json) {
@@ -65,6 +70,7 @@ class SyncChange {
       syncUUID: json['syncUUID'] as String,
       changeType: SyncChangeType.values.byName(json['changeType'] as String),
       timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int),
+      mediaAssetId: json['mediaAssetId'] as String?,
     );
   }
 }

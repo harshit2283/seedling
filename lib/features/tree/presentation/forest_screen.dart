@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
@@ -22,12 +24,12 @@ class ForestScreen extends ConsumerWidget {
 
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
-        backgroundColor: const Color(0xFFF5F5EF),
+        backgroundColor: context.palette.background,
         child: SafeArea(child: content),
       );
     }
 
-    return Scaffold(backgroundColor: const Color(0xFFF5F5EF), body: content);
+    return Scaffold(backgroundColor: context.palette.background, body: content);
   }
 
   Widget _buildEmpty(BuildContext context) {
@@ -42,7 +44,7 @@ class ForestScreen extends ConsumerWidget {
                 'Your forest will appear as the years grow.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
             ),
@@ -66,15 +68,15 @@ class ForestScreen extends ConsumerWidget {
         Text(
           '${latest.year}',
           style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            color: SeedlingColors.textPrimary,
-            fontFamily: 'Georgia',
+            color: context.palette.textPrimary,
+            fontFamily: SeedlingTypography.serifFamily,
             fontWeight: FontWeight.w700,
           ),
         ),
         Text(
           _seasonSubtitle(latest.state),
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: SeedlingColors.warmBrown,
+            color: context.palette.secondary,
             fontStyle: FontStyle.italic,
           ),
         ),
@@ -83,7 +85,7 @@ class ForestScreen extends ConsumerWidget {
           'Tap a year to open its review',
           style: Theme.of(
             context,
-          ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+          ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
         ),
         const SizedBox(height: 22),
         Expanded(
@@ -107,7 +109,7 @@ class ForestScreen extends ConsumerWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(AdaptiveIcons.back, color: SeedlingColors.textPrimary),
+            icon: Icon(AdaptiveIcons.back, color: context.palette.textPrimary),
             tooltip: 'Back',
           ),
           Expanded(
@@ -122,14 +124,12 @@ class ForestScreen extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: Theme.of(context).dividerColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: SeedlingColors.lightBark.withValues(alpha: 0.3),
-                    ),
+                    border: Border.all(color: context.palette.border),
                   ),
                   child: Text(
                     'The Archive',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: SeedlingColors.barkBrown,
+                      color: context.palette.bark,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -140,13 +140,13 @@ class ForestScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFFEAE6DA),
+              color: context.palette.surfaceMuted,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               '$totalLeaves leaves',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: SeedlingColors.barkBrown,
+                color: context.palette.bark,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -192,7 +192,7 @@ class ForestScreen extends ConsumerWidget {
                 child: Text(
                   '${tree.year}',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: SeedlingColors.textPrimary,
+                    color: context.palette.textPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -249,8 +249,8 @@ class ForestScreen extends ConsumerWidget {
                               '${tree.year}',
                               style: TextStyle(
                                 color: isLatest
-                                    ? SeedlingColors.textPrimary
-                                    : SeedlingColors.textMuted,
+                                    ? context.palette.textPrimary
+                                    : context.palette.textMuted,
                                 fontSize: 11,
                                 fontWeight: isLatest
                                     ? FontWeight.w700
@@ -263,7 +263,7 @@ class ForestScreen extends ConsumerWidget {
                               height: 3,
                               decoration: BoxDecoration(
                                 color: isLatest
-                                    ? SeedlingColors.forestGreen
+                                    ? context.palette.primary
                                     : SeedlingColors.lightBark.withValues(
                                         alpha: 0.5,
                                       ),

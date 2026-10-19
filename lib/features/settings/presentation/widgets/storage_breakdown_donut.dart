@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/services/storage/storage_usage_service.dart';
 
 /// Animated donut chart showing storage breakdown by category.
@@ -16,7 +16,7 @@ class StorageBreakdownDonut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final segments = _segmentsFor(usage);
+    final segments = _segmentsFor(usage, context.palette);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 600),
@@ -37,28 +37,19 @@ class StorageBreakdownDonut extends StatelessWidget {
     );
   }
 
-  static List<_DonutSegment> _segmentsFor(StorageUsage usage) {
+  static List<_DonutSegment> _segmentsFor(
+    StorageUsage usage,
+    SeedlingPalette palette,
+  ) {
     final total = usage.totalBytes;
     if (total <= 0) {
       return const [];
     }
     return [
-      _DonutSegment(
-        bytes: usage.photosBytes,
-        color: SeedlingColors.accentPhoto,
-      ),
-      _DonutSegment(
-        bytes: usage.voicesBytes,
-        color: SeedlingColors.accentVoice,
-      ),
-      _DonutSegment(
-        bytes: usage.objectsBytes,
-        color: SeedlingColors.accentObject,
-      ),
-      _DonutSegment(
-        bytes: usage.databaseBytes,
-        color: SeedlingColors.forestGreen,
-      ),
+      _DonutSegment(bytes: usage.photosBytes, color: palette.accentPhoto),
+      _DonutSegment(bytes: usage.voicesBytes, color: palette.accentVoice),
+      _DonutSegment(bytes: usage.objectsBytes, color: palette.accentObject),
+      _DonutSegment(bytes: usage.databaseBytes, color: palette.primary),
     ];
   }
 }
@@ -126,26 +117,27 @@ class StorageBreakdownLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final entries = <_LegendEntry>[
       _LegendEntry(
         label: 'Photos',
         value: usage.photosFormatted,
-        color: SeedlingColors.accentPhoto,
+        color: palette.accentPhoto,
       ),
       _LegendEntry(
         label: 'Voices',
         value: usage.voicesFormatted,
-        color: SeedlingColors.accentVoice,
+        color: palette.accentVoice,
       ),
       _LegendEntry(
         label: 'Objects',
         value: usage.objectsFormatted,
-        color: SeedlingColors.accentObject,
+        color: palette.accentObject,
       ),
       _LegendEntry(
         label: 'Database',
         value: usage.databaseFormatted,
-        color: SeedlingColors.forestGreen,
+        color: palette.primary,
       ),
     ];
     return Column(
@@ -170,14 +162,14 @@ class StorageBreakdownLegend extends StatelessWidget {
                   Text(
                     e.label,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: SeedlingColors.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     e.value,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: SeedlingColors.textPrimary,
+                      color: context.palette.textPrimary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

@@ -174,7 +174,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField), 'just words');
       await tester.pump();
-      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.tap(find.text('Save memory'));
       await tester.pumpAndSettle();
 
       expect(saved, hasLength(1));

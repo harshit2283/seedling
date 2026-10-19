@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/presentation/seedling_iconography.dart';
 import '../../../../core/services/ai/models/memory_theme.dart';
 import '../../domain/review_generator.dart';
@@ -89,15 +90,11 @@ class _ShareableCardState extends State<ShareableCard> {
                     ? [SeedlingColors.surfaceDark, const Color(0xFF1E2E1E)]
                     : [
                         SeedlingColors.creamPaper,
-                        SeedlingColors.paleGreen.withValues(alpha: 0.4),
+                        context.palette.primaryContainer.withValues(alpha: 0.4),
                       ],
               ),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark
-                    ? SeedlingColors.dividerDark
-                    : SeedlingColors.softCream,
-              ),
+              border: Border.all(color: context.palette.divider),
             ),
             child: Column(
               children: [
@@ -105,9 +102,7 @@ class _ShareableCardState extends State<ShareableCard> {
                 Text(
                   '${data.year}',
                   style: theme.textTheme.displayLarge?.copyWith(
-                    color: isDark
-                        ? SeedlingColors.forestGreenDark
-                        : SeedlingColors.forestGreen,
+                    color: context.palette.primary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -116,19 +111,13 @@ class _ShareableCardState extends State<ShareableCard> {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color:
-                        (isDark
-                                ? SeedlingColors.forestGreenDark
-                                : SeedlingColors.forestGreen)
-                            .withValues(alpha: 0.14),
+                    color: (context.palette.primary).withValues(alpha: 0.14),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.park_outlined,
                     size: 38,
-                    color: isDark
-                        ? SeedlingColors.forestGreenDark
-                        : SeedlingColors.forestGreen,
+                    color: context.palette.primary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -144,9 +133,7 @@ class _ShareableCardState extends State<ShareableCard> {
                 Text(
                   '${data.totalEntries} memories planted',
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: isDark
-                        ? SeedlingColors.textSecondaryDark
-                        : SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -159,9 +146,7 @@ class _ShareableCardState extends State<ShareableCard> {
                       Icon(
                         SeedlingIconography.themeIcon(data.dominantTheme!),
                         size: 20,
-                        color: isDark
-                            ? SeedlingColors.textPrimaryDark
-                            : SeedlingColors.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -177,9 +162,7 @@ class _ShareableCardState extends State<ShareableCard> {
                 Text(
                   'Seedling',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: isDark
-                        ? SeedlingColors.textMutedDark
-                        : SeedlingColors.textMuted,
+                    color: context.palette.textMuted,
                     letterSpacing: 2,
                   ),
                 ),

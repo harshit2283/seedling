@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/presentation/seedling_iconography.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
@@ -41,7 +43,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
         border: null,
         middle: const Text('Theme Insights'),
         leading: CupertinoNavigationBarBackButton(
-          color: SeedlingColors.forestGreen,
+          color: context.palette.primary,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -161,7 +163,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
         color:
             Theme.of(context).cardTheme.color ??
             Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: SeedlingRadius.card,
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
@@ -198,7 +200,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
                     Text(
                       sentimentLabel,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: SeedlingColors.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ],
@@ -214,14 +216,14 @@ class ThemeInsightsScreen extends ConsumerWidget {
               '${entriesWithSentiment.length} memories analysed',
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
             ),
           ] else ...[
             const SizedBox(height: 12),
             Text(
               'Capture ${5 - entriesWithSentiment.length} more memories to see your mood arc.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
           ],
@@ -266,7 +268,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
                   ? CupertinoIcons.chart_pie
                   : Icons.pie_chart_outline,
               size: 64,
-              color: SeedlingColors.textMuted,
+              color: context.palette.textMuted,
             ),
             const SizedBox(height: 16),
             Text(
@@ -277,7 +279,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
             Text(
               'Start capturing memories to see\ntheme insights here.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -294,7 +296,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
         color:
             Theme.of(context).cardTheme.color ??
             Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: SeedlingRadius.card,
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
@@ -306,14 +308,16 @@ class ThemeInsightsScreen extends ConsumerWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: SeedlingColors.paleGreen.withValues(alpha: 0.5),
+                  color: context.palette.primaryContainer.withValues(
+                    alpha: 0.5,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   PlatformUtils.isIOS
                       ? CupertinoIcons.chart_pie
                       : Icons.pie_chart,
-                  color: SeedlingColors.forestGreen,
+                  color: context.palette.primary,
                   size: 24,
                 ),
               ),
@@ -331,7 +335,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
                     Text(
                       '${stats.entriesPerWeek.toStringAsFixed(1)} per week average',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: SeedlingColors.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ],
@@ -348,7 +352,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
                 Text(
                   'Most captured theme:',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -426,7 +430,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
               Text(
                 '$count (${(percentage * 100).toStringAsFixed(0)}%)',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
             ],
@@ -459,9 +463,9 @@ class ThemeInsightsScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: SeedlingColors.paleGreen.withValues(alpha: 0.2),
+        color: context.palette.primaryContainer.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: SeedlingColors.paleGreen),
+        border: Border.all(color: context.palette.primaryContainer),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,14 +476,14 @@ class ThemeInsightsScreen extends ConsumerWidget {
                 PlatformUtils.isIOS
                     ? CupertinoIcons.lightbulb
                     : Icons.lightbulb_outline,
-                color: SeedlingColors.forestGreen,
+                color: context.palette.primary,
                 size: 20,
               ),
               const SizedBox(width: 8),
               Text(
                 'Consider capturing more:',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: SeedlingColors.forestGreen,
+                  color: context.palette.primary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -498,7 +502,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
                 ),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: SeedlingRadius.card,
                   border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Row(

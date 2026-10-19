@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import 'settings_helpers.dart';
 
@@ -22,7 +23,7 @@ class MemoriesSection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.tree,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Year in Review'),
             subtitle: Text('$reviewYear'),

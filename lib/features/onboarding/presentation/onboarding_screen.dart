@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/providers.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/typography.dart';
 
 /// Data model for a single onboarding panel.
 class _OnboardingPanel {
@@ -182,21 +184,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
-    final backgroundColor = isDark
-        ? SeedlingColors.backgroundDark
-        : SeedlingColors.creamPaper;
-    final textColor = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final subtitleColor = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final mutedColor = isDark
-        ? SeedlingColors.textMutedDark
-        : SeedlingColors.textMuted;
-    final accentColor = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final backgroundColor = context.palette.background;
+    final textColor = context.palette.textPrimary;
+    final subtitleColor = context.palette.textSecondary;
+    final mutedColor = context.palette.textMuted;
+    final accentColor = context.palette.primary;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -253,9 +245,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                                 panel.title,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontFamily: Platform.isIOS
-                                      ? '.AppleSystemUIFont'
-                                      : 'Georgia',
+                                  fontFamily: SeedlingTypography.serifFamily,
                                   fontSize: 28,
                                   fontWeight: FontWeight.w400,
                                   letterSpacing: -0.25,
@@ -301,7 +291,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                               ],
                               if (isLastPanel) ...[
                                 const SizedBox(height: 48),
-                                _buildActionButton(accentColor),
+                                _buildActionButton(context.palette.primaryFill),
                                 const SizedBox(height: 8),
                                 _QuietTextButton(
                                   label: 'Not now',
@@ -331,6 +321,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                     button: true,
                     selected: isActive,
                     label: 'Page ${index + 1} of ${_panels.length}',
+                    onTap: () => _goToPage(index),
                     excludeSemantics: true,
                     child: GestureDetector(
                       key: ValueKey('onboarding-dot-$index'),
@@ -374,7 +365,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     required bool isDark,
   }) {
     const hint = 'e.g. When I make my morning coffee';
-    final fill = isDark ? SeedlingColors.cardDark : SeedlingColors.warmWhite;
+    final fill = context.palette.surfaceMuted;
     if (Platform.isIOS) {
       return CupertinoTextField(
         key: const ValueKey('onboarding-intention'),
@@ -438,7 +429,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: accentColor,
-        foregroundColor: Colors.white,
+        foregroundColor: context.palette.onPrimaryFill,
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 0,
@@ -493,9 +484,7 @@ class _OnboardingHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseBorder = isDark
-        ? SeedlingColors.dividerDark
-        : SeedlingColors.softCream;
+    final baseBorder = context.palette.divider;
 
     return SizedBox(
       width: 196,
@@ -512,7 +501,7 @@ class _OnboardingHero extends StatelessWidget {
                 colors: panel.glowColors
                     .map(
                       (color) => isDark
-                          ? Color.lerp(color, Colors.black, 0.55)!
+                          ? Color.lerp(color, context.palette.background, 0.7)!
                           : color,
                     )
                     .toList(),
@@ -532,7 +521,7 @@ class _OnboardingHero extends StatelessWidget {
                 border: Border.all(color: baseBorder),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.08),
+                    color: context.palette.shadow,
                     blurRadius: 24,
                     offset: const Offset(0, 14),
                   ),
