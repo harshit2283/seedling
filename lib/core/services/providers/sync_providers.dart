@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 import '../security/secure_storage.dart';
 import '../sync/cloudkit_sync_service.dart';
 import '../sync/google_drive_sync_service.dart';
@@ -10,6 +11,7 @@ import '../sync/sync_crypto_service.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_metadata.dart';
 import '../sync/sync_models.dart';
+import '../sync/sync_quarantine.dart';
 import '../../constants/prefs_keys.dart';
 import 'database_providers.dart';
 import 'media_providers.dart';
@@ -150,14 +152,20 @@ final syncAccountConnectedProvider = FutureProvider<bool>((ref) async {
 /// Provider for the sync engine.
 final syncEngineProvider = Provider<SyncEngine>((ref) {
   final fileStorage = ref.watch(fileStorageServiceProvider);
+  final metadata = ref.watch(syncMetadataProvider);
   final engine = SyncEngine(
     database: ref.watch(databaseProvider),
     backend: ref.watch(syncBackendProvider),
-    metadata: ref.watch(syncMetadataProvider),
+    metadata: metadata,
     cryptoService: ref.watch(syncCryptoServiceProvider),
     mediaBasePath: fileStorage.basePath,
     // Nothing (records or media) touches the network before the opt-in.
     networkAllowed: () => ref.read(cloudSyncEnabledProvider),
+    quarantine: SyncQuarantine(
+      directory: getApplicationSupportDirectory,
+      namespace: ref.watch(syncProviderTypeProvider).name,
+      legacyMetadata: metadata,
+    ),
   );
   ref.onDispose(() => engine.dispose());
   return engine;

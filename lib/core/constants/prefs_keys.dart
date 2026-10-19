@@ -46,6 +46,10 @@ class PrefsKeys {
   static const String syncQuarantine = 'sync_quarantine';
   // Fingerprint of the key the last full upload was done with.
   static const String syncKeyFingerprint = 'sync_key_fingerprint';
+  // Asset ids reserved for unfinished media uploads (syncUUID -> asset id).
+  static const String syncPendingMedia = 'sync_pending_media';
+  // Last remote housekeeping run (orphan blobs, idle device logs).
+  static const String syncLastMaintenance = 'sync_last_maintenance';
 
   // Google Drive sync
   static const String syncGDriveLockedAccount = 'sync_gdrive_locked_account';

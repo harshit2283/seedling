@@ -6,16 +6,18 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/security/at_rest_encryption_service.dart';
-import 'package:seedling/core/services/sync/drive_sync_log.dart';
 import 'package:seedling/core/services/sync/google_drive_sync_service.dart';
 import 'package:seedling/core/services/sync/sync_backend.dart';
 import 'package:seedling/core/services/sync/sync_crypto_service.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_metadata.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
+import 'package:seedling/core/services/sync/sync_quarantine.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/memory_file_store.dart';
 
 class _FakeSession extends Fake implements SyncEncryptionSession {}
 
@@ -29,6 +31,13 @@ class _FakeCrypto extends Fake implements SyncCryptoService {
   @override
   Future<bool> matchesKeyring(Map<String, dynamic> keyring) async =>
       keyMatchesKeyring;
+
+  Map<String, dynamic>? ownKeyring = {
+    'kdfSalt': 'c2FsdHNhbHRzYWx0c2FsdA==',
+    'check': 'ok',
+  };
+  @override
+  Future<Map<String, dynamic>?> keyringForCurrentKey() async => ownKeyring;
 
   String fingerprint = 'key-1';
   @override
@@ -64,7 +73,7 @@ class _FakeCrypto extends Fake implements SyncCryptoService {
   }
 }
 
-class _MemoryBackend implements SyncBackend {
+class _MemoryBackend extends SyncBackend {
   final saved = <Map<String, dynamic>>[];
   final deleted = <String>[];
   var fetchCalls = 0;
@@ -102,6 +111,7 @@ class _MemoryBackend implements SyncBackend {
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async {
     await hang?.future;
     fetchCalls++;
+    if (returnNullFetch) return null;
     final error = fetchError;
     if (error != null) {
       fetchError = null;
@@ -126,13 +136,52 @@ class _MemoryBackend implements SyncBackend {
   }
 
   @override
-  Future<Map<String, dynamic>> publishKeyring(Map<String, dynamic> k) async =>
-      keyring ??= k;
+  Future<Map<String, dynamic>> publishKeyring(Map<String, dynamic> k) async {
+    // Same rules as DriveSyncLogStore.publishKeyring.
+    final existing = keyring;
+    if (existing == null ||
+        (existing['check'] == null && existing['kdfSalt'] == k['kdfSalt'])) {
+      keyring = k;
+    }
+    return keyring!;
+  }
+
   final blobs = <String, List<int>>{};
   final blobDeletes = <String>[];
   var blobUploads = 0;
+  final uploadCalls = <({String assetId, bool replace})>[];
+  Object? uploadError;
+  final orphanCalls = <Set<String>>[];
+  List<String> idle = const [];
+  final deletedDeviceLogs = <String>[];
+  var returnNullFetch = false;
+
   @override
-  Future<void> uploadMediaBlob(String assetId, File ciphertext) async {
+  Future<int> deleteOrphanMediaBlobs(Set<String> referenced) async {
+    orphanCalls.add(referenced);
+    return 0;
+  }
+
+  @override
+  Future<List<String>> idleDeviceIds(Duration idle) async => this.idle;
+
+  @override
+  Future<void> deleteDeviceLogs(List<String> deviceIds) async {
+    deletedDeviceLogs.addAll(deviceIds);
+  }
+
+  @override
+  Future<void> uploadMediaBlob(
+    String assetId,
+    File ciphertext, {
+    bool replace = false,
+  }) async {
+    uploadCalls.add((assetId: assetId, replace: replace));
+    final error = uploadError;
+    if (error != null) {
+      uploadError = null;
+      throw error;
+    }
     blobUploads++;
     blobs[assetId] = await ciphertext.readAsBytes();
   }
@@ -155,52 +204,6 @@ class _MemoryBackend implements SyncBackend {
   Future<bool> connect() async => true;
   @override
   Future<void> disconnect() async {}
-}
-
-class _MemoryDrive implements DriveFileStore {
-  final _files = <String, ({String name, List<int> bytes})>{};
-  var _nextId = 0;
-
-  @override
-  Future<List<DriveFileInfo>> listByPrefix(String prefix) async {
-    await Future<void>.delayed(Duration.zero);
-    return [
-      for (final MapEntry(:key, :value) in _files.entries)
-        if (value.name.startsWith(prefix))
-          DriveFileInfo(id: key, name: value.name),
-    ];
-  }
-
-  @override
-  Future<List<int>?> read(String fileId) async => _files[fileId]?.bytes;
-
-  @override
-  Future<String> create(String name, List<int> bytes) async {
-    await Future<void>.delayed(Duration.zero);
-    final id = 'f${_nextId++}';
-    _files[id] = (name: name, bytes: bytes);
-    return id;
-  }
-
-  @override
-  Future<void> overwrite(String fileId, List<int> bytes) async {
-    await Future<void>.delayed(Duration.zero);
-    _files[fileId] = (name: _files[fileId]!.name, bytes: bytes);
-  }
-
-  @override
-  Future<String> createFromFile(String name, File source) async =>
-      create(name, await source.readAsBytes());
-
-  @override
-  Future<void> downloadTo(String fileId, File target) async {
-    await target.writeAsBytes(_files[fileId]!.bytes);
-  }
-
-  @override
-  Future<void> delete(String fileId) async {
-    _files.remove(fileId);
-  }
 }
 
 Map<String, dynamic> _record(
@@ -436,7 +439,7 @@ void main() {
 
   test('two devices converge through Google Drive logs', () async {
     if (skip()) return;
-    final drive = _MemoryDrive();
+    final drive = MemoryFileStore();
     final dirB = await Directory.systemTemp.createTemp('sync_store_b');
     final dbB = await ObjectBoxDatabase.openForTesting(
       directory: dirB.path,
@@ -757,7 +760,7 @@ void main() {
     expect(db!.getAllEntries().map((x) => x.text), ['fine']);
     // The token moves on: one bad record can't wedge sync forever.
     expect(metadata.changeToken, 't2');
-    expect(metadata.quarantineCount, 1);
+    expect(e.quarantineCount, 1);
     expect(metadata.lastError, contains("couldn't be decrypted"));
 
     // Once the key is fixed, the quarantined record is retried and merged.
@@ -765,7 +768,7 @@ void main() {
     backend.nextFetch = const SyncFetchResult(records: [], deletedUUIDs: []);
     await e.pull();
     expect(db!.getAllEntries().map((x) => x.text).toSet(), {'fine', 'forged'});
-    expect(metadata.quarantineCount, 0);
+    expect(e.quarantineCount, 0);
     e.dispose();
   });
 
@@ -829,6 +832,191 @@ void main() {
     await e.init();
     expect(backend.saved.map((r) => r['syncUUID']), [a.syncUUID]);
     e.dispose();
+  });
+
+  group('review round 3', () {
+    SyncEngine engineWith(_FakeCrypto crypto, {SyncQuarantine? quarantine}) =>
+        SyncEngine(
+          database: db!,
+          backend: backend,
+          metadata: metadata,
+          cryptoService: crypto,
+          quarantine: quarantine,
+        );
+
+    test(
+      'a re-uploaded copy replaces a quarantined one (same modifiedAt)',
+      () async {
+        if (skip()) return;
+        final crypto = _FakeCrypto()..undecryptable.add('under the old key');
+        final e = engineWith(crypto);
+        const uuid = '77777777-8888-4999-8aaa-bbbbbbbbbbbb';
+        final t = DateTime(2026, 5, 1);
+        backend.nextFetch = SyncFetchResult(
+          records: [_record(uuid, modifiedAt: t, text: 'under the old key')],
+          deletedUUIDs: const [],
+          newChangeToken: 't1',
+        );
+        await e.pull();
+        expect(e.quarantineCount, 1);
+
+        // The writer re-keyed and re-uploaded the same version (modifiedAt
+        // unchanged). Before: the tie kept the bad copy and dropped this one.
+        backend.nextFetch = SyncFetchResult(
+          records: [_record(uuid, modifiedAt: t, text: 'readable again')],
+          deletedUUIDs: const [],
+          newChangeToken: 't2',
+        );
+        await e.pull();
+        expect(db!.getAllEntries().map((x) => x.text), ['readable again']);
+        expect(e.quarantineCount, 0);
+        expect(metadata.changeToken, 't2');
+        e.dispose();
+      },
+    );
+
+    test('a forged far-future copy cannot hide the genuine one', () async {
+      if (skip()) return;
+      final crypto = _FakeCrypto()..undecryptable.add('forged');
+      final e = engineWith(crypto);
+      const uuid = '88888888-9999-4aaa-8bbb-cccccccccccc';
+      backend.nextFetch = SyncFetchResult(
+        records: [
+          _record(uuid, modifiedAt: DateTime(2099), text: 'forged'),
+          _record(uuid, modifiedAt: DateTime(2026, 5, 1), text: 'genuine'),
+        ],
+        deletedUUIDs: const [],
+      );
+      await e.pull();
+      expect(db!.getAllEntries().map((x) => x.text), ['genuine']);
+      e.dispose();
+    });
+
+    test('no push without a verifiable keyring', () async {
+      if (skip()) return;
+      // A fixed-salt key can't recreate a missing keyring: block.
+      final crypto = _FakeCrypto()..ownKeyring = null;
+      final e = engineWith(crypto);
+      final entry = await db!.saveEntry(Entry.line(text: 'x'));
+      e.queuePush(entry, SyncChangeType.create);
+      expect((await e.push()).success, isFalse);
+      expect(backend.saved, isEmpty);
+      e.dispose();
+    });
+
+    test('a keyring without a key check gets one (same salt)', () async {
+      if (skip()) return;
+      final crypto = _FakeCrypto();
+      backend.keyring = {'kdfSalt': crypto.ownKeyring!['kdfSalt']};
+      final e = engineWith(crypto);
+      final entry = await db!.saveEntry(Entry.line(text: 'x'));
+      e.queuePush(entry, SyncChangeType.create);
+      expect((await e.push()).success, isTrue);
+      expect(backend.keyring!['check'], 'ok');
+      e.dispose();
+    });
+
+    test('a not-connected pull is not a successful pull', () async {
+      if (skip()) return;
+      backend.returnNullFetch = true;
+      final result = await engine.pull();
+      expect(result.success, isFalse);
+      final entry = await db!.saveEntry(Entry.line(text: 'x'));
+      engine.queuePush(entry, SyncChangeType.create);
+      expect((await engine.push()).success, isFalse);
+    });
+
+    test('an interrupted media upload is retried under the same id', () async {
+      if (skip()) return;
+      final media = await Directory.systemTemp.createTemp('media_r3');
+      try {
+        final file = File('${media.path}/photos/p.jpg')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(List<int>.filled(1000, 7));
+        final e = SyncEngine(
+          database: db!,
+          backend: backend,
+          metadata: metadata,
+          cryptoService: _FakeCrypto(),
+          mediaBasePath: media.path,
+        );
+        final entry = await db!.saveEntry(Entry.photo(mediaPath: file.path));
+        e.queuePush(entry, SyncChangeType.create);
+        backend.uploadError = const SocketException('dropped');
+        expect((await e.push()).success, isFalse);
+        expect((await e.push()).success, isTrue);
+        expect(backend.uploadCalls, hasLength(2));
+        expect(backend.uploadCalls[1].assetId, backend.uploadCalls[0].assetId);
+        expect(backend.uploadCalls[1].replace, isTrue);
+        expect(backend.blobs.keys, [backend.uploadCalls[0].assetId]);
+        expect(metadata.pendingMediaUploads, isEmpty);
+        e.dispose();
+      } finally {
+        await media.delete(recursive: true);
+      }
+    });
+
+    test(
+      'housekeeping: orphan blobs and idle logs after a full re-upload',
+      () async {
+        if (skip()) return;
+        final e = engineWith(_FakeCrypto());
+        final a = await db!.saveEntry(
+          Entry.line(text: 'a')
+            ..mediaAssetId = '99999999-aaaa-4bbb-8ccc-dddddddddddd',
+        );
+        backend.idle = ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'];
+        await e.pull();
+        // Let the background housekeeping finish.
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(backend.orphanCalls.single, contains(a.mediaAssetId));
+        expect(backend.saved.map((r) => r['syncUUID']), contains(a.syncUUID));
+        expect(backend.deletedDeviceLogs, [
+          'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        ]);
+        // At most daily.
+        await e.pull();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(backend.orphanCalls, hasLength(1));
+        e.dispose();
+      },
+    );
+
+    test(
+      'quarantine lives in a file, migrates from prefs, writes on change',
+      () async {
+        if (skip()) return;
+        final stateDir = await Directory.systemTemp.createTemp('quarantine');
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(
+            'sync_quarantine_test',
+            '[{"syncUUID":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee","x":1}]',
+          );
+          final q = SyncQuarantine(
+            directory: () async => stateDir,
+            namespace: 'test',
+            legacyMetadata: metadata,
+          );
+          expect(await q.records(), hasLength(1));
+          expect(prefs.getString('sync_quarantine_test'), isNull);
+          final file = File('${stateDir.path}/sync_state/quarantine_test.json');
+          expect(file.existsSync(), isTrue);
+          final stamp = file.lastModifiedSync();
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          await q.replace(await q.records()); // unchanged: no rewrite
+          expect(file.lastModifiedSync(), stamp);
+          // Survives a restart.
+          final reopened = SyncQuarantine(
+            directory: () async => stateDir,
+            namespace: 'test',
+          );
+          expect(await reopened.records(), hasLength(1));
+        } finally {
+          await stateDir.delete(recursive: true);
+        }
+      },
+    );
   });
 
   test('first enable uploads existing entries', () async {

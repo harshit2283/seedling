@@ -124,42 +124,61 @@ class SyncMetadata {
     await _savePendingChanges(current);
   }
 
-  /// Records that could not be decrypted or authenticated (wrong or stale
-  /// key, damaged or forged data). Kept so they can be retried after the
-  /// passphrase is re-entered, without blocking the rest of the pull.
-  static const maxQuarantined = 500;
-
-  List<Map<String, dynamic>> get quarantinedRecords {
+  /// Quarantine as stored by earlier builds (SharedPreferences). Returned
+  /// once and removed; SyncQuarantine keeps it in a file now.
+  Future<List<Map<String, dynamic>>> takeLegacyQuarantine() async {
     final raw = _prefs.getString(_key(PrefsKeys.syncQuarantine));
-    if (raw == null || raw.isEmpty) return [];
+    if (raw == null) return const [];
+    await _prefs.remove(_key(PrefsKeys.syncQuarantine));
     try {
       return [
         for (final r in jsonDecode(raw) as List<dynamic>)
           Map<String, dynamic>.from(r as Map),
       ];
     } catch (_) {
-      return [];
+      return const [];
     }
   }
 
-  int get quarantineCount => quarantinedRecords.length;
+  /// Asset ids reserved for media uploads that haven't completed, by entry
+  /// syncUUID. A retry reuses the id (replacing any partial blob) instead of
+  /// leaving an orphan behind under a new id.
+  Map<String, String> get pendingMediaUploads {
+    final raw = _prefs.getString(_key(PrefsKeys.syncPendingMedia));
+    if (raw == null) return {};
+    try {
+      return (jsonDecode(raw) as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, v as String),
+      );
+    } catch (_) {
+      return {};
+    }
+  }
 
-  /// Replaces the quarantine with [records] (newest per syncUUID, capped).
-  Future<void> setQuarantinedRecords(List<Map<String, dynamic>> records) async {
-    if (records.isEmpty) {
-      await _prefs.remove(_key(PrefsKeys.syncQuarantine));
-      return;
+  Future<void> setPendingMediaUpload(String syncUUID, String? assetId) async {
+    final current = pendingMediaUploads;
+    if (assetId == null) {
+      if (current.remove(syncUUID) == null) return;
+    } else {
+      current[syncUUID] = assetId;
     }
-    final byUUID = <String, Map<String, dynamic>>{};
-    for (final r in records) {
-      final id = r['syncUUID'];
-      if (id is String) byUUID[id] = r;
-    }
-    var kept = byUUID.values.toList();
-    if (kept.length > maxQuarantined) {
-      kept = kept.sublist(kept.length - maxQuarantined);
-    }
-    await _prefs.setString(_key(PrefsKeys.syncQuarantine), jsonEncode(kept));
+    await _prefs.setString(
+      _key(PrefsKeys.syncPendingMedia),
+      jsonEncode(current),
+    );
+  }
+
+  /// When remote housekeeping (orphan blobs, idle logs) last ran.
+  DateTime? get lastMaintenanceAt {
+    final ms = _prefs.getInt(_key(PrefsKeys.syncLastMaintenance));
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> setLastMaintenanceAt(DateTime at) async {
+    await _prefs.setInt(
+      _key(PrefsKeys.syncLastMaintenance),
+      at.millisecondsSinceEpoch,
+    );
   }
 
   /// Fingerprint of the sync key last used to push (see
@@ -299,6 +318,8 @@ class SyncMetadata {
     await _prefs.remove(_key(PrefsKeys.syncFormatVersion));
     await _prefs.remove(_key(PrefsKeys.syncQuarantine));
     await _prefs.remove(_key(PrefsKeys.syncKeyFingerprint));
+    await _prefs.remove(_key(PrefsKeys.syncPendingMedia));
+    await _prefs.remove(_key(PrefsKeys.syncLastMaintenance));
     await setLastError(null);
   }
 }
