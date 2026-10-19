@@ -14,6 +14,7 @@ import '../../../../core/services/backup/backup_restore_service.dart';
 import '../../../../core/services/export/export_service.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/storage/storage_usage_service.dart';
+import '../../../../core/widgets/feedback/seedling_toast.dart';
 import 'settings_helpers.dart';
 
 /// Settings section for export, import, storage, and tree rebuild.
@@ -65,6 +66,19 @@ class _DataSectionState extends ConsumerState<DataSection> {
           CupertinoListTile(
             leading: buildSettingsIconBox(
               context,
+              CupertinoIcons.doc_text,
+              SeedlingColors.forestGreen,
+            ),
+            title: const Text('Export as Markdown'),
+            subtitle: const Text('Readable files, opens in Obsidian'),
+            trailing: _isExporting
+                ? const CupertinoActivityIndicator()
+                : const CupertinoListTileChevron(),
+            onTap: _isExporting ? null : _exportMarkdown,
+          ),
+          CupertinoListTile(
+            leading: buildSettingsIconBox(
+              context,
               AdaptiveIcons.lock,
               SeedlingColors.forestGreen,
             ),
@@ -100,6 +114,19 @@ class _DataSectionState extends ConsumerState<DataSection> {
                 ? const CupertinoActivityIndicator()
                 : const CupertinoListTileChevron(),
             onTap: _isExporting ? null : _importZipArchive,
+          ),
+          CupertinoListTile(
+            leading: buildSettingsIconBox(
+              context,
+              CupertinoIcons.tray_arrow_down,
+              SeedlingColors.forestGreen,
+            ),
+            title: const Text('Import from Day One / Markdown'),
+            subtitle: const Text('Day One JSON or Markdown export (.zip)'),
+            trailing: _isExporting
+                ? const CupertinoActivityIndicator()
+                : const CupertinoListTileChevron(),
+            onTap: _isExporting ? null : _importJournal,
           ),
           CupertinoListTile(
             leading: buildSettingsIconBox(
@@ -141,6 +168,14 @@ class _DataSectionState extends ConsumerState<DataSection> {
         ),
         buildMaterialActionTile(
           context,
+          icon: Icons.description_outlined,
+          title: 'Export as Markdown',
+          subtitle: 'Readable files, opens in Obsidian',
+          onTap: _exportMarkdown,
+          isLoading: _isExporting,
+        ),
+        buildMaterialActionTile(
+          context,
           icon: AdaptiveIcons.lock,
           title: 'Encrypted Backup',
           subtitle: 'Password-protected .seedling file',
@@ -161,6 +196,14 @@ class _DataSectionState extends ConsumerState<DataSection> {
           title: 'Import Archive (ZIP)',
           subtitle: 'Restore from .zip export',
           onTap: _importZipArchive,
+          isLoading: _isExporting,
+        ),
+        buildMaterialActionTile(
+          context,
+          icon: Icons.move_to_inbox_outlined,
+          title: 'Import from Day One / Markdown',
+          subtitle: 'Day One JSON or Markdown export (.zip)',
+          onTap: _importJournal,
           isLoading: _isExporting,
         ),
         buildMaterialActionTile(
@@ -344,6 +387,195 @@ class _DataSectionState extends ConsumerState<DataSection> {
         setState(() => _isExporting = false);
       }
     }
+  }
+
+  Future<void> _exportMarkdown() async {
+    HapticFeedback.selectionClick();
+    final authorized = await authorizeSensitiveAction(
+      ref,
+      context,
+      'Authenticate to export your memories',
+    );
+    if (!authorized || !mounted) return;
+    final shareOrigin = shareSheetOriginRect(context);
+    setState(() => _isExporting = true);
+
+    try {
+      final entries = ref.read(allEntriesProvider);
+      final exportService = ref.read(exportServiceProvider);
+      final fileStorage = ref.read(fileStorageServiceProvider);
+      final result = await exportService.exportToMarkdown(
+        entries,
+        fileStorage.basePath,
+      );
+      if (!mounted) return;
+      if (result.success && result.filePath != null) {
+        await exportService.shareAndDelete(
+          result.filePath!,
+          subject: 'Seedling Memories (Markdown)',
+          sharePositionOrigin: shareOrigin,
+        );
+        if (!mounted) return;
+        showSeedlingMessage(context, 'Markdown export ready to share');
+      } else {
+        showSeedlingMessage(
+          context,
+          result.error ?? 'Export failed',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showSeedlingMessage(context, 'Export failed', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  /// Imports a Day One JSON export or a Seedling Markdown export: parse,
+  /// show what would be added, then merge (never overwriting).
+  Future<void> _importJournal() async {
+    HapticFeedback.selectionClick();
+    final authorized = await authorizeSensitiveAction(
+      ref,
+      context,
+      'Authenticate to import memories',
+    );
+    if (!authorized) return;
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['zip'],
+      withData: false,
+    );
+    final path = picked?.files.single.path;
+    if (path == null || path.isEmpty || !mounted) return;
+
+    setState(() => _isExporting = true);
+    final exportService = ref.read(exportServiceProvider);
+    JournalImport? journal;
+    try {
+      journal = await exportService.loadJournalArchive(path);
+      if (!mounted) return;
+      final service = BackupRestoreService(
+        database: ref.read(databaseProvider),
+        fileStorage: ref.read(fileStorageServiceProvider),
+      );
+      final preview = service.preview(journal.backup);
+      if (preview.newEntries == 0) {
+        showSeedlingMessage(
+          context,
+          preview.total == 0
+              ? 'No memories found in this file'
+              : 'Everything in this file is already in Seedling',
+        );
+        return;
+      }
+
+      final confirmed = await _confirmJournalImport(
+        context,
+        journal: journal,
+        preview: preview,
+      );
+      if (!confirmed || !mounted) return;
+
+      final result = await service.restore(
+        journal.backup,
+        mode: BackupImportMode.merge,
+      );
+      if (!mounted) return;
+      if (result.success) {
+        HapticFeedback.lightImpact();
+        await _showImportRecap(context, result);
+      } else {
+        showSeedlingMessage(
+          context,
+          result.error ?? 'Import failed',
+          isError: true,
+        );
+      }
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      showSeedlingMessage(
+        context,
+        e.message.isEmpty ? 'This file could not be read' : e.message,
+        isError: true,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showSeedlingMessage(context, 'Import failed', isError: true);
+    } finally {
+      if (journal != null) {
+        await exportService.discardJournalImport(journal);
+      }
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  Future<bool> _confirmJournalImport(
+    BuildContext context, {
+    required JournalImport journal,
+    required ImportPreview preview,
+  }) async {
+    final sourceName = journal.source == JournalImportSource.dayOne
+        ? 'Day One'
+        : 'Markdown';
+    final lines = <String>[
+      '${preview.total} ${preview.total == 1 ? 'memory' : 'memories'} '
+          'found in this $sourceName export.',
+      if (preview.duplicates > 0)
+        '${preview.duplicates} already in Seedling will be skipped.',
+      if (preview.mediaFiles > 0)
+        '${preview.mediaFiles} photos and voice memos come along.',
+      if (journal.skipped > 0)
+        '${journal.skipped} could not be read and will be left out.',
+      'Nothing you already have is changed.',
+    ];
+    final title =
+        'Import ${preview.newEntries} '
+        '${preview.newEntries == 1 ? 'memory' : 'memories'}?';
+    final content = lines.join('\n');
+
+    if (PlatformUtils.isIOS) {
+      final result = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: Text(title),
+          content: Text(content),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Import'),
+            ),
+          ],
+        ),
+      );
+      return result ?? false;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Future<void> _recountTrees() async {
@@ -590,6 +822,8 @@ class _DataSectionState extends ConsumerState<DataSection> {
         return 'legacy backup integrity not verified';
       case 'missing_media':
         return 'some media files were missing';
+      case 'unsupported_media':
+        return 'videos and PDFs were not imported';
       default:
         return warningCode;
     }
