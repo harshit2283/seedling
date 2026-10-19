@@ -18,7 +18,7 @@ import '../domain/tree_personality.dart';
 import 'animated_tree_visualization.dart';
 import 'widgets/empty_state.dart';
 import 'widgets/backup_reminder_card.dart';
-import 'widgets/on_this_day_card.dart';
+import 'widgets/from_your_tree_card.dart';
 import 'widgets/recent_entry_preview.dart';
 
 /// Main home screen showing the tree and recent memories
@@ -281,7 +281,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 ),
               ],
               const SizedBox(height: 14),
-              const OnThisDayCard(),
+              const FromYourTreeCard(),
               const SizedBox(height: 10),
               const BackupReminderCard(),
               const SizedBox(height: 18),

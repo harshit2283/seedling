@@ -83,6 +83,24 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
               trailing: const CupertinoListTileChevron(),
               onTap: _pickReminderTime,
             ),
+          CupertinoListTile(
+            leading: buildSettingsIconBox(
+              context,
+              CupertinoIcons.leaf_arrow_circlepath,
+              SeedlingColors.forestGreen,
+            ),
+            title: const Text('A memory from your tree'),
+            subtitle: const Text('Once a week, a quiet nudge to look back'),
+            trailing: CupertinoSwitch(
+              value: ref.watch(resurfaceNotificationsEnabledProvider),
+              activeTrackColor: SeedlingColors.forestGreen,
+              onChanged: (value) {
+                ref
+                    .read(resurfaceNotificationsEnabledProvider.notifier)
+                    .setEnabled(value);
+              },
+            ),
+          ),
         ],
       );
     }
@@ -131,6 +149,18 @@ class _PromptsSectionState extends ConsumerState<PromptsSection> {
             ),
             onTap: _pickReminderTime,
           ),
+        buildMaterialSwitchTile(
+          context,
+          icon: Icons.history_toggle_off,
+          title: 'A memory from your tree',
+          subtitle: 'Once a week, a quiet nudge to look back',
+          value: ref.watch(resurfaceNotificationsEnabledProvider),
+          onChanged: (value) {
+            ref
+                .read(resurfaceNotificationsEnabledProvider.notifier)
+                .setEnabled(value);
+          },
+        ),
       ],
     );
   }

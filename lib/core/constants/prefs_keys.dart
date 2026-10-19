@@ -69,6 +69,12 @@ class PrefsKeys {
   // On This Day card (day-keyed dismissal)
   static const String onThisDayDismissedDate = 'on_this_day_dismissed_date';
 
+  // "From your tree" resurfacing card (day-keyed dismissal) and its
+  // opt-in weekly notification.
+  static const String resurfaceDismissedDate = 'resurface_dismissed_date';
+  static const String resurfaceNotificationsEnabled =
+      'resurface_notifications_enabled';
+
   // Support invitation (shown at most once, ever)
   static const String supportInvitationShown = 'support_invitation_shown';
 }

@@ -217,6 +217,85 @@ class GentleReminderService {
     );
   }
 
+  static const _resurfaceNotificationId = 7002;
+
+  /// Lock-screen-safe resurfacing copy. Deliberately generic: no memory text,
+  /// title or date ever appears outside the app.
+  static const String resurfaceNotificationTitle =
+      'A memory is waiting for you';
+  static const String resurfaceNotificationBody =
+      'Something from your tree, whenever you have a quiet moment.';
+
+  /// Schedules (or cancels) the opt-in weekly resurfacing nudge. It repeats
+  /// weekly at the same day and time; it is only scheduled while [enabled]
+  /// and while the tree actually has a memory to bring back ([hasMemory]).
+  Future<void> scheduleResurfacingNudge({
+    required bool enabled,
+    required bool hasMemory,
+    DateTime? now,
+  }) async {
+    await init();
+    await _plugin.cancel(_resurfaceNotificationId);
+    if (!enabled || !hasMemory) return;
+    await _requestPermissionOnce();
+
+    final next = computeNextResurfaceDate(now ?? DateTime.now());
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'seedling_resurfacing',
+        'Memories from your tree',
+        channelDescription: 'An occasional nudge to revisit a past memory',
+        importance: Importance.low,
+        priority: Priority.low,
+        visibility: NotificationVisibility.private,
+      ),
+      iOS: DarwinNotificationDetails(
+        interruptionLevel: InterruptionLevel.passive,
+      ),
+    );
+
+    await _plugin.zonedSchedule(
+      _resurfaceNotificationId,
+      resurfaceNotificationTitle,
+      resurfaceNotificationBody,
+      tz.TZDateTime.from(next, tz.local),
+      details,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+    );
+  }
+
+  /// The next Sunday at 10:00 strictly after [now]: a slow, unhurried moment
+  /// of the week, well outside any quiet hours.
+  static DateTime computeNextResurfaceDate(
+    DateTime now, {
+    int weekday = DateTime.sunday,
+    int hour = 10,
+    int minute = 0,
+  }) {
+    var candidate = DateTime(now.year, now.month, now.day, hour, minute);
+    final daysAhead = (weekday - now.weekday) % 7;
+    candidate = DateTime(
+      candidate.year,
+      candidate.month,
+      candidate.day + daysAhead,
+      hour,
+      minute,
+    );
+    if (!candidate.isAfter(now)) {
+      candidate = DateTime(
+        candidate.year,
+        candidate.month,
+        candidate.day + 7,
+        hour,
+        minute,
+      );
+    }
+    return candidate;
+  }
+
   /// Lock-screen-safe ritual notification copy. Ritual names are often
   /// lifted from memory text, so they never appear in a notification.
   static const String ritualNotificationTitle = 'A ritual moment';
