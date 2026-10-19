@@ -498,6 +498,29 @@ class ObjectBoxDatabase {
     return _plain(results);
   }
 
+  /// syncUUIDs of entries purged this session that sync has not yet been
+  /// told about. Drained by [takePurgedSyncUUIDs].
+  final List<String> _purgedSyncUUIDs = [];
+
+  /// Returns (and forgets) the syncUUIDs of entries [purgeExpiredEntries]
+  /// removed, so the sync engine can queue remote deletes. Without this, the
+  /// remote tombstone (isDeleted=true record) lingered forever and could be
+  /// pulled back onto devices.
+  List<String> takePurgedSyncUUIDs() {
+    final taken = List<String>.of(_purgedSyncUUIDs);
+    _purgedSyncUUIDs.clear();
+    return taken;
+  }
+
+  /// Every stored entry's syncUUID, including soft-deleted ones (reads only
+  /// the indexed column; nothing is decrypted).
+  List<String> getAllSyncUUIDs() {
+    final query = _entryBox.query(Entry_.syncUUID.notNull()).build();
+    final ids = query.property(Entry_.syncUUID).find();
+    query.close();
+    return ids.where(SyncId.isValid).toList();
+  }
+
   /// Purge entries deleted more than 30 days ago
   Future<int> purgeExpiredEntries() async {
     final thirtyDaysAgo = DateTime.now().toUtc().subtract(
@@ -524,6 +547,12 @@ class ObjectBoxDatabase {
     final ids = expiredEntries.map((e) => e.id).toList();
     final removed = _entryBox.removeMany(ids);
     ids.forEach(_plainById.remove);
+    _purgedSyncUUIDs.addAll(
+      expiredEntries
+          .map((e) => e.syncUUID)
+          .whereType<String>()
+          .where(SyncId.isValid),
+    );
 
     if (removed > 0) {
       _invalidateEntryCaches();

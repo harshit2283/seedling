@@ -27,6 +27,17 @@ class SyncPayloadCryptoException extends SyncCryptoException {
   const SyncPayloadCryptoException(super.message);
 }
 
+/// Thrown for a remote record that carries no encryption envelope.
+///
+/// Every record this app has ever pushed is encrypted and versioned, so an
+/// unversioned record is either foreign or tampered with. Its "plaintext"
+/// fields must never be imported (they could be anything, including another
+/// record's ciphertext). Sync skips such records rather than failing.
+class SyncUnversionedRecordException extends SyncPayloadCryptoException {
+  const SyncUnversionedRecordException()
+    : super('Sync record has no encryption version; ignored.');
+}
+
 const _missingPassphraseText =
     'Sync passphrase is not set. Add it in Settings > Privacy > Sync passphrase.';
 
@@ -46,7 +57,13 @@ class SyncCryptoService {
     'tags',
     'transcription',
     'detectedTheme',
+    'manualLinkIds',
   ];
+
+  // PBKDF2 at 210k iterations costs ~100ms+ per call on a phone. Records of
+  // one push share a salt, so cache derived keys per (passphrase, salt).
+  final Map<String, Uint8List> _derivedKeys = {};
+  String? _derivedKeysPassphrase;
 
   final FlutterSecureStorage _secureStorage;
   final AesGcm _aesGcm;
@@ -82,6 +99,8 @@ class SyncCryptoService {
       key: _syncPassphraseStorageId,
       value: normalized,
     );
+    _derivedKeys.clear();
+    _derivedKeysPassphrase = null;
   }
 
   Future<SyncEncryptionSession> createEncryptionSession() async {
@@ -114,7 +133,7 @@ class SyncCryptoService {
     final output = Map<String, dynamic>.from(record);
     final version = output['syncEncryptionVersion'];
     if (version == null) {
-      return output;
+      throw const SyncUnversionedRecordException();
     }
     final keyBytes = await _resolveKeyBytesForVersion(output, version);
     for (final field in _encryptedFields) {
@@ -146,7 +165,15 @@ class SyncCryptoService {
         );
       }
       final passphrase = await _readStoredPassphrase();
-      return _deriveKeyBytes(passphrase, salt: saltBytes);
+      if (_derivedKeysPassphrase != passphrase) {
+        _derivedKeys.clear();
+        _derivedKeysPassphrase = passphrase;
+      }
+      final cached = _derivedKeys[encodedSalt];
+      if (cached != null) return cached;
+      final derived = await _deriveKeyBytes(passphrase, salt: saltBytes);
+      if (_derivedKeys.length >= 64) _derivedKeys.clear();
+      return _derivedKeys[encodedSalt] = derived;
     }
 
     throw SyncPayloadCryptoException(

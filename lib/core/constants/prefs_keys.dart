@@ -32,6 +32,9 @@ class PrefsKeys {
   static const String syncDeviceId = 'sync_device_id';
   static const String syncLastError = 'sync_last_error';
   static const String syncLastErrorAt = 'sync_last_error_at';
+  // Remote layout version this device has fully uploaded for (re-push all
+  // local entries when it is behind SyncEngine.currentFormatVersion).
+  static const String syncFormatVersion = 'sync_format_version';
 
   // Google Drive sync
   static const String syncGDriveLockedAccount = 'sync_gdrive_locked_account';

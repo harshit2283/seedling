@@ -86,6 +86,31 @@ void main() {
     expect(store.currentTree!.entryCount, countBefore);
   });
 
+  test('tree counts follow isDeleted on every write path', () async {
+    final store = db;
+    if (store == null) {
+      markTestSkipped('ObjectBox native library not available');
+      return;
+    }
+    final base = store.currentTree!.entryCount;
+    // Arrives already in the trash (e.g. from sync): must not count.
+    await store.saveEntry(Entry.line(text: 'trashed')..isDeleted = true);
+    expect(store.currentTree!.entryCount, base);
+
+    final live = await store.saveEntry(Entry.line(text: 'live'));
+    expect(store.currentTree!.entryCount, base + 1);
+
+    // Sync applies remote deletes/restores through updateEntry.
+    store.updateEntry(store.getEntry(live.id)!..isDeleted = true);
+    expect(store.currentTree!.entryCount, base);
+    store.updateEntry(store.getEntry(live.id)!..isDeleted = false);
+    expect(store.currentTree!.entryCount, base + 1);
+
+    // Saving an already-saved entry again is not a new entry.
+    await store.saveEntry(store.getEntry(live.id)!);
+    expect(store.currentTree!.entryCount, base + 1);
+  });
+
   test("updateEntry leaves the caller's object readable", () async {
     final store = db;
     if (store == null) {

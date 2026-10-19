@@ -25,6 +25,13 @@ abstract class SyncBackend {
   /// Delete a record remotely by sync UUID.
   Future<void> deleteRecord(String syncUUID);
 
+  /// Persist several records. Backends that rewrite a whole document per
+  /// write should do it once for the batch.
+  Future<void> saveRecords(List<Map<String, dynamic>> records);
+
+  /// Delete several records by sync UUID.
+  Future<void> deleteRecords(List<String> syncUUIDs);
+
   /// Fetch remote changes since [changeToken].
   Future<SyncFetchResult?> fetchChanges({String? changeToken});
 

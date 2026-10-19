@@ -130,19 +130,47 @@ void main() {
       },
     );
 
-    test('treats legacy records without version as plaintext', () async {
+    test('rejects records without an encryption version', () async {
       final storage = _MockSecureStorage();
       final values = <String, String>{};
       _wireStorage(storage, values);
       final service = SyncCryptoService(secureStorage: storage);
+      await service.setPassphrase('correct horse battery staple');
 
-      final legacy = await service.decryptRecordFields(<String, dynamic>{
-        'syncUUID': '550e8400-e29b-41d4-a716-446655440098',
-        'text': 'legacy plaintext',
-      });
+      // Unversioned "plaintext" must never be imported as-is.
+      await expectLater(
+        () => service.decryptRecordFields(<String, dynamic>{
+          'syncUUID': '550e8400-e29b-41d4-a716-446655440098',
+          'text': 'injected plaintext',
+        }),
+        throwsA(isA<SyncUnversionedRecordException>()),
+      );
+    });
 
-      expect(legacy['text'], 'legacy plaintext');
-      expect(legacy['syncEncryptionVersion'], isNull);
+    test('encrypts manual links and decrypts a batch with one key', () async {
+      final storage = _MockSecureStorage();
+      final values = <String, String>{};
+      _wireStorage(storage, values);
+      final service = SyncCryptoService(secureStorage: storage);
+      await service.setPassphrase('correct horse battery staple');
+
+      final session = await service.createEncryptionSession();
+      final records = [
+        for (var i = 0; i < 3; i++)
+          await service.encryptRecordFields(<String, dynamic>{
+            'text': 'note $i',
+            'manualLinkIds': '550e8400-e29b-41d4-a716-44665544000$i',
+          }, session: session),
+      ];
+      expect(records.first['manualLinkIds'], startsWith('syncenc:v1:'));
+      final decrypted = [
+        for (final r in records) await service.decryptRecordFields(r),
+      ];
+      expect(decrypted.map((r) => r['text']), ['note 0', 'note 1', 'note 2']);
+      expect(
+        decrypted.last['manualLinkIds'],
+        '550e8400-e29b-41d4-a716-446655440002',
+      );
     });
 
     test('throws user-facing error when passphrase is missing', () async {

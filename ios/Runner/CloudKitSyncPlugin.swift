@@ -21,7 +21,8 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         "syncUUID", "typeIndex", "createdAt", "modifiedAt",
         "text", "title", "context", "mood", "tags",
         "isDeleted", "deletedAt", "detectedTheme", "sentimentScore",
-        "capsuleUnlockDate", "transcription", "mediaPath", "deviceId"
+        "capsuleUnlockDate", "transcription", "mediaPath", "deviceId",
+        "manualLinkIds", "syncEncryptionVersion", "syncEncryptionSalt"
     ]
     private static let assetFieldAllowlist: Set<String> = ["mediaAsset"]
 
@@ -701,6 +702,17 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         if let v = args["deviceId"] as? String { record["deviceId"] = v as CKRecordValue }
         else { record["deviceId"] = nil }
 
+        if let v = args["manualLinkIds"] as? String { record["manualLinkIds"] = v as CKRecordValue }
+        else { record["manualLinkIds"] = nil }
+
+        // Encryption envelope written by the Dart layer. Without these the
+        // encrypted fields can never be decrypted on another device (the
+        // per-push salt is needed to derive the key), so they must round-trip.
+        if let v = args["syncEncryptionSalt"] as? String { record["syncEncryptionSalt"] = v as CKRecordValue }
+        else { record["syncEncryptionSalt"] = nil }
+        if let v = args["syncEncryptionVersion"] as? Int { record["syncEncryptionVersion"] = v as CKRecordValue }
+        else { record["syncEncryptionVersion"] = nil }
+
         // Int fields
         if let v = args["typeIndex"] as? Int { record["typeIndex"] = v as CKRecordValue }
 
@@ -763,6 +775,16 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         dict["transcription"] = record["transcription"] as? String ?? NSNull()
         dict["mediaPath"] = record["mediaPath"] as? String ?? NSNull()
         dict["deviceId"] = record["deviceId"] as? String ?? NSNull()
+        // Only present when the record carried it, so older records that never
+        // synced links don't clear local ones.
+        if let links = record["manualLinkIds"] as? String {
+            dict["manualLinkIds"] = links
+        }
+        dict["syncEncryptionSalt"] = record["syncEncryptionSalt"] as? String ?? NSNull()
+        // Absent (not null) when missing: Dart rejects unversioned records.
+        if let version = record["syncEncryptionVersion"] as? Int {
+            dict["syncEncryptionVersion"] = version
+        }
 
         // Int fields
         dict["typeIndex"] = record["typeIndex"] as? Int ?? 0

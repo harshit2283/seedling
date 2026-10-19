@@ -280,6 +280,20 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   @override
+  Future<void> saveRecords(List<Map<String, dynamic>> records) async {
+    for (final record in records) {
+      await saveRecord(record);
+    }
+  }
+
+  @override
+  Future<void> deleteRecords(List<String> syncUUIDs) async {
+    for (final syncUUID in syncUUIDs) {
+      await deleteRecord(syncUUID);
+    }
+  }
+
+  @override
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async {
     if (!await _ensureReady()) return null;
 
