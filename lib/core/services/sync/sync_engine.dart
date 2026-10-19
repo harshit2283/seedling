@@ -24,7 +24,9 @@ class SyncEngine {
   /// uploaded again. v2: CloudKit keeps the encryption envelope (salt and
   /// version) and Drive uses per-device change logs. v3: media files sync
   /// (encrypted), so existing photo/voice entries must upload their files.
-  static const currentFormatVersion = 3;
+  /// v4: CloudKit moved to per-device change logs (media ids/keys and
+  /// deletions now round-trip), and records carry AAD + a MAC.
+  static const currentFormatVersion = 4;
 
   final ObjectBoxDatabase _db;
   final SyncBackend _backend;
@@ -38,6 +40,20 @@ class SyncEngine {
 
   /// The running background media download pass, if any.
   Future<void>? _mediaDownloads;
+
+  /// Whether this session confirmed the local key is the account's key.
+  /// Nothing is pushed until it is.
+  bool _keyVerified = false;
+  String? _verifiedFingerprint;
+
+  /// Set when the last pull failed (so local state may be behind, or the key
+  /// is unusable); pushes wait for a successful pull.
+  bool _lastPullFailed = false;
+
+  /// Upper bound for one backend call, so a hung request can't stall the
+  /// serialized push/pull queue forever (media transfers get longer).
+  final Duration callTimeout;
+  final Duration transferTimeout;
   static final _uuidV4Pattern = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
   );
@@ -66,6 +82,8 @@ class SyncEngine {
     SyncMediaCrypto? mediaCrypto,
     Directory? tempDirectory,
     int maxConcurrentTransfers = 2,
+    this.callTimeout = const Duration(minutes: 2),
+    this.transferTimeout = const Duration(minutes: 10),
   }) : _db = database,
        _backend = backend,
        _metadata = metadata,
@@ -82,39 +100,66 @@ class SyncEngine {
   /// app-wide cloud-sync opt-in is on.
   bool get _allowed => _metadata.isEnabled && _networkAllowed();
 
-  /// Initialize sync engine. Call once at app startup.
+  /// Initialize sync engine. Call once at app startup (callers don't await
+  /// it, so it never throws: failures end up in state + lastError).
   Future<void> init() async {
     if (!_allowed) {
       _setState(SyncState.disabled);
       return;
     }
 
-    final available = await _backend.isAvailable();
-    if (!available) {
-      _setState(SyncState.error);
-      return;
-    }
+    try {
+      final available = await _backend.isAvailable().timeout(callTimeout);
+      if (!available) {
+        _setState(SyncState.error);
+        return;
+      }
+      _keyVerified = false;
+      if (!await _verifyKey()) return;
 
-    // A key derived with a different salt than the account's keyring would
-    // push records no other device can read; stop and ask for the passphrase.
-    final remoteSalt = await _backend.readKdfSalt();
-    if (remoteSalt != null &&
-        await _crypto.hasPassphrase() &&
-        !await _crypto.usesKdfSalt(base64Decode(remoteSalt))) {
-      const mismatch = SyncKeySaltMismatchException();
-      await _metadata.setLastError(mismatch.message);
-      _setState(SyncState.error);
-      return;
+      _setState(SyncState.idle);
+      await _queueMaintenanceChanges();
+      // Pull first; only push once local state is known to be current and
+      // readable (a failed pull must not be followed by a push).
+      final pulled = await pull();
+      if (pulled.success && _metadata.pendingChanges.isNotEmpty) {
+        await push();
+      }
+    } catch (e) {
+      await _fail('sync', e);
     }
+  }
 
-    _setState(SyncState.idle);
-    await _queueMaintenanceChanges();
-    // Initial pull on startup, then flush anything queued (including changes
-    // left over from a previous session).
-    await pull();
-    if (_metadata.pendingChanges.isNotEmpty) {
-      await push();
+  /// Confirms the local key is the account's key (same keyring salt and a
+  /// passing key check). On a mismatch nothing may be pushed: records under
+  /// the wrong key are unreadable everywhere else. When the key changed
+  /// since the last full upload (re-keyed after a keyring race or a new
+  /// passphrase), everything is queued for re-upload under the new key.
+  Future<bool> _verifyKey() async {
+    final current = await _crypto.keyFingerprint();
+    if (_keyVerified && current == _verifiedFingerprint) return true;
+    _keyVerified = false;
+    final keyring = await _backend.readKeyring().timeout(callTimeout);
+    if (keyring != null && await _crypto.hasPassphrase()) {
+      if (!await _crypto.matchesKeyring(keyring)) {
+        const mismatch = SyncKeySaltMismatchException();
+        await _metadata.setLastError(mismatch.message);
+        _setState(SyncState.error);
+        return false;
+      }
     }
+    if (current != null) {
+      final previous = _metadata.pushedKeyFingerprint;
+      if (previous != null && previous != current) {
+        // Anything pushed under the old key is unreadable to the others.
+        await _metadata.setFormatVersion(0);
+        await _queueFullUploadIfNeeded(DateTime.now());
+      }
+      await _metadata.setPushedKeyFingerprint(current);
+    }
+    _verifiedFingerprint = current;
+    _keyVerified = true;
+    return true;
   }
 
   /// Enable or disable sync
@@ -126,6 +171,7 @@ class SyncEngine {
         // Upload everything that exists locally, not just future edits.
         await _metadata.setFormatVersion(0);
       }
+      _keyVerified = false;
       await init();
     } else {
       _pushDebounce?.cancel();
@@ -188,6 +234,10 @@ class SyncEngine {
         ),
     ]);
 
+    await _queueFullUploadIfNeeded(now);
+  }
+
+  Future<void> _queueFullUploadIfNeeded(DateTime now) async {
     if (_metadata.formatVersion < currentFormatVersion) {
       final queued = _metadata.pendingChanges.map((c) => c.syncUUID).toSet();
       await _metadata.addPendingChanges([
@@ -222,10 +272,16 @@ class SyncEngine {
     final pending = _metadata.pendingChanges;
     if (pending.isEmpty) return SyncResult.success();
 
-    _setState(SyncState.pushing);
-
     final handled = <SyncChange>[];
     try {
+      if (_lastPullFailed) {
+        return SyncResult.error('Waiting for a successful pull before pushing');
+      }
+      if (!await _verifyKey()) {
+        return SyncResult.error(const SyncKeySaltMismatchException().message);
+      }
+      _setState(SyncState.pushing);
+
       final saves = <SyncChange>[];
       final toSave = <Entry>[];
       final records = <Map<String, dynamic>>[];
@@ -269,11 +325,13 @@ class SyncEngine {
       }
 
       if (records.isNotEmpty) {
-        await _backend.saveRecords(records);
+        await _backend.saveRecords(records).timeout(callTimeout);
         handled.addAll(saves);
       }
       if (deletes.isNotEmpty) {
-        await _backend.deleteRecords([for (final d in deletes) d.syncUUID]);
+        await _backend
+            .deleteRecords([for (final d in deletes) d.syncUUID])
+            .timeout(callTimeout);
         await _forEachBounded(
           [
             for (final d in deletes)
@@ -281,7 +339,7 @@ class SyncEngine {
           ],
           (assetId) async {
             try {
-              await _backend.deleteMediaBlob(assetId);
+              await _backend.deleteMediaBlob(assetId).timeout(callTimeout);
             } on UnsupportedError {
               // Backend without media sync: nothing to remove.
             }
@@ -315,11 +373,16 @@ class SyncEngine {
     _setState(SyncState.pulling);
 
     try {
-      final fetchResult = await _backend.fetchChanges(
-        changeToken: _metadata.changeToken,
-      );
+      if (!await _verifyKey()) {
+        _lastPullFailed = true;
+        return SyncResult.error(const SyncKeySaltMismatchException().message);
+      }
+      final fetchResult = await _backend
+          .fetchChanges(changeToken: _metadata.changeToken)
+          .timeout(callTimeout);
 
       if (fetchResult == null) {
+        _lastPullFailed = false;
         _setState(SyncState.idle);
         return SyncResult.success();
       }
@@ -333,7 +396,12 @@ class SyncEngine {
       // A fetch can carry several versions of one record (e.g. from several
       // devices); only the newest matters.
       final newest = <String, Map<String, dynamic>>{};
-      for (final record in fetchResult.records) {
+      // Previously quarantined records are retried first (the key may have
+      // been fixed since); fresher fetched versions replace them.
+      for (final record in [
+        ..._metadata.quarantinedRecords,
+        ...fetchResult.records,
+      ]) {
         final syncUUID = record['syncUUID'] as String?;
         if (!_isValidUuid(syncUUID)) continue;
         final existing = newest[syncUUID!];
@@ -344,12 +412,27 @@ class SyncEngine {
       }
 
       final toSave = <Entry>[];
+      final quarantined = <Map<String, dynamic>>[];
       for (final record in newest.values) {
         final Map<String, dynamic> decrypted;
         try {
           decrypted = await _crypto.decryptRecordFields(record);
         } on SyncUnversionedRecordException {
           ignored++;
+          continue;
+        } on SyncPassphraseMissingException catch (e) {
+          // No usable key at all (as opposed to one bad record): stop, keep
+          // the token, and don't let a push follow.
+          if (e is SyncPassphraseReentryRequiredException ||
+              e is SyncKeySaltMismatchException) {
+            quarantined.add(record);
+            continue;
+          }
+          rethrow;
+        } on SyncCryptoException {
+          // Undecryptable or forged: set aside, keep going, keep the token
+          // moving so one record can't wedge sync.
+          quarantined.add(record);
           continue;
         }
 
@@ -396,14 +479,28 @@ class SyncEngine {
       if (fetchResult.newChangeToken != null) {
         await _metadata.setChangeToken(fetchResult.newChangeToken);
       }
+      await _metadata.setQuarantinedRecords(quarantined);
       await _metadata.setLastSyncTime(DateTime.now());
-      await _metadata.setLastError(null);
+      await _metadata.setLastError(
+        quarantined.isEmpty
+            ? null
+            : '${quarantined.length} synced memor'
+                  '${quarantined.length == 1 ? 'y' : 'ies'} couldn\'t be '
+                  'decrypted and were set aside. If you changed your sync '
+                  'passphrase, re-enter it in Settings > Privacy.',
+      );
+      _lastPullFailed = false;
 
       _setState(SyncState.idle);
       // Files arrive in the background; records show a placeholder until then.
       unawaited(downloadPendingMedia());
-      return SyncResult.success(pulled: pulled, conflicts: conflicts);
+      return SyncResult.success(
+        pulled: pulled,
+        conflicts: conflicts,
+        quarantined: quarantined.length,
+      );
     } catch (e) {
+      _lastPullFailed = true;
       return _fail('pull', e);
     }
   }
@@ -411,9 +508,10 @@ class SyncEngine {
   Future<SyncResult> _fail(String operation, Object e) async {
     final message = switch (e) {
       SocketException() => 'Network error during $operation: $e',
+      TimeoutException() => 'Sync timed out during $operation; will retry.',
       SyncDocumentCorruptedException() => e.toString(),
       SyncCryptoException(:final message) => message,
-      _ => '${operation == 'push' ? 'Push' : 'Pull'} failed: $e',
+      _ => '${operation[0].toUpperCase()}${operation.substring(1)} failed: $e',
     };
     await _metadata.setLastError(message);
     _setState(SyncState.error);
@@ -586,7 +684,7 @@ class SyncEngine {
     final sealed = File('${_tempDirectory.path}/seedling_up_$assetId.enc');
     try {
       await _mediaCrypto.encryptFile(file, sealed, key);
-      await _backend.uploadMediaBlob(assetId, sealed);
+      await _backend.uploadMediaBlob(assetId, sealed).timeout(transferTimeout);
     } on UnsupportedError {
       return false;
     } finally {
@@ -656,7 +754,11 @@ class SyncEngine {
       '${dir.path}/${SyncId.generate()}.${entry.typeIndex == EntryType.voice.index ? 'm4a' : 'jpg'}',
     );
     try {
-      if (!await _backend.downloadMediaBlob(assetId, sealed)) return;
+      if (!await _backend
+          .downloadMediaBlob(assetId, sealed)
+          .timeout(transferTimeout)) {
+        return;
+      }
       if (await sealed.length() >
           SyncMediaCrypto.maxPlaintextBytes + 1024 * 1024) {
         developer.log('Skipping media over 50 MB', name: 'SyncEngine');

@@ -101,6 +101,32 @@ Future<Map<String, dynamic>> _legacyV2Record(
   };
 }
 
+/// A keyring that already holds [salt] (no key check), like an older
+/// keyring or a test fixture.
+class _FixedKeyring implements SyncKeyring {
+  final List<int> salt;
+  _FixedKeyring(this.salt);
+
+  @override
+  Future<Map<String, dynamic>?> read() async => {'kdfSalt': base64Encode(salt)};
+
+  @override
+  Future<Map<String, dynamic>> publish(Map<String, dynamic> keyring) async =>
+      (await read())!;
+}
+
+/// An initially empty shared keyring (the account's sync space).
+class _MemKeyring implements SyncKeyring {
+  Map<String, dynamic>? stored;
+
+  @override
+  Future<Map<String, dynamic>?> read() async => stored;
+
+  @override
+  Future<Map<String, dynamic>> publish(Map<String, dynamic> keyring) async =>
+      stored ??= Map<String, dynamic>.from(keyring);
+}
+
 void main() {
   group('SyncCryptoService key storage', () {
     const passphrase = 'correct horse battery staple';
@@ -243,7 +269,7 @@ void main() {
         _wireStorage(storageA, valuesA);
         final deviceA = SyncCryptoService(
           secureStorage: storageA,
-          kdfSaltProvider: () async => accountSalt,
+          keyring: _FixedKeyring(accountSalt),
         );
         await deviceA.setPassphrase(passphrase);
 
@@ -251,7 +277,7 @@ void main() {
         _wireStorage(storageB, <String, String>{});
         final deviceB = SyncCryptoService(
           secureStorage: storageB,
-          kdfSaltProvider: () async => accountSalt,
+          keyring: _FixedKeyring(accountSalt),
         );
         await deviceB.setPassphrase(passphrase);
 
@@ -271,7 +297,7 @@ void main() {
         _wireStorage(storageC, <String, String>{});
         final otherUser = SyncCryptoService(
           secureStorage: storageC,
-          kdfSaltProvider: () async => List<int>.filled(32, 1),
+          keyring: _FixedKeyring(List<int>.filled(32, 1)),
         );
         await otherUser.setPassphrase(passphrase);
         await expectLater(
@@ -303,7 +329,7 @@ void main() {
         // Upgraded build with a keyring: the stored v3 key still works as-is.
         final upgraded = SyncCryptoService(
           secureStorage: storage,
-          kdfSaltProvider: () async => accountSalt,
+          keyring: _FixedKeyring(accountSalt),
         );
         expect(
           (await upgraded.decryptRecordFields(v3Record))['text'],
@@ -316,7 +342,7 @@ void main() {
         await upgraded.setPassphrase(passphrase);
         final restarted = SyncCryptoService(
           secureStorage: storage,
-          kdfSaltProvider: () async => accountSalt,
+          keyring: _FixedKeyring(accountSalt),
         );
         expect(await restarted.usesKdfSalt(accountSalt), isTrue);
         final v4Record = await restarted.encryptRecordFields(<String, dynamic>{
@@ -344,7 +370,7 @@ void main() {
       _wireStorage(otherStorage, <String, String>{});
       final v4Device = SyncCryptoService(
         secureStorage: otherStorage,
-        kdfSaltProvider: () async => accountSalt,
+        keyring: _FixedKeyring(accountSalt),
       );
       await v4Device.setPassphrase(passphrase);
       final v4Record = await v4Device.encryptRecordFields(<String, dynamic>{
@@ -366,7 +392,7 @@ void main() {
         _wireStorage(storage, values);
         final service = SyncCryptoService(
           secureStorage: storage,
-          kdfSaltProvider: () async => List<int>.filled(32, 7),
+          keyring: _FixedKeyring(List<int>.filled(32, 7)),
         );
         await service.setPassphrase('correct horse battery staple');
 
@@ -500,7 +526,7 @@ void main() {
       _wireStorage(storage, <String, String>{});
       final service = SyncCryptoService(
         secureStorage: storage,
-        kdfSaltProvider: () async => List<int>.filled(32, 5),
+        keyring: _FixedKeyring(List<int>.filled(32, 5)),
       );
       await service.setPassphrase('correct horse battery staple');
       const fileKey = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJA==';
@@ -526,6 +552,114 @@ void main() {
         () => service.encryptRecordFields(<String, dynamic>{'text': 'hello'}),
         throwsA(isA<SyncPassphraseMissingException>()),
       );
+    });
+  });
+
+  group('SyncCryptoService record authentication and keyring checks', () {
+    const passphrase = 'correct horse battery staple';
+
+    Future<SyncCryptoService> device(SyncKeyring keyring) async {
+      final storage = _MockSecureStorage();
+      _wireStorage(storage, <String, String>{});
+      final service = SyncCryptoService(
+        secureStorage: storage,
+        keyring: keyring,
+      );
+      await service.setPassphrase(passphrase);
+      return service;
+    }
+
+    Map<String, dynamic> record() => <String, dynamic>{
+      'syncUUID': '550e8400-e29b-41d4-a716-446655440061',
+      'typeIndex': 0,
+      'createdAt': 1700000000000,
+      'modifiedAt': 1700000000000,
+      'isDeleted': false,
+      'capsuleUnlockDate': null,
+      'mediaAssetId': null,
+      'text': 'a quiet morning',
+      'title': 'dawn',
+    };
+
+    test('a wrong passphrase is rejected by the key check', () async {
+      final keyring = _MemKeyring();
+      await device(keyring);
+      final storage = _MockSecureStorage();
+      _wireStorage(storage, <String, String>{});
+      final other = SyncCryptoService(secureStorage: storage, keyring: keyring);
+      await expectLater(
+        other.setPassphrase('not the same passphrase'),
+        throwsA(isA<SyncWrongPassphraseException>()),
+      );
+      expect(await other.hasPassphrase(), isFalse);
+      // The right one is accepted and matches the keyring.
+      await other.setPassphrase(passphrase);
+      expect(await other.matchesKeyring(keyring.stored!), isTrue);
+    });
+
+    test('plaintext metadata is authenticated', () async {
+      final service = await device(_MemKeyring());
+      final sealed = await service.encryptRecordFields(record());
+      expect(sealed['syncMac'], isA<String>());
+      for (final tamper in <void Function(Map<String, dynamic>)>[
+        (r) => r['isDeleted'] = true,
+        (r) => r['modifiedAt'] = 1800000000000,
+        (r) => r['capsuleUnlockDate'] = 1900000000000,
+        (r) => r['mediaAssetId'] = '550e8400-e29b-41d4-a716-446655440062',
+        (r) => r['typeIndex'] = 3,
+        (r) => r.remove('title'),
+      ]) {
+        final forged = Map<String, dynamic>.from(sealed);
+        tamper(forged);
+        await expectLater(
+          service.decryptRecordFields(forged),
+          throwsA(isA<SyncPayloadCryptoException>()),
+        );
+      }
+      expect(
+        (await service.decryptRecordFields(sealed))['text'],
+        'a quiet morning',
+      );
+    });
+
+    test(
+      'a field ciphertext cannot be moved to another record or field',
+      () async {
+        final service = await device(_MemKeyring());
+        final session = await service.createEncryptionSession();
+        final a = await service.encryptRecordFields(record(), session: session);
+        final b = await service.encryptRecordFields({
+          ...record(),
+          'syncUUID': '550e8400-e29b-41d4-a716-446655440063',
+        }, session: session);
+        // Swap text between records, and title into text; re-MACing is not
+        // possible without the key, so strip format/MAC to force the field
+        // check on its own via a legacy-looking record.
+        final swapped = Map<String, dynamic>.from(b)..['text'] = a['text'];
+        await expectLater(
+          service.decryptRecordFields(swapped),
+          throwsA(isA<SyncPayloadCryptoException>()),
+        );
+        final downgraded = Map<String, dynamic>.from(a)
+          ..remove('syncMac')
+          ..remove('syncRecordFormat');
+        await expectLater(
+          service.decryptRecordFields(downgraded),
+          throwsA(isA<SyncPayloadCryptoException>()),
+        );
+      },
+    );
+
+    test('a brand-new device can read fixed-salt (v3) records', () async {
+      final oldStorage = _MockSecureStorage();
+      _wireStorage(oldStorage, <String, String>{});
+      final oldDevice = SyncCryptoService(secureStorage: oldStorage);
+      await oldDevice.setPassphrase(passphrase);
+      final v3 = await oldDevice.encryptRecordFields(record());
+      expect(v3['syncEncryptionVersion'], 3);
+
+      final fresh = await device(_MemKeyring());
+      expect((await fresh.decryptRecordFields(v3))['text'], 'a quiet morning');
     });
   });
 }
