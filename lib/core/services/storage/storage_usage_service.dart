@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:seedling/core/services/media/file_storage_service.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:seedling/data/datasources/local/objectbox_database.dart';
 
 /// Breakdown of storage usage by category
 class StorageUsage {
@@ -37,18 +37,31 @@ class StorageUsage {
   String get objectsFormatted => formatBytes(objectsBytes);
 }
 
-/// Service for calculating storage usage
+/// Service for calculating storage usage.
+///
+/// Measures the same directories the app writes to: the ObjectBox store
+/// ([ObjectBoxDatabase.defaultStoreDirectory]) and the media folders under
+/// [FileStorageService.canonicalMediaDirectory].
 class StorageUsageService {
+  StorageUsageService({
+    Future<String> Function()? storeDirectory,
+    Future<Directory> Function()? mediaDirectory,
+  }) : _storeDirectory =
+           storeDirectory ?? ObjectBoxDatabase.defaultStoreDirectory,
+       _mediaDirectory =
+           mediaDirectory ?? FileStorageService.canonicalMediaDirectory;
+
+  final Future<String> Function() _storeDirectory;
+  final Future<Directory> Function() _mediaDirectory;
+
   /// Calculate storage usage breakdown
   Future<StorageUsage> calculateUsage() async {
-    final docDir = await getApplicationDocumentsDirectory();
-
     // Calculate database size
-    final dbDir = Directory('${docDir.path}/objectbox');
+    final dbDir = Directory(await _storeDirectory());
     final dbSize = await _getDirectorySize(dbDir);
 
     // Calculate media sizes
-    final mediaDir = await FileStorageService.canonicalMediaDirectory();
+    final mediaDir = await _mediaDirectory();
     final photosDir = Directory('${mediaDir.path}/photos');
     final voicesDir = Directory('${mediaDir.path}/voices');
     final objectsDir = Directory('${mediaDir.path}/objects');

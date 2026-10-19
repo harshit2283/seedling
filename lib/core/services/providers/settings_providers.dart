@@ -245,8 +245,14 @@ final storageUsageServiceProvider = Provider<StorageUsageService>((ref) {
   return StorageUsageService();
 });
 
-/// Future provider for storage usage (requires async calculation)
-final storageUsageProvider = FutureProvider<StorageUsage>((ref) async {
+/// Storage usage, measured on demand. Auto-disposed and keyed to the
+/// memories, so Settings never shows a figure from before the latest photo
+/// or voice note (a cached first reading used to stick at "0 B").
+final storageUsageProvider = FutureProvider.autoDispose<StorageUsage>((
+  ref,
+) async {
+  // Any change to the memories (a new photo, a purge) re-measures.
+  ref.watch(allEntriesStreamProvider);
   final service = ref.watch(storageUsageServiceProvider);
   return service.calculateUsage();
 });
