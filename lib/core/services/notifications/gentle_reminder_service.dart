@@ -223,7 +223,14 @@ class GentleReminderService {
   static const String ritualNotificationBody =
       'You usually capture something around now.';
 
+  /// Schedule reminders for rituals the user confirmed and keeps active.
+  /// Detected patterns are only ever suggestions: an unsaved candidate
+  /// (id 0) or a paused/archived ritual never gets a notification.
   Future<void> scheduleRitualReminders(List<Ritual> dueRituals) async {
+    final confirmed = dueRituals
+        .where((r) => r.id != 0 && r.status == RitualStatus.active)
+        .toList();
+    if (confirmed.isEmpty) return;
     await init();
 
     // Global anti-nag: skip if any notification fired in the last 24 hours.
@@ -249,7 +256,7 @@ class GentleReminderService {
     );
 
     int scheduled = 0;
-    for (final ritual in dueRituals) {
+    for (final ritual in confirmed) {
       final notificationId = 7100 + ritual.id;
       final scheduledTime = tz.TZDateTime.from(
         DateTime.now().add(const Duration(seconds: 30)),

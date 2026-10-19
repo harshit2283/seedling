@@ -75,8 +75,13 @@ final underrepresentedThemesProvider = Provider<List<MemoryTheme>>((ref) {
   return themeDetector.getUnderrepresentedThemes(distribution);
 });
 
-/// Provider for recurring ritual candidates in recent entries.
-final ritualCandidatesProvider = Provider<List<RitualCandidate>>((ref) {
+/// Recurring patterns that *could* become rituals. Suggestions only: nothing
+/// here is persisted or scheduled until the user confirms a candidate
+/// (RitualService.createFromCandidate). Auto-disposed so detection does not
+/// keep re-running over every entry after the patterns sheet closes.
+final ritualCandidatesProvider = Provider.autoDispose<List<RitualCandidate>>((
+  ref,
+) {
   final entries = ref.watch(allEntriesProvider);
   final detector = ref.watch(ritualDetectionServiceProvider);
   return detector.detectCandidates(entries);
@@ -170,18 +175,6 @@ final ritualServiceProvider = Provider<RitualService>((ref) {
 final ritualsStreamProvider = StreamProvider<List<Ritual>>((ref) {
   final db = ref.read(databaseProvider);
   return db.watchRituals();
-});
-
-final activeRitualsProvider = Provider<List<Ritual>>((ref) {
-  final rituals = ref.watch(ritualsStreamProvider).value ?? [];
-  return rituals
-      .where((r) => r.statusIndex == RitualStatus.active.index)
-      .toList();
-});
-
-final dueRitualsProvider = Provider<List<Ritual>>((ref) {
-  final active = ref.watch(activeRitualsProvider);
-  return active.where((r) => r.isDue).toList();
 });
 
 // ============================================================================
