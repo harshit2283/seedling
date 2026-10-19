@@ -5,32 +5,72 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
 import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
+import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/media/file_storage_service.dart';
 import '../../../core/services/providers.dart';
-import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
 import '../../../data/models/sync_id.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import 'memories_filter_state.dart';
+import 'widgets/keepsake_memory_card.dart';
 import 'widgets/photo_viewer.dart';
 import 'widgets/memory_share_sheet.dart';
 import 'widgets/voice_player.dart';
 import 'widgets/similar_memories_section.dart';
 import '../../../core/widgets/feedback/seedling_toast.dart';
 
-/// Detail screen for viewing and editing a single memory entry
+/// Formats the keepsake date header, e.g. "Saturday, 12 October 2024".
+///
+/// The day, month and year are held together, so a narrow screen breaks the
+/// line after the weekday rather than stranding the year.
+String keepsakeDateLine(DateTime date, {String? locale}) {
+  final weekday = DateFormat.EEEE(locale).format(date);
+  final day = DateFormat('d MMMM y', locale).format(date);
+  return '$weekday, ${day.replaceAll(' ', '\u00A0')}';
+}
+
+/// Whole years between [date] and [now] ("2 years ago" needs 2 full years).
+int wholeYearsBetween(DateTime date, DateTime now) {
+  var years = now.year - date.year;
+  if (now.month < date.month ||
+      (now.month == date.month && now.day < date.day)) {
+    years -= 1;
+  }
+  return years < 0 ? 0 : years;
+}
+
+/// "A year ago" / "3 years ago", or null when less than a year has passed.
+String? yearsAgoLabel(DateTime date, DateTime now) {
+  final years = wholeYearsBetween(date, now);
+  if (years < 1) return null;
+  return years == 1 ? 'A year ago' : '$years years ago';
+}
+
+/// A single memory, laid out like a page from a keepsake book.
+///
+/// Photo and object memories open on their photo, edge to edge and under a
+/// translucent bar. The date is the header; the words are set like a page.
+/// Sections only appear when they have something in them.
 class EntryDetailScreen extends ConsumerStatefulWidget {
   final int entryId;
   final bool embedded;
+
+  /// Opened from "From your tree" as an on-this-day memory: shows a soft
+  /// "2 years ago today" header and gives the photo more room.
+  final bool onThisDay;
 
   const EntryDetailScreen({
     super.key,
     required this.entryId,
     this.embedded = false,
+    this.onThisDay = false,
   });
 
   @override
@@ -41,13 +81,20 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     with SingleTickerProviderStateMixin {
   bool _isEditMode = false;
   bool _isTranscribing = false;
-  bool _metadataExpanded = false;
   late TextEditingController _textController;
   late TextEditingController _titleController;
   PageController? _pageController;
   int? _currentEntryId;
   late final AnimationController _hintFade;
   bool _hintScheduled = false;
+
+  /// True once the page has scrolled past its photo (or date header), so the
+  /// bar turns solid and shows a short date.
+  bool _scrolledPastHeader = false;
+
+  /// Resolved media paths, one future per stored path, so rebuilds never
+  /// flash a spinner.
+  final Map<String, Future<String?>> _mediaFutures = {};
 
   static bool _hintShownThisSession = false;
 
@@ -71,6 +118,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     _hintFade.dispose();
     super.dispose();
   }
+
+  Future<String?> _resolveMedia(String? path) => _mediaFutures.putIfAbsent(
+    path ?? '',
+    () => FileStorageService.resolveMediaPath(path),
+  );
 
   void _maybeShowSwipeHint(int pageCount) {
     if (_hintScheduled || _hintShownThisSession || pageCount <= 1) return;
@@ -119,151 +171,153 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final filtered = ref.watch(filteredEntriesProvider);
-    final allEntries = ref.watch(entriesProvider);
-
     final activeId = _currentEntryId ?? widget.entryId;
 
-    // Prefer the currently filtered list so swipe matches what the user saw.
-    final List<Entry> pages = filtered.where((e) => e.id == activeId).isNotEmpty
-        ? filtered
-        : allEntries;
+    // Look the memory up by id across every year, so resurfaced memories,
+    // deep links, links and related memories from past years all open.
+    final entry = ref.watch(entryByIdProvider(activeId));
+    if (entry == null) return _buildNotFound(context);
 
-    final initialIndex = pages.indexWhere((e) => e.id == activeId);
-
-    if (initialIndex == -1) {
-      // Active entry not in any list — try to find it directly.
-      final fallback = allEntries.where((e) => e.id == activeId).firstOrNull;
-      if (fallback == null) {
-        return _buildNotFound(context);
-      }
-      return _buildDetailView(context, fallback, isPageable: false);
+    if (widget.embedded || widget.onThisDay) {
+      return _buildDetailView(context, entry);
     }
 
-    if (widget.embedded || pages.length <= 1) {
-      return _buildDetailView(context, pages[initialIndex], isPageable: false);
+    // Swipe between memories when this one is in the list the person came
+    // from (filtered first, so swiping matches what they saw).
+    final filtered = ref.watch(filteredEntriesProvider);
+    List<Entry>? pages;
+    if (filtered.any((e) => e.id == activeId)) {
+      pages = filtered;
+    } else {
+      final current = ref.watch(entriesProvider);
+      if (current.any((e) => e.id == activeId)) pages = current;
     }
 
-    _pageController ??= PageController(initialPage: initialIndex);
+    if (pages == null || pages.length <= 1) {
+      return _buildDetailView(context, entry);
+    }
+
+    _pageController ??= PageController(
+      initialPage: pages.indexWhere((e) => e.id == activeId),
+    );
     _maybeShowSwipeHint(pages.length);
-
-    // Use the currently active entry (which updates as user swipes) so the nav
-    // bar / action buttons act on the visible memory, not the initial one.
-    final activeEntry = pages.firstWhere(
-      (e) => e.id == (_currentEntryId ?? activeId),
-      orElse: () => pages[initialIndex],
-    );
-    return _buildDetailView(
-      context,
-      activeEntry,
-      isPageable: true,
-      pages: pages,
-    );
+    return _buildDetailView(context, entry, pages: pages);
   }
 
   Widget _buildNotFound(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: palette.background,
       appBar: PlatformUtils.isIOS
           ? CupertinoNavigationBar(
-                  middle: const Text('Memory'),
-                  backgroundColor: Colors.transparent,
+                  backgroundColor: palette.background,
+                  border: null,
                 )
                 as PreferredSizeWidget
           : AppBar(
-              title: const Text('Memory'),
-              backgroundColor: Colors.transparent,
+              backgroundColor: palette.background,
               elevation: 0,
+              scrolledUnderElevation: 0,
             ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              PlatformUtils.isIOS
-                  ? CupertinoIcons.doc_text_search
-                  : Icons.search_off,
-              size: 64,
-              color: context.palette.textMuted,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Memory not found',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: context.palette.textSecondary,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(AdaptiveIcons.leaf, size: 40, color: palette.textMuted),
+              const SizedBox(height: 16),
+              Text(
+                'Memory not found',
+                textAlign: TextAlign.center,
+                style: _serif(22, color: palette.textPrimary),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'It may have been deleted. Recently deleted memories can be '
+                'restored from Settings.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.45,
+                  color: palette.textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Color _resolveHeaderTint(Entry entry) {
-    final base = Theme.of(context).scaffoldBackgroundColor;
-    Color accent = _getTypeColor(entry.type);
-    final theme = MemoryThemeExtension.fromString(entry.detectedTheme);
-    if (theme != null) {
-      accent = _themeColorFor(theme);
-    }
-    if ((entry.type == EntryType.photo || entry.type == EntryType.object) &&
-        entry.mediaPath != null &&
-        entry.mediaPath!.isNotEmpty) {
-      final dominantAsync = ref.watch(dominantColorProvider(entry.mediaPath!));
-      final dominant = dominantAsync.value;
-      if (dominant != null) {
-        accent = dominant;
-      }
-    }
-    return Color.lerp(base, accent, 0.3) ?? base;
+  // ---------------------------------------------------------------------------
+  // Layout helpers
+  // ---------------------------------------------------------------------------
+
+  static TextStyle _serif(
+    double size, {
+    required Color color,
+    FontWeight weight = FontWeight.w400,
+    double height = 1.25,
+    FontStyle style = FontStyle.normal,
+    double letterSpacing = 0,
+  }) => TextStyle(
+    fontFamily: keepsakeSerif,
+    fontFamilyFallback: keepsakeSerifFallback,
+    fontSize: size,
+    fontWeight: weight,
+    height: height,
+    fontStyle: style,
+    letterSpacing: letterSpacing,
+    color: color,
+  );
+
+  bool _hasHero(Entry entry) =>
+      (entry.type == EntryType.photo || entry.type == EntryType.object) &&
+      entry.hasMedia;
+
+  bool _isOnThisDay(Entry entry) {
+    if (!widget.onThisDay || entry.id != widget.entryId) return false;
+    final now = DateTime.now();
+    return entry.createdAt.month == now.month &&
+        entry.createdAt.day == now.day &&
+        entry.createdAt.year < now.year;
   }
 
-  Color _themeColorFor(MemoryTheme theme) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (isDark) {
-      return switch (theme) {
-        MemoryTheme.family => SeedlingColors.themeFamilyDark,
-        MemoryTheme.friends => SeedlingColors.themeFriendsDark,
-        MemoryTheme.work => SeedlingColors.themeWorkDark,
-        MemoryTheme.nature => SeedlingColors.themeNatureDark,
-        MemoryTheme.gratitude => SeedlingColors.themeGratitudeDark,
-        MemoryTheme.reflection => SeedlingColors.themeReflectionDark,
-        MemoryTheme.travel => SeedlingColors.themeTravelDark,
-        MemoryTheme.creativity => SeedlingColors.themeCreativityDark,
-        MemoryTheme.health => SeedlingColors.themeHealthDark,
-        MemoryTheme.food => SeedlingColors.themeFoodDark,
-        MemoryTheme.moments => SeedlingColors.themeMomentsDark,
-      };
+  double _heroHeight(BuildContext context, Entry entry) {
+    final size = MediaQuery.sizeOf(context);
+    if (_isOnThisDay(entry)) return (size.height * 0.62).roundToDouble();
+    final h = size.height * 0.54;
+    final w = size.width * 1.2;
+    return (h < w ? h : w).roundToDouble();
+  }
+
+  /// Height of the status bar plus the toolbar the page scrolls under.
+  double _barExtent(BuildContext context) =>
+      MediaQuery.viewPaddingOf(context).top +
+      (PlatformUtils.isIOS ? 44 : kToolbarHeight);
+
+  bool _onScroll(ScrollUpdateNotification n, Entry entry) {
+    if (n.metrics.axis != Axis.vertical || n.depth != 0) return false;
+    final threshold = _hasHero(entry)
+        ? _heroHeight(context, entry) - _barExtent(context)
+        : 72.0;
+    final past = n.metrics.pixels > threshold;
+    if (past != _scrolledPastHeader) {
+      setState(() => _scrolledPastHeader = past);
     }
-    return switch (theme) {
-      MemoryTheme.family => SeedlingColors.themeFamily,
-      MemoryTheme.friends => SeedlingColors.themeFriends,
-      MemoryTheme.work => SeedlingColors.themeWork,
-      MemoryTheme.nature => SeedlingColors.themeNature,
-      MemoryTheme.gratitude => SeedlingColors.themeGratitude,
-      MemoryTheme.reflection => SeedlingColors.themeReflection,
-      MemoryTheme.travel => SeedlingColors.themeTravel,
-      MemoryTheme.creativity => SeedlingColors.themeCreativity,
-      MemoryTheme.health => SeedlingColors.themeHealth,
-      MemoryTheme.food => SeedlingColors.themeFood,
-      MemoryTheme.moments => SeedlingColors.themeMoments,
-    };
+    return false;
   }
 
   Widget _buildDetailView(
     BuildContext context,
     Entry entry, {
-    bool isPageable = false,
     List<Entry>? pages,
   }) {
-    Widget bodyForEntry(Entry e) {
-      return _buildContent(context, e, _getTypeColor(e.type));
-    }
-
-    final headerTint = _resolveHeaderTint(entry);
+    final palette = context.palette;
 
     Widget body;
-    if (isPageable && pages != null && _pageController != null) {
+    if (pages != null && _pageController != null) {
       body = Stack(
         children: [
           PageView.builder(
@@ -274,13 +328,14 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                 : const BouncingScrollPhysics(),
             onPageChanged: (index) {
               if (index >= 0 && index < pages.length) {
-                setState(() => _currentEntryId = pages[index].id);
+                setState(() {
+                  _currentEntryId = pages[index].id;
+                  _scrolledPastHeader = false;
+                });
                 HapticFeedback.selectionClick();
               }
             },
-            itemBuilder: (context, index) {
-              return bodyForEntry(pages[index]);
-            },
+            itemBuilder: (context, index) => _buildPage(context, pages[index]),
           ),
           Positioned(
             left: 0,
@@ -296,15 +351,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                       vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: context.palette.textPrimary.withValues(
-                        alpha: 0.55,
-                      ),
+                      color: palette.textPrimary.withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Text(
                       '← swipe →',
                       style: TextStyle(
-                        color: context.palette.onMedia,
+                        color: palette.onMedia,
                         fontSize: 12,
                         letterSpacing: 0.4,
                       ),
@@ -317,66 +370,133 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         ],
       );
     } else {
-      body = bodyForEntry(entry);
+      body = _buildPage(context, entry);
     }
 
-    // Embedded mode: no scaffold/nav bar, just the content body
+    body = NotificationListener<ScrollUpdateNotification>(
+      onNotification: (n) => _onScroll(n, entry),
+      child: body,
+    );
+
+    // Embedded mode (tablet split view): no bar, just the page.
     if (widget.embedded) {
       return ColoredBox(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: palette.background,
         child: SafeArea(child: body),
       );
     }
 
-    if (PlatformUtils.isIOS) {
-      return CupertinoPageScaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        navigationBar: CupertinoNavigationBar(
-          middle: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
-          backgroundColor: headerTint,
-          border: null,
-          leading: _isEditMode
-              ? CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: _exitEditMode,
-                  child: const Text('Cancel'),
-                )
-              : null,
-          trailing: _buildTrailingActions(context, entry),
+    final overMedia = _hasHero(entry) && !_scrolledPastHeader;
+    final fg = overMedia
+        ? palette.onMedia
+        : (PlatformUtils.isIOS ? palette.primary : palette.textPrimary);
+    final showBarTitle = _isEditMode || _scrolledPastHeader;
+    final locale = Localizations.maybeLocaleOf(context)?.toLanguageTag();
+    final barTitle = _isEditMode
+        ? 'Editing'
+        : DateFormat.yMMMd(locale).format(entry.createdAt);
+    final barColor = overMedia
+        ? palette.background.withValues(alpha: 0)
+        : palette.background.withValues(alpha: _scrolledPastHeader ? 0.86 : 0);
+    final overlayStyle = overMedia || palette.isDark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
+
+    final title = AnimatedOpacity(
+      opacity: showBarTitle ? 1 : 0,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 200),
+      child: Text(
+        barTitle,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: palette.textPrimary,
         ),
-        child: SafeArea(child: body),
+      ),
+    );
+
+    if (PlatformUtils.isIOS) {
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: overlayStyle,
+        child: CupertinoTheme(
+          data: CupertinoTheme.of(context).copyWith(primaryColor: fg),
+          child: CupertinoPageScaffold(
+            backgroundColor: palette.background,
+            navigationBar: CupertinoNavigationBar(
+              automaticBackgroundVisibility: false,
+              backgroundColor: barColor,
+              border: _scrolledPastHeader
+                  ? Border(
+                      bottom: BorderSide(color: palette.divider, width: 0.5),
+                    )
+                  : null,
+              middle: title,
+              leading: _isEditMode
+                  ? CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _exitEditMode,
+                      child: Text('Cancel', style: TextStyle(color: fg)),
+                    )
+                  : null,
+              trailing: _buildTrailingActions(context, entry, fg),
+            ),
+            child: body,
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: palette.background,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(_isEditMode ? 'Edit ${entry.typeName}' : entry.typeName),
-        backgroundColor: headerTint,
+        title: title,
+        backgroundColor: barColor,
+        foregroundColor: fg,
+        iconTheme: IconThemeData(color: fg),
+        actionsIconTheme: IconThemeData(color: fg),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        notificationPredicate: (_) => false,
+        systemOverlayStyle: overlayStyle,
         leading: _isEditMode
             ? IconButton(
                 icon: const Icon(Icons.close),
+                tooltip: 'Cancel',
                 onPressed: _exitEditMode,
               )
             : null,
-        actions: _buildMaterialActions(context, entry),
+        actions: _buildMaterialActions(context, entry, fg),
       ),
       body: body,
     );
   }
 
-  Widget _buildTrailingActions(BuildContext context, Entry entry) {
+  Widget _buildTrailingActions(BuildContext context, Entry entry, Color fg) {
     if (_isEditMode) {
       return CupertinoButton(
         padding: EdgeInsets.zero,
         onPressed: () => _saveChanges(entry),
         child: Text(
           'Save',
-          style: TextStyle(
-            color: context.palette.primary,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: fg, fontWeight: FontWeight.w600),
+        ),
+      );
+    }
+
+    Widget action(String label, IconData icon, VoidCallback onPressed) {
+      return Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(40, 44),
+          onPressed: onPressed,
+          child: Icon(icon, color: fg, size: 22),
         ),
       );
     }
@@ -384,56 +504,37 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Semantics(
-          button: true,
-          label: 'Share memory',
-          child: CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () => showMemoryShareSheet(context, entry),
-            child: Icon(
-              CupertinoIcons.share,
-              color: context.palette.primary,
-              size: 22,
-            ),
-          ),
+        action(
+          'Share memory',
+          CupertinoIcons.share,
+          () => showMemoryShareSheet(context, entry),
         ),
         if (_canEdit(entry))
-          Semantics(
-            button: true,
-            label: 'Edit memory',
-            child: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => _enterEditMode(entry),
-              child: Icon(
-                CupertinoIcons.pencil,
-                color: context.palette.primary,
-                size: 22,
-              ),
-            ),
+          action(
+            'Edit memory',
+            CupertinoIcons.pencil,
+            () => _enterEditMode(entry),
           ),
-        Semantics(
-          button: true,
-          label: 'Delete memory',
-          child: CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () => _confirmDelete(context, entry),
-            child: Icon(
-              CupertinoIcons.trash,
-              color: context.palette.error,
-              size: 22,
-            ),
-          ),
+        action(
+          'Delete memory',
+          CupertinoIcons.trash,
+          () => _confirmDelete(context, entry),
         ),
       ],
     );
   }
 
-  List<Widget> _buildMaterialActions(BuildContext context, Entry entry) {
+  List<Widget> _buildMaterialActions(
+    BuildContext context,
+    Entry entry,
+    Color fg,
+  ) {
     if (_isEditMode) {
       return [
         IconButton(
           icon: const Icon(Icons.check),
-          color: context.palette.primary,
+          tooltip: 'Save',
+          color: fg,
           onPressed: () => _saveChanges(entry),
         ),
       ];
@@ -442,23 +543,24 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     return [
       IconButton(
         icon: const Icon(Icons.share_outlined),
-        color: context.palette.primary,
+        color: fg,
         tooltip: 'Share',
         onPressed: () => showMemoryShareSheet(context, entry),
       ),
       if (_canEdit(entry))
         IconButton(
           icon: const Icon(Icons.edit_outlined),
-          color: context.palette.primary,
+          color: fg,
           tooltip: 'Edit memory',
           onPressed: () => _enterEditMode(entry),
         ),
       IconButton(
         icon: const Icon(Icons.delete_outline),
-        color: context.palette.error,
+        color: fg,
         tooltip: 'Delete memory',
         onPressed: () => _confirmDelete(context, entry),
       ),
+      const SizedBox(width: 4),
     ];
   }
 
@@ -469,177 +571,503 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     return entry.type != EntryType.voice || entry.hasText;
   }
 
-  Widget _buildContent(BuildContext context, Entry entry, Color typeColor) {
+  // ---------------------------------------------------------------------------
+  // The page
+  // ---------------------------------------------------------------------------
+
+  Widget _buildPage(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final hero = _hasHero(entry);
+    // The page scrolls under the bar, so leave room for it (none when
+    // embedded in the split view, which has no bar).
+    final topInset = widget.embedded ? 0.0 : _barExtent(context);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final hasTitle = entry.title != null && entry.title!.isNotEmpty;
+    final editsTitle =
+        _isEditMode &&
+        (hasTitle ||
+            entry.type == EntryType.object ||
+            entry.type == EntryType.ritual);
+    const gutter = 24.0;
+
+    final words = <Widget>[
+      if (_isOnThisDay(entry)) ...[
+        _buildOnThisDayKicker(context, entry),
+        const SizedBox(height: 10),
+      ],
+      _buildDateHeader(context, entry),
+      if (editsTitle) ...[
+        const SizedBox(height: 20),
+        _buildEditableTitle(context, entry),
+      ] else if (hasTitle) ...[
+        const SizedBox(height: 18),
+        Semantics(
+          header: true,
+          child: Text(
+            entry.title!,
+            style: _serif(
+              30,
+              weight: FontWeight.w600,
+              height: 1.18,
+              letterSpacing: -0.2,
+              color: palette.textPrimary,
+            ),
+          ),
+        ),
+      ],
+      if (entry.type == EntryType.voice && entry.hasMedia) ...[
+        const SizedBox(height: 24),
+        _buildVoiceBlock(context, entry),
+      ],
+      if (_isEditMode && entry.type != EntryType.voice) ...[
+        const SizedBox(height: 20),
+        _buildEditableText(context, entry),
+      ] else if (entry.hasText) ...[
+        SizedBox(height: hasTitle ? 16 : 22),
+        _buildTextContent(context, entry),
+      ] else if (!entry.hasMedia && entry.type == EntryType.fragment) ...[
+        const SizedBox(height: 22),
+        Text(
+          'A wordless fragment.',
+          style: _serif(
+            18,
+            style: FontStyle.italic,
+            color: palette.textSecondary,
+          ),
+        ),
+      ],
+      if (!_isEditMode) ..._buildQuietMetadata(context, entry),
+    ];
+
+    final hasLinks = entry.hasManualLinks;
+    final linked = hasLinks && !_isEditMode
+        ? ref.watch(linkedEntriesProvider(entry.manualLinkIds ?? ''))
+        : const <Entry>[];
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      key: PageStorageKey('entry-page-${entry.id}'),
+      padding: EdgeInsets.only(bottom: bottomInset + 40),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Media content (not editable)
-          if (entry.hasMedia) _buildMediaContent(context, entry),
-          // Title (for objects) - editable
-          if (_isEditMode &&
-              (entry.type == EntryType.object ||
-                  entry.type == EntryType.ritual)) ...[
-            if (entry.hasMedia) const SizedBox(height: 20),
-            _buildEditableTitle(context, entry),
-          ] else if (entry.title != null && entry.title!.isNotEmpty) ...[
-            if (entry.hasMedia) const SizedBox(height: 20),
-            Text(
-              entry.title!,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: context.palette.textPrimary,
+          if (hero)
+            _buildHero(context, entry)
+          else
+            SizedBox(height: topInset + 20),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      gutter,
+                      hero ? 4 : 8,
+                      gutter,
+                      0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: words,
+                    ),
+                  ),
+                  if (!_isEditMode)
+                    SimilarMemoriesSection(
+                      entryId: entry.id,
+                      horizontalPadding: gutter,
+                    ),
+                  if (linked.isNotEmpty) ...[
+                    const SizedBox(height: 32),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: gutter),
+                      child: KeepsakeSectionLabel('Linked memories'),
+                    ),
+                    const SizedBox(height: 12),
+                    KeepsakeMemoryRow(
+                      entries: linked,
+                      semanticHint: 'Opens this memory. Hold to unlink.',
+                      onOpen: (other) => _openMemory(context, other),
+                      onLongPress: (other) =>
+                          _confirmUnlink(context, entry, other),
+                    ),
+                  ],
+                  if (!_isEditMode)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        gutter - 8,
+                        28,
+                        gutter,
+                        0,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _buildLinkAction(context, entry),
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
-          // Text content - editable
-          if (_isEditMode && entry.type != EntryType.voice) ...[
-            const SizedBox(height: 16),
-            _buildEditableText(context, entry),
-          ] else if (entry.hasText) ...[
-            const SizedBox(height: 16),
-            _buildTextContent(context, entry),
-          ],
-          // Empty state for fragments
-          if (!_isEditMode &&
-              !entry.hasText &&
-              !entry.hasMedia &&
-              entry.type == EntryType.fragment) ...[
-            _buildEmptyFragment(context),
-          ],
-          const SizedBox(height: 24),
-          // Metadata
-          _buildMetadata(context, entry, typeColor),
-          // Similar memories section (only show when not in edit mode)
-          if (!_isEditMode) SimilarMemoriesSection(entryId: entry.id),
-          // Manually linked memories (only show when not in edit mode)
-          if (!_isEditMode) _buildLinkedMemories(context, entry),
+          ),
         ],
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Manual Linking
-  // ---------------------------------------------------------------------------
-
-  Widget _buildLinkedMemories(BuildContext context, Entry entry) {
-    // Reactive and memoised per link set: no DB query inside build.
-    final linkedEntries = ref.watch(
-      linkedEntriesProvider(entry.manualLinkIds ?? ''),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildOnThisDayKicker(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final years = DateTime.now().year - entry.createdAt.year;
+    final label = years == 1 ? 'A year ago today' : '$years years ago today';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 24),
-        // Section header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
-            children: [
-              Icon(
-                PlatformUtils.isIOS ? CupertinoIcons.link : Icons.link,
-                size: 18,
-                color: context.palette.textSecondary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Linked',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: context.palette.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+        Icon(AdaptiveIcons.leaf, size: 16, color: palette.primary),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: _serif(
+            17,
+            style: FontStyle.italic,
+            color: palette.inkFor(palette.primary),
           ),
-        ),
-        const SizedBox(height: 12),
-        // Horizontal list of linked memories
-        if (linkedEntries.isNotEmpty)
-          SizedBox(
-            height: 140,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: linkedEntries.length,
-              itemBuilder: (context, index) {
-                return _buildLinkedMemoryCard(
-                  context,
-                  linkedEntries[index],
-                  entry,
-                  isFirst: index == 0,
-                  isLast: index == linkedEntries.length - 1,
-                );
-              },
-            ),
-          ),
-        // "Link a memory" button
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: PlatformUtils.isIOS
-              ? CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () => _showLinkPicker(context, entry),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        CupertinoIcons.plus_circle,
-                        size: 16,
-                        color: context.palette.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Link a memory',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: context.palette.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : TextButton.icon(
-                  onPressed: () => _showLinkPicker(context, entry),
-                  icon: Icon(
-                    Icons.add_link,
-                    size: 16,
-                    color: context.palette.primary,
-                  ),
-                  label: Text(
-                    'Link a memory',
-                    style: TextStyle(color: context.palette.primary),
-                  ),
-                ),
         ),
       ],
     );
   }
 
-  Widget _buildLinkedMemoryCard(
-    BuildContext context,
-    Entry linked,
-    Entry current, {
-    required bool isFirst,
-    required bool isLast,
-  }) {
-    return Padding(
-      padding: EdgeInsets.only(left: isFirst ? 0 : 8, right: isLast ? 0 : 8),
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => EntryDetailScreen(entryId: linked.id),
+  Widget _buildDateHeader(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final locale = Localizations.maybeLocaleOf(context)?.toLanguageTag();
+    final date = entry.createdAt;
+    final parts = <String>[
+      DateFormat.jm(locale).format(date),
+      if (!_isOnThisDay(entry)) ?yearsAgoLabel(date, DateTime.now()),
+    ];
+    return Semantics(
+      header: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            keepsakeDateLine(date, locale: locale),
+            style: _serif(
+              entry.title?.isNotEmpty == true ? 21 : 25,
+              height: 1.2,
+              color: entry.title?.isNotEmpty == true
+                  ? palette.textSecondary
+                  : palette.textPrimary,
             ),
-          );
-        },
-        onLongPress: () => _confirmUnlink(context, current, linked),
-        child: _LinkedMemoryCardContent(entry: linked),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            parts.join('  ·  '),
+            style: TextStyle(
+              fontSize: 14,
+              letterSpacing: 0.2,
+              color: palette.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildHero(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final height = _heroHeight(context, entry);
+    final topScrim = _barExtent(context) + 48;
+
+    Widget fallback({required bool missing}) => DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.alphaBlend(
+              palette.mediaScrim.withValues(alpha: 0.35),
+              typeAccent(palette, entry.type),
+            ),
+            typeAccent(palette, entry.type).withValues(alpha: 0.5),
+          ],
+        ),
+      ),
+      child: missing
+          ? Center(
+              child: Text(
+                'This photo is no longer on this device',
+                style: TextStyle(color: palette.onMedia, fontSize: 14),
+              ),
+            )
+          : const SizedBox.expand(),
+    );
+
+    return SizedBox(
+      height: height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          FutureBuilder<String?>(
+            future: _resolveMedia(entry.mediaPath),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return fallback(missing: false);
+              }
+              final resolvedPath = snapshot.data;
+              if (resolvedPath == null) return fallback(missing: true);
+              final label = entry.title != null
+                  ? '${entry.title} photo.'
+                  : 'Photo.';
+              return Semantics(
+                button: !_isEditMode,
+                image: true,
+                label: label,
+                hint: _isEditMode ? null : 'Opens the photo full screen',
+                child: GestureDetector(
+                  onTap: _isEditMode
+                      ? null
+                      : () {
+                          HapticFeedback.selectionClick();
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (context) => PhotoViewer(
+                                imagePath: resolvedPath,
+                                title: entry.title,
+                              ),
+                            ),
+                          );
+                        },
+                  child: Hero(
+                    tag: 'entry-${entry.id}',
+                    transitionOnUserGestures: true,
+                    child: Image.file(
+                      File(resolvedPath),
+                      width: double.infinity,
+                      height: height,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      // Decode at display width instead of full camera size.
+                      cacheWidth:
+                          (MediaQuery.sizeOf(context).width *
+                                  MediaQuery.devicePixelRatioOf(context))
+                              .round(),
+                      errorBuilder: (context, error, stackTrace) =>
+                          fallback(missing: true),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          // A gentle scrim so the bar's icons stay readable on any photo.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topScrim,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      palette.mediaScrim.withValues(alpha: 0.42),
+                      palette.mediaScrim.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // The photo settles into the page instead of ending on a hard edge.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: -1,
+            height: 49,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      palette.background.withValues(alpha: 0),
+                      palette.background,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextContent(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final isRelease = entry.type == EntryType.release;
+    return Text(
+      entry.text!,
+      style: _serif(
+        19,
+        height: 1.65,
+        style: isRelease ? FontStyle.italic : FontStyle.normal,
+        color: isRelease ? palette.textSecondary : palette.textPrimary,
+      ),
+    );
+  }
+
+  Widget _buildVoiceBlock(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    return FutureBuilder<String?>(
+      future: _resolveMedia(entry.mediaPath),
+      builder: (context, snapshot) {
+        final waiting = snapshot.connectionState != ConnectionState.done;
+        final resolvedPath = snapshot.data;
+        final hasTranscription =
+            entry.transcription != null && entry.transcription!.isNotEmpty;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (waiting)
+              const SizedBox(height: 92)
+            else if (resolvedPath != null)
+              VoicePlayer(audioPath: resolvedPath)
+            else
+              Text(
+                'This voice memo is no longer on this device.',
+                style: _serif(
+                  16,
+                  style: FontStyle.italic,
+                  color: palette.textMuted,
+                ),
+              ),
+            if (!waiting && (resolvedPath != null || hasTranscription))
+              _buildTranscriptionSection(context, entry),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildQuietMetadata(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final locale = Localizations.maybeLocaleOf(context)?.toLanguageTag();
+    final chips = <Widget>[];
+
+    final theme = MemoryThemeExtension.fromString(entry.detectedTheme);
+    if (theme != null) {
+      final color = palette.themeColor(theme.name);
+      chips.add(
+        _MetaChip(
+          leading: Text(theme.emoji, style: const TextStyle(fontSize: 13)),
+          label: theme.displayName,
+          fill: color.withValues(alpha: palette.isDark ? 0.22 : 0.14),
+          ink: palette.inkFor(color),
+        ),
+      );
+    }
+
+    final place = entry.context?.trim();
+    if (place != null && place.isNotEmpty) {
+      chips.add(
+        _MetaChip(
+          leading: Icon(
+            PlatformUtils.isIOS
+                ? CupertinoIcons.location
+                : Icons.place_outlined,
+            size: 14,
+            color: palette.textSecondary,
+          ),
+          label: place,
+          ink: palette.textSecondary,
+        ),
+      );
+    }
+
+    final mood = entry.mood?.trim();
+    if (mood != null && mood.isNotEmpty) {
+      chips.add(_MetaChip(label: mood, ink: palette.textSecondary));
+    }
+
+    if (entry.isCapsule && entry.capsuleUnlockDate != null) {
+      final fmt = DateFormat.yMMMd(locale);
+      chips.add(
+        _MetaChip(
+          leading: Icon(
+            PlatformUtils.isIOS
+                ? CupertinoIcons.envelope_open
+                : Icons.drafts_outlined,
+            size: 14,
+            color: palette.textSecondary,
+          ),
+          label:
+              'Sealed ${fmt.format(entry.createdAt)}, opened '
+              '${fmt.format(entry.capsuleUnlockDate!.toLocal())}',
+          ink: palette.textSecondary,
+        ),
+      );
+    }
+
+    if (chips.isEmpty) return const [];
+    return [
+      const SizedBox(height: 28),
+      Wrap(spacing: 8, runSpacing: 8, children: chips),
+    ];
+  }
+
+  Widget _buildLinkAction(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          PlatformUtils.isIOS ? CupertinoIcons.link : Icons.link,
+          size: 16,
+          color: palette.textSecondary,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Link a memory',
+          style: TextStyle(fontSize: 15, color: palette.textSecondary),
+        ),
+      ],
+    );
+    if (PlatformUtils.isIOS) {
+      return CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(44, 44),
+        onPressed: () => _showLinkPicker(context, entry),
+        child: content,
+      );
+    }
+    return TextButton(
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(48, 48),
+      ),
+      onPressed: () => _showLinkPicker(context, entry),
+      child: content,
+    );
+  }
+
+  void _openMemory(BuildContext context, Entry other) {
+    if (GoRouter.maybeOf(context) != null) {
+      context.push(AppRoutes.entryRoute(other.id));
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => EntryDetailScreen(entryId: other.id),
+        ),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Manual Linking
+  // ---------------------------------------------------------------------------
 
   void _confirmUnlink(BuildContext context, Entry current, Entry linked) {
     HapticFeedback.selectionClick();
@@ -648,7 +1076,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       showCupertinoDialog<void>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Remove Link?'),
+          title: const Text('Remove link?'),
           content: Text(
             'Remove the link between this memory and "${linked.displayContent}"?',
           ),
@@ -672,7 +1100,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Remove Link?'),
+          title: const Text('Remove link?'),
           content: Text(
             'Remove the link between this memory and "${linked.displayContent}"?',
           ),
@@ -720,6 +1148,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
   }
 
   void _showLinkPicker(BuildContext context, Entry current) {
+    HapticFeedback.selectionClick();
     if (PlatformUtils.isIOS) {
       showCupertinoModalPopup<void>(
         context: context,
@@ -747,14 +1176,6 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     // Ensure both entries have a syncUUID
     final currentUUID = _ensureSyncUUID(current);
     final otherUUID = _ensureSyncUUID(other);
-
-    // Save UUID if we just generated it
-    if (current.syncUUID != currentUUID) {
-      current.syncUUID = currentUUID;
-    }
-    if (other.syncUUID != otherUUID) {
-      other.syncUUID = otherUUID;
-    }
 
     // Add otherUUID to current's manualLinkIds (avoid duplicates)
     final currentLinks = List<String>.from(current.manualLinkList);
@@ -791,336 +1212,193 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     return newUUID;
   }
 
+  // ---------------------------------------------------------------------------
+  // Editing
+  // ---------------------------------------------------------------------------
+
+  BoxDecoration _fieldDecoration(BuildContext context) => BoxDecoration(
+    color: context.palette.surfaceMuted.withValues(alpha: 0.6),
+    borderRadius: SeedlingRadius.small,
+    border: Border.all(color: context.palette.divider),
+  );
+
   Widget _buildEditableTitle(BuildContext context, Entry entry) {
+    final palette = context.palette;
+    final style = _serif(
+      26,
+      weight: FontWeight.w600,
+      height: 1.2,
+      color: palette.textPrimary,
+    );
     if (PlatformUtils.isIOS) {
       return CupertinoTextField(
         controller: _titleController,
         placeholder: 'Title',
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: context.palette.textPrimary,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(context).dividerColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.all(16),
+        style: style,
+        decoration: _fieldDecoration(context),
+        padding: const EdgeInsets.all(14),
       );
     }
 
     return TextField(
       controller: _titleController,
-      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: context.palette.textPrimary,
-      ),
+      style: style,
       decoration: InputDecoration(
         hintText: 'Title',
         filled: true,
-        fillColor: Theme.of(context).dividerColor,
+        fillColor: palette.surfaceMuted.withValues(alpha: 0.6),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: SeedlingRadius.small,
+          borderSide: BorderSide(color: palette.divider),
         ),
-        contentPadding: const EdgeInsets.all(16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: SeedlingRadius.small,
+          borderSide: BorderSide(color: palette.divider),
+        ),
+        contentPadding: const EdgeInsets.all(14),
       ),
     );
   }
 
   Widget _buildEditableText(BuildContext context, Entry entry) {
+    final palette = context.palette;
     final isRelease = entry.type == EntryType.release;
     final hintText = isRelease
         ? 'What are you letting go of?'
-        : 'Add a note...';
+        : 'Add a few words…';
+    final style = _serif(
+      19,
+      height: 1.65,
+      style: isRelease ? FontStyle.italic : FontStyle.normal,
+      color: isRelease ? palette.textSecondary : palette.textPrimary,
+    );
 
     if (PlatformUtils.isIOS) {
       return CupertinoTextField(
         controller: _textController,
         placeholder: hintText,
         maxLines: null,
-        minLines: 4,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          height: 1.6,
-          color: isRelease
-              ? context.palette.textSecondary
-              : context.palette.textPrimary,
-          fontStyle: isRelease ? FontStyle.italic : FontStyle.normal,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(context).dividerColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.all(16),
+        minLines: 5,
+        style: style,
+        decoration: _fieldDecoration(context),
+        padding: const EdgeInsets.all(14),
       );
     }
 
     return TextField(
       controller: _textController,
       maxLines: null,
-      minLines: 4,
-      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-        height: 1.6,
-        color: isRelease
-            ? context.palette.textSecondary
-            : context.palette.textPrimary,
-        fontStyle: isRelease ? FontStyle.italic : FontStyle.normal,
-      ),
+      minLines: 5,
+      style: style,
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: Theme.of(context).dividerColor,
+        fillColor: palette.surfaceMuted.withValues(alpha: 0.6),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: SeedlingRadius.small,
+          borderSide: BorderSide(color: palette.divider),
         ),
-        contentPadding: const EdgeInsets.all(16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: SeedlingRadius.small,
+          borderSide: BorderSide(color: palette.divider),
+        ),
+        contentPadding: const EdgeInsets.all(14),
       ),
     );
   }
 
-  Widget _buildMediaContent(BuildContext context, Entry entry) {
-    switch (entry.type) {
-      case EntryType.photo:
-      case EntryType.object:
-        if (entry.mediaPath != null) {
-          return _buildPhotoContent(context, entry);
-        }
-        break;
-      case EntryType.voice:
-        if (entry.mediaPath != null) {
-          return FutureBuilder<String?>(
-            future: FileStorageService.resolveMediaPath(entry.mediaPath),
-            builder: (context, snapshot) {
-              final hasTranscription =
-                  entry.transcription != null &&
-                  entry.transcription!.isNotEmpty;
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 56,
-                      child: Center(
-                        child: PlatformUtils.isIOS
-                            ? const CupertinoActivityIndicator()
-                            : const CircularProgressIndicator.adaptive(),
-                      ),
-                    ),
-                    if (hasTranscription)
-                      _buildTranscriptionSection(context, entry),
-                  ],
-                );
-              }
-              final resolvedPath = snapshot.data;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (resolvedPath != null)
-                    VoicePlayer(audioPath: resolvedPath)
-                  else
-                    _buildUnavailableMediaMessage('Voice memo unavailable'),
-                  if (resolvedPath != null || hasTranscription)
-                    _buildTranscriptionSection(context, entry),
-                ],
-              );
-            },
-          );
-        }
-        break;
-      default:
-        break;
-    }
-    return const SizedBox.shrink();
-  }
-
-  Widget _buildPhotoContent(BuildContext context, Entry entry) {
-    return FutureBuilder<String?>(
-      future: FileStorageService.resolveMediaPath(entry.mediaPath),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            height: 240,
-            decoration: BoxDecoration(
-              color: Theme.of(context).dividerColor,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: PlatformUtils.isIOS
-                  ? const CupertinoActivityIndicator()
-                  : const CircularProgressIndicator.adaptive(),
-            ),
-          );
-        }
-
-        final resolvedPath = snapshot.data;
-        if (resolvedPath == null) {
-          return _buildUnavailableMediaMessage('Photo unavailable');
-        }
-        final semanticsLabel = _isEditMode
-            ? (entry.title != null ? '${entry.title} photo.' : 'Photo.')
-            : (entry.title != null
-                  ? '${entry.title} photo. Double tap to view full screen.'
-                  : 'Photo. Double tap to view full screen.');
-        return Semantics(
-          button: !_isEditMode,
-          label: semanticsLabel,
-          child: GestureDetector(
-            onTap: _isEditMode
-                ? null
-                : () {
-                    HapticFeedback.selectionClick();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => PhotoViewer(
-                          imagePath: resolvedPath,
-                          title: entry.title,
-                        ),
-                      ),
-                    );
-                  },
-            child: Hero(
-              tag: 'entry-${entry.id}',
-              transitionOnUserGestures: true,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.file(
-                  File(resolvedPath),
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  // Decode at display width instead of full camera size.
-                  cacheWidth:
-                      (MediaQuery.sizeOf(context).width *
-                              MediaQuery.devicePixelRatioOf(context))
-                          .round(),
-                  errorBuilder: (context, error, stackTrace) =>
-                      _buildUnavailableMediaMessage('Photo unavailable'),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildUnavailableMediaMessage(String label) {
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        color: Theme.of(context).dividerColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Center(
-        child: Text(label, style: TextStyle(color: context.palette.textMuted)),
-      ),
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Voice transcription
+  // ---------------------------------------------------------------------------
 
   Widget _buildTranscriptionSection(BuildContext context, Entry entry) {
+    final palette = context.palette;
     final hasTranscription =
         entry.transcription != null && entry.transcription!.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (hasTranscription) ...[
-            GlassContainer(
-              borderRadius: 12,
-              opacity: 0.5,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Transcription',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: context.palette.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      entry.transcription!,
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.5,
-                        color: context.palette.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+    if (hasTranscription) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 18),
+        child: Container(
+          padding: const EdgeInsets.only(left: 14),
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: palette.accentVoice.withValues(alpha: 0.5),
+                width: 2,
               ),
             ),
-          ] else ...[
-            if (!_isTranscribing)
-              PlatformUtils.isIOS
-                  ? CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: () => _transcribeEntry(entry),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CupertinoIcons.text_bubble,
-                            size: 16,
-                            color: context.palette.primary,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Transcribe',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: context.palette.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : TextButton.icon(
-                      onPressed: () => _transcribeEntry(entry),
-                      icon: Icon(
-                        Icons.text_fields,
-                        size: 16,
-                        color: context.palette.primary,
-                      ),
-                      label: Text(
-                        'Transcribe',
-                        style: TextStyle(color: context.palette.primary),
-                      ),
+          ),
+          child: Text(
+            entry.transcription!,
+            style: _serif(
+              17,
+              height: 1.6,
+              style: FontStyle.italic,
+              color: palette.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_isTranscribing) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: PlatformUtils.isIOS
+                  ? const CupertinoActivityIndicator(radius: 8)
+                  : CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: palette.primary,
                     ),
-            if (_isTranscribing)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: PlatformUtils.isIOS
-                          ? const CupertinoActivityIndicator(radius: 8)
-                          : CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: context.palette.primary,
-                            ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Transcribing...',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: context.palette.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Listening…',
+              style: TextStyle(fontSize: 14, color: palette.textSecondary),
+            ),
           ],
-        ],
-      ),
+        ),
+      );
+    }
+
+    final label = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          PlatformUtils.isIOS ? CupertinoIcons.text_bubble : Icons.text_fields,
+          size: 16,
+          color: palette.textSecondary,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Transcribe',
+          style: TextStyle(fontSize: 15, color: palette.textSecondary),
+        ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: PlatformUtils.isIOS
+          ? CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(44, 44),
+              onPressed: () => _transcribeEntry(entry),
+              child: label,
+            )
+          : TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(48, 48),
+              ),
+              onPressed: () => _transcribeEntry(entry),
+              child: label,
+            ),
     );
   }
 
@@ -1185,260 +1463,9 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     }
   }
 
-  Widget _buildTextContent(BuildContext context, Entry entry) {
-    final isRelease = entry.type == EntryType.release;
-
-    return GlassContainer(
-      borderRadius: 12,
-      opacity: 0.6,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          entry.text!,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            height: 1.6,
-            color: isRelease
-                ? context.palette.textSecondary
-                : context.palette.textPrimary,
-            fontStyle: isRelease ? FontStyle.italic : FontStyle.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyFragment(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: SeedlingColors.accentFragment.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: SeedlingColors.accentFragment.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(
-              PlatformUtils.isIOS
-                  ? CupertinoIcons.sparkles
-                  : Icons.auto_awesome,
-              color: SeedlingColors.accentFragment,
-              size: 32,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'A wordless fragment',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.palette.textSecondary,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetadata(BuildContext context, Entry entry, Color typeColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            // Type badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: typeColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(_getTypeIcon(entry.type), color: typeColor, size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    entry.typeName,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: typeColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Spacer(),
-            // Date
-            Text(
-              _formatDate(entry.createdAt),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
-            ),
-          ],
-        ),
-        if (_hasExtraMetadata(entry)) ...[
-          const SizedBox(height: 12),
-          _buildExpandableMetadata(context, entry),
-        ],
-      ],
-    );
-  }
-
-  bool _hasExtraMetadata(Entry entry) {
-    return entry.detectedTheme != null ||
-        entry.lastAnalyzedAt != null ||
-        (entry.connectionIds != null && entry.connectionIds!.isNotEmpty);
-  }
-
-  Widget _buildExpandableMetadata(BuildContext context, Entry entry) {
-    final collapsed = GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _metadataExpanded = true);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'More details',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: context.palette.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 4),
-            AnimatedRotation(
-              turns: _metadataExpanded ? 0.5 : 0,
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: Icon(
-                PlatformUtils.isIOS
-                    ? CupertinoIcons.chevron_down
-                    : Icons.expand_more,
-                size: 14,
-                color: context.palette.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    final expanded = GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _metadataExpanded = false);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Details',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: context.palette.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                AnimatedRotation(
-                  turns: _metadataExpanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: Icon(
-                    PlatformUtils.isIOS
-                        ? CupertinoIcons.chevron_down
-                        : Icons.expand_more,
-                    size: 16,
-                    color: context.palette.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (entry.detectedTheme != null)
-              _metadataRow(
-                context,
-                'Theme',
-                MemoryThemeExtension.fromString(
-                      entry.detectedTheme,
-                    )?.displayName ??
-                    entry.detectedTheme!,
-              ),
-            if (entry.connectionIds != null && entry.connectionIds!.isNotEmpty)
-              _metadataRow(
-                context,
-                'Connections',
-                '${entry.connectionIds!.split(',').where((s) => s.trim().isNotEmpty).length}',
-              ),
-            if (entry.lastAnalyzedAt != null)
-              _metadataRow(
-                context,
-                'Last analyzed',
-                _formatDate(entry.lastAnalyzedAt!),
-              ),
-          ],
-        ),
-      ),
-    );
-
-    return AnimatedCrossFade(
-      firstChild: collapsed,
-      secondChild: expanded,
-      crossFadeState: _metadataExpanded
-          ? CrossFadeState.showSecond
-          : CrossFadeState.showFirst,
-      duration: const Duration(milliseconds: 260),
-      sizeCurve: Curves.easeOutCubic,
-      firstCurve: Curves.easeOutCubic,
-      secondCurve: Curves.easeOutCubic,
-    );
-  }
-
-  Widget _metadataRow(BuildContext context, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: context.palette.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Delete
+  // ---------------------------------------------------------------------------
 
   void _confirmDelete(BuildContext context, Entry entry) {
     HapticFeedback.selectionClick();
@@ -1502,236 +1529,50 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     ref.read(entryCreatorProvider.notifier).deleteEntry(entry.id);
     Navigator.of(context).pop();
   }
-
-  Color _getTypeColor(EntryType type) {
-    switch (type) {
-      case EntryType.line:
-        return SeedlingColors.accentLine;
-      case EntryType.photo:
-        return SeedlingColors.accentPhoto;
-      case EntryType.voice:
-        return SeedlingColors.accentVoice;
-      case EntryType.object:
-        return SeedlingColors.accentObject;
-      case EntryType.fragment:
-        return SeedlingColors.accentFragment;
-      case EntryType.ritual:
-        return SeedlingColors.accentRitual;
-      case EntryType.release:
-        return SeedlingColors.accentRelease;
-    }
-  }
-
-  IconData _getTypeIcon(EntryType type) {
-    if (PlatformUtils.isIOS) {
-      switch (type) {
-        case EntryType.line:
-          return CupertinoIcons.text_quote;
-        case EntryType.photo:
-          return CupertinoIcons.photo;
-        case EntryType.voice:
-          return CupertinoIcons.waveform;
-        case EntryType.object:
-          return CupertinoIcons.cube;
-        case EntryType.fragment:
-          return CupertinoIcons.sparkles;
-        case EntryType.ritual:
-          return CupertinoIcons.arrow_2_circlepath;
-        case EntryType.release:
-          return CupertinoIcons.wind;
-      }
-    }
-
-    switch (type) {
-      case EntryType.line:
-        return Icons.format_quote;
-      case EntryType.photo:
-        return Icons.photo_outlined;
-      case EntryType.voice:
-        return Icons.graphic_eq;
-      case EntryType.object:
-        return Icons.category_outlined;
-      case EntryType.fragment:
-        return Icons.auto_awesome;
-      case EntryType.ritual:
-        return Icons.loop;
-      case EntryType.release:
-        return Icons.air;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final entryDate = DateTime(date.year, date.month, date.day);
-    final difference = today.difference(entryDate).inDays;
-
-    if (difference == 0) {
-      return 'Today at ${DateFormat('h:mm a').format(date)}';
-    } else if (difference == 1) {
-      return 'Yesterday at ${DateFormat('h:mm a').format(date)}';
-    } else if (difference < 7) {
-      return '${DateFormat('EEEE').format(date)} at ${DateFormat('h:mm a').format(date)}';
-    } else if (date.year == now.year) {
-      return DateFormat('MMMM d').format(date);
-    } else {
-      return DateFormat('MMMM d, y').format(date);
-    }
-  }
 }
 
-// =============================================================================
-// Linked Memory Card Content
-// =============================================================================
+/// A small, quiet metadata chip (theme, place, mood, capsule dates).
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({
+    required this.label,
+    required this.ink,
+    this.leading,
+    this.fill,
+  });
 
-class _LinkedMemoryCardContent extends StatelessWidget {
-  final Entry entry;
-
-  const _LinkedMemoryCardContent({required this.entry});
+  final String label;
+  final Color ink;
+  final Widget? leading;
+  final Color? fill;
 
   @override
   Widget build(BuildContext context) {
-    return GlassContainer(
-      borderRadius: 16,
-      opacity: 0.6,
-      child: Container(
-        width: 160,
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildLeading(),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Text(
-                entry.displayContent,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: context.palette.textPrimary,
-                  height: 1.3,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Hold to unlink',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: context.palette.textMuted,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLeading() {
-    if (entry.hasMedia &&
-        (entry.type == EntryType.photo || entry.type == EntryType.object)) {
-      return FutureBuilder<File?>(
-        future: FileStorageService.resolveMediaFile(entry.mediaPath),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(8),
-              ),
-            );
-          }
-          final resolvedFile = snapshot.data;
-          if (resolvedFile == null) {
-            return _buildTypeIcon();
-          }
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-              resolvedFile,
-              width: 40,
-              height: 40,
-              fit: BoxFit.cover,
-              cacheWidth: 120,
-              cacheHeight: 120,
-              errorBuilder: (context, error, stackTrace) => _buildTypeIcon(),
-            ),
-          );
-        },
-      );
-    }
-    return _buildTypeIcon();
-  }
-
-  Widget _buildTypeIcon() {
-    final color = _getTypeColor(entry.type);
     return Container(
-      width: 36,
-      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(8),
+        color: fill,
+        borderRadius: BorderRadius.circular(999),
+        border: fill == null ? Border.all(color: context.palette.border) : null,
       ),
-      child: Icon(_getTypeIcon(entry.type), color: color, size: 18),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 6)],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: ink,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
-  }
-
-  IconData _getTypeIcon(EntryType type) {
-    if (PlatformUtils.isIOS) {
-      switch (type) {
-        case EntryType.line:
-          return CupertinoIcons.text_quote;
-        case EntryType.photo:
-          return CupertinoIcons.photo;
-        case EntryType.voice:
-          return CupertinoIcons.waveform;
-        case EntryType.object:
-          return CupertinoIcons.cube;
-        case EntryType.fragment:
-          return CupertinoIcons.sparkles;
-        case EntryType.ritual:
-          return CupertinoIcons.arrow_2_circlepath;
-        case EntryType.release:
-          return CupertinoIcons.wind;
-      }
-    }
-    switch (type) {
-      case EntryType.line:
-        return Icons.format_quote;
-      case EntryType.photo:
-        return Icons.photo_outlined;
-      case EntryType.voice:
-        return Icons.graphic_eq;
-      case EntryType.object:
-        return Icons.category_outlined;
-      case EntryType.fragment:
-        return Icons.auto_awesome;
-      case EntryType.ritual:
-        return Icons.loop;
-      case EntryType.release:
-        return Icons.air;
-    }
-  }
-
-  Color _getTypeColor(EntryType type) {
-    switch (type) {
-      case EntryType.line:
-        return SeedlingColors.accentLine;
-      case EntryType.photo:
-        return SeedlingColors.accentPhoto;
-      case EntryType.voice:
-        return SeedlingColors.accentVoice;
-      case EntryType.object:
-        return SeedlingColors.accentObject;
-      case EntryType.fragment:
-        return SeedlingColors.accentFragment;
-      case EntryType.ritual:
-        return SeedlingColors.accentRitual;
-      case EntryType.release:
-        return SeedlingColors.accentRelease;
-    }
   }
 }
 
