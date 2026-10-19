@@ -1,0 +1,2992 @@
+{
+ "description": "Hand-labelled memory texts for evaluating ThemeDetectorService. 'primary' is the theme the memory is mostly about; 'secondary' is an optional second theme. split=test is held out: never tune lexicons or weights against it. 'moments' means genuinely unthemed.",
+ "version": 1,
+ "entries": [
+  {
+   "id": 1,
+   "type": "line",
+   "text": "coffee with mum on the porch",
+   "primary": "family",
+   "secondary": "food",
+   "split": "train"
+  },
+  {
+   "id": 2,
+   "type": "line",
+   "text": "Dad taught Leo to ride his bike without stabilisers today. He wobbled, then flew.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 3,
+   "type": "line",
+   "text": "nan called just to hear my voice",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 4,
+   "type": "line",
+   "text": "Abuela's kitchen smelled like cumin and oranges, same as when I was six",
+   "primary": "family",
+   "secondary": "food",
+   "split": "test"
+  },
+  {
+   "id": 5,
+   "type": "line",
+   "text": "Maya lost her first tooth and insisted the tooth fairy take it in a ziplock bag",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 6,
+   "type": "line",
+   "text": "My brother and I stayed up till 2am going through old photo albums",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 7,
+   "type": "line",
+   "text": "Grandad's hands shaking as he held the baby for the first time",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 8,
+   "type": "line",
+   "text": "Mom drove four hours just to bring me soup when I had the flu",
+   "primary": "family",
+   "secondary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 9,
+   "type": "line",
+   "text": "the twins said \"love you\" at the same time, unprompted",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 10,
+   "type": "line",
+   "text": "Sat with Oma in the care home. She didn't know my name but she held my hand the whole hour.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 11,
+   "type": "line",
+   "text": "First Diwali in the new flat. Mum brought diyas from home and we lit them on the balcony.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 12,
+   "type": "line",
+   "text": "My son asked why the moon follows the car. I didn't have a good answer.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 13,
+   "type": "line",
+   "text": "auntie Grace braided my daughter's hair exactly the way she used to braid mine",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 14,
+   "type": "line",
+   "text": "sunday roast at my in-laws, Gerald carved, everyone argued about yorkshire puddings",
+   "primary": "family",
+   "secondary": "food",
+   "split": "test"
+  },
+  {
+   "id": 15,
+   "type": "line",
+   "text": "Pa finally learned to video call. Spent ten minutes looking at his ear.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 16,
+   "type": "line",
+   "text": "Our little one slept through the night for the first time 😭🙏",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 17,
+   "type": "line",
+   "text": "cleared out dads shed. found his old fishing hat",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 18,
+   "type": "line",
+   "text": "Hira took her first steps toward her baba, not me, and I'm not even mad",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 19,
+   "type": "line",
+   "text": "My sister told me she's pregnant!!! I'm going to be an aunt",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 20,
+   "type": "line",
+   "text": "wedding anniversary, 25 years. we danced in the kitchen to the same song",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 21,
+   "type": "line",
+   "text": "Kids built a blanket fort and made us pay a toll of one biscuit to enter",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 22,
+   "type": "line",
+   "text": "picked up my stepdaughter from school, she held my hand at the gate for the first time",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 23,
+   "type": "line",
+   "text": "Walked the dog with Dad along the canal, he talked about his own father for once",
+   "primary": "family",
+   "secondary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 24,
+   "type": "line",
+   "text": "Bàba sent a voice message singing happy birthday off-key",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 25,
+   "type": "line",
+   "text": "the whole family on one zoom for Eid, 14 little squares",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 26,
+   "type": "line",
+   "text": "Mama Ngozi visited from Enugu and immediately rearranged my kitchen",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 27,
+   "type": "object",
+   "title": "Grandma's ring",
+   "text": "She wore it every day for sixty years. Now it's on my finger.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 28,
+   "type": "line",
+   "text": "my husband fell asleep reading to the kids, all three of them snoring",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 29,
+   "type": "line",
+   "text": "Teenager actually talked to me in the car for 20 minutes. Treasure.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 30,
+   "type": "line",
+   "text": "cousins reunion at Lake Tahoe house, three generations crammed in",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 31,
+   "type": "line",
+   "text": "My mother-in-law sent a card that just said \"proud of you\". Kept it.",
+   "primary": "family",
+   "secondary": "gratitude",
+   "split": "test"
+  },
+  {
+   "id": 32,
+   "type": "line",
+   "text": "Rohan called me Appa for the first time",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 33,
+   "type": "line",
+   "text": "Grandpa Joe's 90th. He gave a speech nobody could hear and we all clapped anyway.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 34,
+   "type": "line",
+   "text": "nephew showed me his lego spaceship, explained every button",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 35,
+   "type": "line",
+   "text": "Mum and I finally talked about the divorce. Took 15 years.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 36,
+   "type": "line",
+   "text": "Pub quiz with the usual lot, came second, lost on a question about otters",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 37,
+   "type": "line",
+   "text": "Jess and I laughed so hard at brunch the waiter came over to check on us",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 38,
+   "type": "line",
+   "text": "movie night at Tom's, nobody watched the movie",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 39,
+   "type": "line",
+   "text": "coffee with Aisha, first time since uni. Picked up exactly where we left off",
+   "primary": "friends",
+   "secondary": "food",
+   "split": "train"
+  },
+  {
+   "id": 40,
+   "type": "line",
+   "text": "Group chat finally planned a trip after 3 years of \"we should\"",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 41,
+   "type": "line",
+   "text": "Ravi showed up with pizza when he heard about the breakup",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 42,
+   "type": "line",
+   "text": "bestie's hen do in Brighton, my feet will never recover",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 43,
+   "type": "line",
+   "text": "Met the neighbours properly at the street party. Turns out Pat plays the banjo",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 44,
+   "type": "line",
+   "text": "long phone call with Hannah, we talked for 3 hours like we were 15 again",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 45,
+   "type": "line",
+   "text": "board game night ended in a three-way tie at Catan and a lot of shouting",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 46,
+   "type": "line",
+   "text": "sam's leaving do. we gave him a cardboard cutout of himself",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 47,
+   "type": "line",
+   "text": "Kenji taught me how to make origami cranes at lunch break, I made 1 decent one",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 48,
+   "type": "line",
+   "text": "ran into Chloe at the shops, we stood in the cereal aisle catching up for 40 min",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 49,
+   "type": "line",
+   "text": "Book club tonight. Nobody had finished the book. Best one yet.",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 50,
+   "type": "line",
+   "text": "karaoke with the team, Marcus did a Whitney song and nailed it",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 51,
+   "type": "line",
+   "text": "my mate Dev helped me move flats in the pouring rain and refused payment except chips",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 52,
+   "type": "line",
+   "text": "First Friendsgiving in the new apartment, 11 people and one oven",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 53,
+   "type": "line",
+   "text": "Sat on the roof with Lena til sunrise talking about everything and nothing",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 54,
+   "type": "line",
+   "text": "old school friends WhatsApp exploded with photos from 1998",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 55,
+   "type": "line",
+   "text": "Bea remembered my mum's anniversary and sent flowers. Who does that.",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 56,
+   "type": "line",
+   "text": "game of five-a-side with the lads, lost 7-2, didn't care",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 57,
+   "type": "line",
+   "text": "Nadia and I finally did the escape room, escaped with 4 seconds left",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 58,
+   "type": "line",
+   "text": "we buried a time capsule in Jordan's garden when we were 12. Dug it up today.",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 59,
+   "type": "line",
+   "text": "brunch w the girls, mimosas, gossip, three hours gone",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 60,
+   "type": "line",
+   "text": "Housemates threw me a surprise party, I genuinely had no idea",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 61,
+   "type": "line",
+   "text": "new friend from the climbing wall invited me to her birthday",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 62,
+   "type": "line",
+   "text": "picnic in the park with Femi and Tolu, someone brought a guitar",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 63,
+   "type": "line",
+   "text": "texted Mike after two years of silence. He replied within a minute.",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 64,
+   "type": "line",
+   "text": "Presented the Q3 roadmap to the leadership team and didn't throw up",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 65,
+   "type": "line",
+   "text": "last day at the bakery after 9 years, the regulars gave me a card",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 66,
+   "type": "line",
+   "text": "finally shipped the release. 2am. team chat full of gifs",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 67,
+   "type": "line",
+   "text": "Got the promotion!!! senior designer at last",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 68,
+   "type": "line",
+   "text": "My manager pulled me aside to say the client asked for me by name",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 69,
+   "type": "line",
+   "text": "First shift as a nurse on the ward. Exhausted, terrified, proud.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 70,
+   "type": "line",
+   "text": "interview went... fine? they asked about a time I failed and I blanked",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 71,
+   "type": "line",
+   "text": "sorted the inbox to zero for the first time since march",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 72,
+   "type": "line",
+   "text": "signed my first freelance contract, invoice #001 sent",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 73,
+   "type": "line",
+   "text": "Mentored an intern who reminded me why I liked this job in the first place",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 74,
+   "type": "line",
+   "text": "the standup ran 45 minutes. a new record. not a good one.",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 75,
+   "type": "line",
+   "text": "handed in my notice. hands shaking but it feels right",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 76,
+   "type": "line",
+   "text": "Kofi from accounts brought in jollof for the whole floor on his last day",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 77,
+   "type": "line",
+   "text": "closed the deal with the Hamburg client after six months of calls",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 78,
+   "type": "line",
+   "text": "Taught my last lesson before retirement. Year 6 sang to me.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 79,
+   "type": "line",
+   "text": "Remote work day: wrote code in my pyjamas and fixed the bug that's haunted us for weeks",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 80,
+   "type": "line",
+   "text": "Got laid off today with 30 others. Strange quiet on the train home.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 81,
+   "type": "line",
+   "text": "defended my thesis. Dr. me.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 82,
+   "type": "line",
+   "text": "started at the new firm, everyone's name is Chris",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 83,
+   "type": "line",
+   "text": "the shop had its best Saturday ever, sold out of everything by 3",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 84,
+   "type": "line",
+   "text": "fixed a farmer's tractor in the rain and he paid me in eggs and gratitude",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 85,
+   "type": "line",
+   "text": "performance review went well, boss said I'm \"quietly indispensable\"",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 86,
+   "type": "line",
+   "text": "first day back from mat leave, cried in the office loo, then smashed the morning",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 87,
+   "type": "line",
+   "text": "the restaurant got a write-up in the local paper, chef hung it by the pass",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 88,
+   "type": "line",
+   "text": "Unpacked my desk at the new office. Plant, mug, photo of the dog.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 89,
+   "type": "line",
+   "text": "worked a double. feet are gone.",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 90,
+   "type": "line",
+   "text": "our startup got its first paying customer. €29. framed the receipt",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 91,
+   "type": "line",
+   "text": "Pitched to investors and they actually asked follow-up questions",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 92,
+   "type": "line",
+   "text": "first frost on the car",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 93,
+   "type": "line",
+   "text": "The cherry blossom outside the window finally opened overnight",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 94,
+   "type": "line",
+   "text": "Heard an owl at 3am, two notes, then silence",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 95,
+   "type": "line",
+   "text": "thunderstorm rolled in and the whole street smelled like hot pavement",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 96,
+   "type": "line",
+   "text": "a heron standing perfectly still in the canal, like it was waiting for a bus",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 97,
+   "type": "line",
+   "text": "Snow day! Everything quiet and blue",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 98,
+   "type": "line",
+   "text": "sunset turned the whole sky pink over the estuary",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 99,
+   "type": "line",
+   "text": "saw a fox trotting down the high street at dawn like it owned the place",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 100,
+   "type": "line",
+   "text": "The tomatoes are finally ripening on the allotment",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 101,
+   "type": "line",
+   "text": "rain on the skylight all night",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 102,
+   "type": "line",
+   "text": "A robin followed me around the garden while I dug",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 103,
+   "type": "line",
+   "text": "mist sitting low over the fields on the drive in",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 104,
+   "type": "line",
+   "text": "🌧️🌧️🌧️ and the smell of wet earth",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 105,
+   "type": "line",
+   "text": "picked blackberries along the lane, scratched to bits, worth it",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 106,
+   "type": "line",
+   "text": "first swim in the sea this year. freezing. glorious.",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 107,
+   "type": "line",
+   "text": "Leaves crunching under my boots on the way to school drop off",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 108,
+   "type": "line",
+   "text": "full moon so bright it threw shadows on the lawn",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 109,
+   "type": "line",
+   "text": "bluebells carpeting the wood behind the church",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 110,
+   "type": "line",
+   "text": "A hummingbird hovered at the feeder for a full minute",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 111,
+   "type": "line",
+   "text": "lay in the grass watching the clouds change shape",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 112,
+   "type": "line",
+   "text": "the oak at the end of the road has gone gold",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 113,
+   "type": "line",
+   "text": "Monsoon arrived today. The kids ran out and danced in it.",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 114,
+   "type": "line",
+   "text": "Planted daffodil bulbs with frozen fingers",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 115,
+   "type": "line",
+   "text": "Watched the starlings murmurate over the pier",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 116,
+   "type": "line",
+   "text": "Fireflies in the backyard, first ones of summer",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 117,
+   "type": "line",
+   "text": "the wind was so strong on the cliff path I could lean into it",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 118,
+   "type": "line",
+   "text": "frogspawn in the pond!!",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 119,
+   "type": "line",
+   "text": "A double rainbow over the motorway, everyone slowing down to look",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 120,
+   "type": "line",
+   "text": "walked the dog through the woods at first light, dew on everything",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 121,
+   "type": "line",
+   "text": "the magnolia across the road is blooming 🌸",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 122,
+   "type": "line",
+   "text": "snowdrops already, in January",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 123,
+   "type": "line",
+   "text": "Bees all over the lavender, the whole bush humming",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 124,
+   "type": "line",
+   "text": "Grateful for a quiet morning and a warm radiator",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 125,
+   "type": "line",
+   "text": "A stranger paid for my coffee in the queue. Small thing, made my week.",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 126,
+   "type": "line",
+   "text": "thankful my test results came back clear 🙏",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 127,
+   "type": "line",
+   "text": "Three good things: hot shower, clean sheets, the cat on my feet",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 128,
+   "type": "line",
+   "text": "So lucky to have people who check on me",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 129,
+   "type": "line",
+   "text": "the bus driver waited for me while I ran for it. bless him",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 130,
+   "type": "line",
+   "text": "feeling blessed. roof over my head, food in the fridge, people who love me",
+   "primary": "gratitude",
+   "split": "test"
+  },
+  {
+   "id": 131,
+   "type": "line",
+   "text": "My neighbour shovelled my drive before I woke up",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 132,
+   "type": "line",
+   "text": "really appreciate that my boss let me go home early to be with Mum",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 133,
+   "type": "line",
+   "text": "The nurse who held my hand during the scan. I never got her name. Thank you.",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 134,
+   "type": "line",
+   "text": "someone handed in my wallet at the station with everything still inside",
+   "primary": "gratitude",
+   "split": "test"
+  },
+  {
+   "id": 135,
+   "type": "line",
+   "text": "grateful for this body that carried me up the hill today",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 136,
+   "type": "line",
+   "text": "thank you, past me, for meal prepping on Sunday",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 137,
+   "type": "line",
+   "text": "An old teacher emailed to say she still remembers my essay. I'm so thankful.",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 138,
+   "type": "line",
+   "text": "not taking for granted that I can hear birds again after the operation",
+   "primary": "gratitude",
+   "split": "test"
+  },
+  {
+   "id": 139,
+   "type": "line",
+   "text": "my landlord fixed the boiler the same day. a miracle, honestly",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 140,
+   "type": "line",
+   "text": "Gratitude list: sunshine, my sister's laugh, the last slice of cake",
+   "primary": "gratitude",
+   "split": "test"
+  },
+  {
+   "id": 141,
+   "type": "line",
+   "text": "feeling really fortunate today, no reason, just am",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 142,
+   "type": "line",
+   "text": "The food bank volunteers remembered my kids' names",
+   "primary": "gratitude",
+   "split": "test"
+  },
+  {
+   "id": 143,
+   "type": "line",
+   "text": "I'm thankful I said yes to that trip even though I was scared",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 144,
+   "type": "line",
+   "text": "A kind word from a stranger when I was crying on the platform",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 145,
+   "type": "line",
+   "text": "alhamdulillah for a peaceful Friday",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 146,
+   "type": "line",
+   "text": "I think I've been afraid of being ordinary for most of my life",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 147,
+   "type": "line",
+   "text": "Realised today that I don't actually miss the city. That surprised me.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 148,
+   "type": "line",
+   "text": "some days you just have to let the dishes wait",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 149,
+   "type": "line",
+   "text": "Thirty-five and still figuring out what I want to be when I grow up",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 150,
+   "type": "line",
+   "text": "wondering if I'm a good parent or just a tired one",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 151,
+   "type": "line",
+   "text": "I keep apologising for taking up space. Want to stop.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 152,
+   "type": "line",
+   "text": "It's strange how grief comes back in a supermarket aisle",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 153,
+   "type": "line",
+   "text": "Journaling again after a long break. It feels like coming home to myself.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 154,
+   "type": "line",
+   "text": "maybe the point isn't to be happy all the time",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 155,
+   "type": "line",
+   "text": "I used to think being busy meant being important",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 156,
+   "type": "line",
+   "text": "Read my diary from age 16. She was braver than I remember.",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 157,
+   "type": "line",
+   "text": "The anxiety was loud today but I still went",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 158,
+   "type": "line",
+   "text": "Who am I without the job? Trying to sit with that question.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 159,
+   "type": "line",
+   "text": "noticed I was holding my breath all afternoon",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 160,
+   "type": "line",
+   "text": "therapy today: we talked about why I need everyone to like me",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 161,
+   "type": "line",
+   "text": "Learning that \"no\" is a full sentence",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 162,
+   "type": "line",
+   "text": "A year since the move. I'm a different person, and I like her.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 163,
+   "type": "line",
+   "text": "Sometimes I miss who I was before I knew so much",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 164,
+   "type": "line",
+   "text": "I'm not behind. There's no schedule.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 165,
+   "type": "line",
+   "text": "lying awake thinking about every choice that led me here",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 166,
+   "type": "line",
+   "text": "birthday thoughts: 50 feels lighter than 40 did",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 167,
+   "type": "line",
+   "text": "what would I do if I wasn't scared? asked myself that all day",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 168,
+   "type": "line",
+   "text": "I keep waiting to feel like a grown-up",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 169,
+   "type": "line",
+   "text": "Things I've learned this year: rest is not lazy, people can change, I can too",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 170,
+   "type": "line",
+   "text": "Felt jealous of Sarah's news and then ashamed of feeling jealous. Both are allowed.",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 171,
+   "type": "line",
+   "text": "the older i get the less i know, and i'm ok with that",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 172,
+   "type": "line",
+   "text": "Sat in the car outside for ten minutes before going in. Needed the quiet to think.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 173,
+   "type": "line",
+   "text": "I'm proud of how I handled that conversation, even if my voice shook",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 174,
+   "type": "line",
+   "text": "Grief is just love with nowhere to go",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 175,
+   "type": "line",
+   "text": "pondering whether I actually want kids or just think I should",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 176,
+   "type": "line",
+   "text": "Landed in Lisbon. The light here is different.",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 177,
+   "type": "line",
+   "text": "Night train to Vienna, top bunk, a stranger snoring below",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 178,
+   "type": "line",
+   "text": "lost in the backstreets of Kyoto and found the best little temple",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 179,
+   "type": "line",
+   "text": "road trip down the coast, windows down, singing badly",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 180,
+   "type": "line",
+   "text": "First time on a plane, age 67. Mum held the armrest the whole way.",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 181,
+   "type": "line",
+   "text": "ferry to the island, dolphins off the bow",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 182,
+   "type": "line",
+   "text": "missed the connection in Frankfurt, slept on the airport floor",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 183,
+   "type": "line",
+   "text": "Our honeymoon in Santorini. Blue doors everywhere.",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 184,
+   "type": "line",
+   "text": "backpacking through Vietnam, motorbike rental with no brakes worth mentioning",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 185,
+   "type": "line",
+   "text": "arrived in Lagos at midnight, the heat hit like a wall",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 186,
+   "type": "line",
+   "text": "Camped by the fjord, sun never fully set",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 187,
+   "type": "line",
+   "text": "passport stamp #20 🛂",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 188,
+   "type": "line",
+   "text": "Visited the village where my great-grandparents were born. Everyone looked like my uncle.",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 189,
+   "type": "line",
+   "text": "checked into the hostel, bunk by the window, overlooking the old town",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 190,
+   "type": "line",
+   "text": "took the slow train through the Highlands, sheep everywhere",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 191,
+   "type": "line",
+   "text": "weekend in Paris, walked 30k steps, saw the Eiffel tower sparkle",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 192,
+   "type": "line",
+   "text": "Drove Route 66 for a week in a rented convertible",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 193,
+   "type": "line",
+   "text": "First solo trip. Mexico City. Terrified then in love.",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 194,
+   "type": "line",
+   "text": "jet lag in Tokyo, wide awake at 4am in a konbini eating onigiri",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 195,
+   "type": "line",
+   "text": "Interrailing summer: 9 countries, 1 backpack, 0 regrets",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 196,
+   "type": "line",
+   "text": "the tuk tuk driver in Colombo took us the scenic way, which was every way",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 197,
+   "type": "line",
+   "text": "crossed the border into Canada and the guard asked about our maple syrup plans",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 198,
+   "type": "line",
+   "text": "cabin in the Alps with no wifi for a week",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 199,
+   "type": "line",
+   "text": "Our flight was delayed 6 hours so we explored Reykjavik instead",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 200,
+   "type": "line",
+   "text": "sleeper bus from Bangkok to Chiang Mai",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 201,
+   "type": "line",
+   "text": "back from Morocco, sand still in my shoes",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 202,
+   "type": "line",
+   "text": "Finished my first watercolour that I actually like",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 203,
+   "type": "line",
+   "text": "Wrote a poem on the bus, scribbled it on a receipt",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 204,
+   "type": "line",
+   "text": "Started learning the cello at 42. My neighbours are very patient.",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 205,
+   "type": "line",
+   "text": "kiln opened and the blue glaze came out perfect",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 206,
+   "type": "line",
+   "text": "Knitted a hat. It's lopsided. I love it.",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 207,
+   "type": "line",
+   "text": "finished the first draft of my novel. 82,000 words of mess",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 208,
+   "type": "line",
+   "text": "played my song at the open mic, hands shaking, three people clapped loudly",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 209,
+   "type": "line",
+   "text": "Sketched the old men playing chess in the square",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 210,
+   "type": "line",
+   "text": "built a birdhouse out of pallet wood with my own two hands",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 211,
+   "type": "line",
+   "text": "Learned the chords to Wonderwall, yes really",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 212,
+   "type": "line",
+   "text": "Painted a mural on the kids' bedroom wall, a whole jungle",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 213,
+   "type": "line",
+   "text": "sewed my own dress for the wedding!",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 214,
+   "type": "line",
+   "text": "the choir did the harmonies right for the first time and I got goosebumps",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 215,
+   "type": "line",
+   "text": "Finished a 1000 piece jigsaw of a lighthouse",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 216,
+   "type": "line",
+   "text": "Took my camera out on manual for the first time, got one sharp shot",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 217,
+   "type": "line",
+   "text": "wrote three pages of morning pages and found an idea for a short story",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 218,
+   "type": "line",
+   "text": "dance class tonight, finally got the turn",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 219,
+   "type": "line",
+   "text": "Designed the logo for my friend's bakery, she printed it on the bags",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 220,
+   "type": "line",
+   "text": "made a zine about my neighbourhood and left copies in the launderette",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 221,
+   "type": "line",
+   "text": "Restored an old chair: sanded, stained, re-upholstered. It's beautiful.",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 222,
+   "type": "line",
+   "text": "the pottery bowl collapsed on the wheel but I laughed this time",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 223,
+   "type": "line",
+   "text": "recorded a voice memo of a melody that woke me up at 3am",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 224,
+   "type": "line",
+   "text": "Embroidered a tiny bee on my jacket",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 225,
+   "type": "line",
+   "text": "crochet blanket for the baby finally done after 4 months 🧶",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 226,
+   "type": "line",
+   "text": "Ran 5k without stopping for the first time ever",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 227,
+   "type": "line",
+   "text": "Physio said my knee is healing faster than expected",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 228,
+   "type": "line",
+   "text": "slept 8 hours. a miracle.",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 229,
+   "type": "line",
+   "text": "six months sober today",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 230,
+   "type": "line",
+   "text": "yoga at dawn, body creaky, mind quiet",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 231,
+   "type": "line",
+   "text": "Got my diagnosis. At least now it has a name.",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 232,
+   "type": "line",
+   "text": "Chemo round 4 of 6. Halfway.",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 233,
+   "type": "line",
+   "text": "swam 40 lengths before work, felt invincible",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 234,
+   "type": "line",
+   "text": "Migraine all day. Lay in the dark with a cold flannel.",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 235,
+   "type": "line",
+   "text": "first therapy session in years. Cried. Felt lighter after.",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 236,
+   "type": "line",
+   "text": "walked 10,000 steps every day this week",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 237,
+   "type": "line",
+   "text": "the scan was clear. cancer free 💛",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 238,
+   "type": "line",
+   "text": "Gym at 6am, deadlifted my bodyweight",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 239,
+   "type": "line",
+   "text": "Took a mental health day and didn't feel guilty",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 240,
+   "type": "line",
+   "text": "Back on my feet after the surgery, first walk round the block",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 241,
+   "type": "line",
+   "text": "stopped drinking caffeine. day 3 headache is real",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 242,
+   "type": "line",
+   "text": "finished Couch to 5K! week 9 run 3 done",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 243,
+   "type": "line",
+   "text": "meditated for 10 minutes and didn't check my phone once",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 244,
+   "type": "line",
+   "text": "My blood pressure is finally down. GP was pleased.",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 245,
+   "type": "line",
+   "text": "Couldn't get out of bed today. Depression is heavy. Tomorrow.",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 246,
+   "type": "line",
+   "text": "cycled to work for the first time, legs like jelly",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 247,
+   "type": "line",
+   "text": "first day without the crutches",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 248,
+   "type": "line",
+   "text": "insulin pump fitted, feels like a new start",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 249,
+   "type": "line",
+   "text": "pilates class, discovered muscles I didn't know I had",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 250,
+   "type": "line",
+   "text": "Broke my wrist on the ice. Cast is purple.",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 251,
+   "type": "line",
+   "text": "Breathing exercises got me through the panic attack on the train",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 252,
+   "type": "line",
+   "text": "Made sourdough from scratch. Ugly loaf, best bread ever.",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 253,
+   "type": "line",
+   "text": "The ramen place on Fourth Street. Broth so rich I went quiet.",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 254,
+   "type": "line",
+   "text": "tried durian for the first time, never again",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 255,
+   "type": "line",
+   "text": "first strawberries of the season, still warm from the sun",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 256,
+   "type": "line",
+   "text": "Grandma's lasagna recipe, finally got it right",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 257,
+   "type": "line",
+   "text": "street food market, ate dumplings standing up in the rain",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 258,
+   "type": "line",
+   "text": "homemade pasta night, flour everywhere",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 259,
+   "type": "line",
+   "text": "the curry was so hot I cried and kept eating",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 260,
+   "type": "line",
+   "text": "Baked a lemon drizzle cake for no reason at all",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 261,
+   "type": "line",
+   "text": "croissant from the new bakery, flaky perfection 🥐",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 262,
+   "type": "line",
+   "text": "Made jollof rice for the first time without calling my mum for help",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 263,
+   "type": "line",
+   "text": "Tacos al pastor from a truck at 1am, life changing",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 264,
+   "type": "line",
+   "text": "cooked a full thai green curry from scratch, house smells amazing",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 265,
+   "type": "line",
+   "text": "ate a peach over the sink, juice everywhere",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 266,
+   "type": "line",
+   "text": "Our first homegrown courgette. We grilled it like it was a steak.",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 267,
+   "type": "line",
+   "text": "Tried the tasting menu at the fancy place for our anniversary. 11 courses.",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 268,
+   "type": "line",
+   "text": "hot chocolate with too many marshmallows",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 269,
+   "type": "line",
+   "text": "learned to make pierogi with Babcia, she said mine were \"acceptable\"",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 270,
+   "type": "line",
+   "text": "The perfect fried egg, crispy edges, runny yolk",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 271,
+   "type": "line",
+   "text": "Fish and chips on the seafront, seagull stole a chip",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 272,
+   "type": "line",
+   "text": "burnt the rice again but the stew was good",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 273,
+   "type": "line",
+   "text": "picked mangoes off the tree in the yard and ate them on the step",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 274,
+   "type": "line",
+   "text": "made kimchi, the whole fridge smells of garlic now",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 275,
+   "type": "line",
+   "text": "best cup of tea I've had all year, no idea why",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 276,
+   "type": "line",
+   "text": "midnight toast with butter and marmite 🍞",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 277,
+   "type": "line",
+   "text": "Made paella in the big pan for the first time",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 278,
+   "type": "line",
+   "text": "found a fiver in my winter coat",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 279,
+   "type": "line",
+   "text": "the kettle clicked off right as the song ended",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 280,
+   "type": "line",
+   "text": "someone left a single glove on the railing, balanced like a wave",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 281,
+   "type": "line",
+   "text": "Power cut. Candles. Everyone on the street came outside.",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 282,
+   "type": "line",
+   "text": "a man on the tube was reading the same book as me",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 283,
+   "type": "line",
+   "text": "the clock in the hallway stopped at 4:17",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 284,
+   "type": "line",
+   "text": "Saw a kid in a dinosaur costume at the post office",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 285,
+   "type": "line",
+   "text": "The library smells like it did when I was ten",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 286,
+   "type": "line",
+   "text": "A wrong number turned into a lovely chat with a lady named Doris",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 287,
+   "type": "line",
+   "text": "the lift got stuck between floors for 10 minutes",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 288,
+   "type": "line",
+   "text": "Got the window seat on the bus",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 289,
+   "type": "line",
+   "text": "heard someone whistling the Pink Panther theme down the corridor",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 290,
+   "type": "line",
+   "text": "everything in the house is quiet except the fridge hum",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 291,
+   "type": "line",
+   "text": "Wore odd socks all day and nobody noticed",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 292,
+   "type": "line",
+   "text": "Ordinary Tuesday.",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 293,
+   "type": "line",
+   "text": "the streetlight outside flickered on just as I looked up",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 294,
+   "type": "line",
+   "text": "Found an old receipt in a library book from 1994",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 295,
+   "type": "line",
+   "text": "A busker playing accordion outside the station",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 296,
+   "type": "line",
+   "text": "just sitting here",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 297,
+   "type": "line",
+   "text": "the shop assistant called me \"my love\" and it made my day",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 298,
+   "type": "line",
+   "text": "Sunday afternoon, nothing planned, nothing happened, perfect",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 299,
+   "type": "line",
+   "text": "spotted my reflection in a shop window and didn't recognise myself for a second",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 300,
+   "type": "line",
+   "text": "the smell of someone's laundry drifting out of a vent",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 301,
+   "type": "line",
+   "text": "Lights went off in the cinema and the whole room went silent",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 302,
+   "type": "line",
+   "text": "the train announcer had a really soothing voice",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 303,
+   "type": "line",
+   "text": "A paper aeroplane landed on my desk from nowhere",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 304,
+   "type": "line",
+   "text": "here.",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 305,
+   "type": "line",
+   "text": "wind chimes next door",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 306,
+   "type": "line",
+   "text": "waiting room, flickering light, a magazine from 2011",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 307,
+   "type": "line",
+   "text": "the cat knocked a glass off the table while maintaining eye contact",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 308,
+   "type": "line",
+   "text": "Watched Mum sleep in the hospital chair and realised she's getting old",
+   "primary": "family",
+   "secondary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 309,
+   "type": "line",
+   "text": "Road trip to Cornwall with Ellie and Jas, played the same playlist 4 times",
+   "primary": "friends",
+   "secondary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 310,
+   "type": "line",
+   "text": "ten years at the company today, not sure how I feel about it",
+   "primary": "work",
+   "secondary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 311,
+   "type": "line",
+   "text": "Christmas dinner, Dad burnt the turkey, we ate crisps and laughed",
+   "primary": "food",
+   "secondary": "family",
+   "split": "train"
+  },
+  {
+   "id": 312,
+   "type": "line",
+   "text": "Sea swim at dawn with the bluetits group, numb toes, clear head",
+   "primary": "nature",
+   "secondary": "health",
+   "split": "train"
+  },
+  {
+   "id": 313,
+   "type": "line",
+   "text": "gelato twice a day in Rome, no regrets",
+   "primary": "travel",
+   "secondary": "food",
+   "split": "train"
+  },
+  {
+   "id": 314,
+   "type": "line",
+   "text": "Painted with my daughter all afternoon, the table's ruined",
+   "primary": "creativity",
+   "secondary": "family",
+   "split": "train"
+  },
+  {
+   "id": 315,
+   "type": "line",
+   "text": "The run was slow but I went, and that's the whole point",
+   "primary": "health",
+   "secondary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 316,
+   "type": "line",
+   "text": "So grateful my dad is home from hospital",
+   "primary": "gratitude",
+   "secondary": "family",
+   "split": "test"
+  },
+  {
+   "id": 317,
+   "type": "line",
+   "text": "curry night at Priya's, she made enough to feed the street",
+   "primary": "friends",
+   "secondary": "food",
+   "split": "train"
+  },
+  {
+   "id": 318,
+   "type": "line",
+   "text": "Took Mum back to Kerala for the first time in 30 years",
+   "primary": "family",
+   "secondary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 319,
+   "type": "line",
+   "text": "hiked to the top of Snowdon, clouds below us",
+   "primary": "nature",
+   "secondary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 320,
+   "type": "line",
+   "text": "Work drinks turned into a proper night out, Alex is hilarious",
+   "primary": "work",
+   "secondary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 321,
+   "type": "line",
+   "text": "watching the tide go out and thinking about how nothing stays",
+   "primary": "reflection",
+   "secondary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 322,
+   "type": "line",
+   "text": "potluck: 4 lasagnas, 1 salad, zero regrets",
+   "primary": "food",
+   "secondary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 323,
+   "type": "line",
+   "text": "walked by the river at lunch to clear my head after a bad morning",
+   "primary": "health",
+   "secondary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 324,
+   "type": "line",
+   "text": "Got paid for my illustrations for the first time!",
+   "primary": "creativity",
+   "secondary": "work",
+   "split": "test"
+  },
+  {
+   "id": 325,
+   "type": "object",
+   "title": "Dad's walking stick",
+   "text": "He carved it himself from a hazel branch on the farm.",
+   "primary": "family",
+   "secondary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 326,
+   "type": "object",
+   "title": "Old Polaroid camera",
+   "text": "Found at a car boot sale, still works, took a picture of the stall owner",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 327,
+   "type": "object",
+   "title": "Train ticket stub",
+   "text": "Edinburgh to London, the day I moved south",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 328,
+   "type": "object",
+   "title": "Nonna's rolling pin",
+   "text": "Worn smooth in the middle from fifty years of Sunday gnocchi",
+   "primary": "food",
+   "secondary": "family",
+   "split": "test"
+  },
+  {
+   "id": 329,
+   "type": "object",
+   "title": "Friendship bracelet",
+   "text": "Zara made it at camp when we were nine",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 330,
+   "type": "object",
+   "title": "My first business card",
+   "text": "Junior copywriter. The font was terrible.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 331,
+   "type": "object",
+   "title": "Marathon medal",
+   "text": "London 2024. Every step hurt. Worth it.",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 332,
+   "type": "object",
+   "title": "Brass key",
+   "text": "No idea what it opens. It was in the house when we moved in.",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 333,
+   "type": "line",
+   "text": "mum n me watched strictly with a cuppa like old times",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 334,
+   "type": "line",
+   "text": "me n gaz went fishin, caught nothing, talked for hours",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 335,
+   "type": "line",
+   "text": "Dadi ki yaad aa rahi hai today. Made her chai the way she did.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 336,
+   "type": "line",
+   "text": "frist time making bao buns and they puffed up!!",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 337,
+   "type": "line",
+   "text": "10k personal best!!! 🏃‍♀️💨",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 338,
+   "type": "line",
+   "text": "🌅 over the bay",
+   "primary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 339,
+   "type": "line",
+   "text": "✈️ off to see the world, or at least Barcelona",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 340,
+   "type": "line",
+   "text": "🍜🍜 rainy day ramen",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 341,
+   "type": "line",
+   "text": "👶 she's here. 3.2kg. perfect.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 342,
+   "type": "line",
+   "text": "💼 first day nerves",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 343,
+   "type": "line",
+   "text": "🎉 surprise party for Kemi, she cried",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 344,
+   "type": "line",
+   "text": "Not sure what I'm feeling. Just writing it down.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 345,
+   "type": "line",
+   "text": "Just a regular morning.",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 346,
+   "type": "line",
+   "text": "Nothing big today, just thankful",
+   "primary": "gratitude",
+   "split": "test"
+  },
+  {
+   "id": 347,
+   "type": "line",
+   "text": "The garden is not at all ready for winter but the frost came anyway",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 348,
+   "type": "line",
+   "text": "didn't run today, knee's still sore, resting it",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 349,
+   "type": "line",
+   "text": "not going into the office this week, working from home on the report",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 350,
+   "type": "line",
+   "text": "didn't do much today",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 351,
+   "type": "release",
+   "title": "Letting go",
+   "text": "I'm letting go of the version of me who had to be perfect",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 352,
+   "type": "release",
+   "text": "Releasing the need to know how it all turns out",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 353,
+   "type": "release",
+   "text": "Letting go of the friendship with K. It ended a long time ago, I just didn't admit it.",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 354,
+   "type": "release",
+   "text": "I forgive my father. Not for him. For me.",
+   "primary": "family",
+   "secondary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 355,
+   "type": "release",
+   "text": "Releasing the job I didn't get. It wasn't mine.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 356,
+   "type": "release",
+   "text": "letting go of the timeline I set for myself at 22",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 357,
+   "type": "release",
+   "text": "Letting go of the body I had before the accident. Learning to love this one.",
+   "primary": "health",
+   "split": "test"
+  },
+  {
+   "id": 358,
+   "type": "release",
+   "text": "the anger at myself for wasting those years. putting it down now.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 359,
+   "type": "release",
+   "text": "Releasing the guilt about moving away from Mum",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 360,
+   "type": "release",
+   "text": "Letting go of needing an apology I'll never get",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 361,
+   "type": "release",
+   "text": "I release the fear that I'm too much",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 362,
+   "type": "release",
+   "text": "Let go of the group chat that only ever made me feel left out",
+   "primary": "friends",
+   "secondary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 363,
+   "type": "release",
+   "text": "Letting go of the business. Closing the shop doors for the last time.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 364,
+   "type": "release",
+   "text": "Releasing comparison. Her life isn't my life.",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 365,
+   "type": "release",
+   "text": "Letting go of the idea that my brother and I will ever be close",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 366,
+   "type": "release",
+   "text": "release the what-ifs",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 367,
+   "type": "release",
+   "text": "Letting go of the diet mindset. Food isn't a moral choice.",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 368,
+   "type": "release",
+   "text": "Putting down the story that I'm unlucky",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 369,
+   "type": "release",
+   "text": "I'm letting go of the hope that Dad will change",
+   "primary": "family",
+   "secondary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 370,
+   "type": "release",
+   "text": "Releasing this year. It was hard. It's over.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 371,
+   "type": "release",
+   "text": "Letting go of the perfectionism that made me redo every slide five times",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 372,
+   "type": "release",
+   "text": "Letting go of the old house. The walls don't hold us anymore.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 373,
+   "type": "release",
+   "text": "the need to be liked by everyone. gone. mostly.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 374,
+   "type": "release",
+   "text": "Letting go of the shame around my anxiety",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 375,
+   "type": "release",
+   "text": "Releasing the hurt from the wedding. Mum did her best.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 376,
+   "type": "release",
+   "text": "letting go of resentment. it was heavy and I'm tired.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 377,
+   "type": "release",
+   "text": "Let go of the plans for this summer. Accepting a slower season.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 378,
+   "type": "release",
+   "text": "Forgiving Jamie for the thing she said. I'm done carrying it.",
+   "primary": "friends",
+   "split": "test"
+  },
+  {
+   "id": 379,
+   "type": "release",
+   "text": "letting go",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 380,
+   "type": "release",
+   "text": "Releasing the half-finished novel. Not every story needs to be finished.",
+   "primary": "creativity",
+   "split": "test"
+  },
+  {
+   "id": 381,
+   "type": "capsule",
+   "title": "To me at 40",
+   "text": "I hope you're still writing. I hope you forgave yourself for the hard years.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 382,
+   "type": "capsule",
+   "title": "For Isla on her 18th",
+   "text": "You were born on a stormy night and your dad cried more than you did.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 383,
+   "type": "capsule",
+   "text": "Dear future me: are you still scared of the same things?",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 384,
+   "type": "capsule",
+   "text": "To my son, for when you're a father. You'll be tired. It's worth it.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 385,
+   "type": "capsule",
+   "text": "Open this after the first year of the business. Did we make it?",
+   "primary": "work",
+   "split": "test"
+  },
+  {
+   "id": 386,
+   "type": "capsule",
+   "text": "A year from now I hope we've finally done the Japan trip we keep talking about",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 387,
+   "type": "capsule",
+   "text": "Future me: I hope you kept running. I hope the knee held up.",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 388,
+   "type": "capsule",
+   "text": "Letter to myself in five years. Remember how small you felt this spring and how you kept going anyway.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 389,
+   "type": "capsule",
+   "text": "For our 10th anniversary: we were broke and happy in a tiny flat and I'd do it all again.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 390,
+   "type": "capsule",
+   "text": "To the girls, read at our 30th reunion. We said we'd still be friends. Are we?",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 391,
+   "type": "capsule",
+   "text": "Next new year's eve: did you stop waiting for permission?",
+   "primary": "reflection",
+   "split": "test"
+  },
+  {
+   "id": 392,
+   "type": "capsule",
+   "text": "For Mum, open on your 70th. Thank you for everything you never told us you gave up.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 393,
+   "type": "capsule",
+   "text": "future me, did you finish the album? even one song?",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 394,
+   "type": "capsule",
+   "text": "A reminder for next winter: you were grateful for so much this year. Look again.",
+   "primary": "gratitude",
+   "split": "train"
+  },
+  {
+   "id": 395,
+   "type": "capsule",
+   "text": "Open next spring: did the apple tree we planted survive?",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 396,
+   "type": "capsule",
+   "text": "Read this on your first day of retirement. You worked so hard. Rest now.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 397,
+   "type": "capsule",
+   "text": "To baby #2, who doesn't exist yet: your sister is already practising being gentle",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 398,
+   "type": "capsule",
+   "text": "One year sober letter to my future self. Whatever happened, I'm proud of you for trying.",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 399,
+   "type": "capsule",
+   "text": "Just a note to open in a year. It's raining, the tea is hot, nothing is happening.",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 400,
+   "type": "capsule",
+   "text": "When we land in New Zealand, open this. We dreamed about it for a decade.",
+   "primary": "travel",
+   "split": "train"
+  },
+  {
+   "id": 401,
+   "type": "line",
+   "text": "Sunday pancakes, the kids flipped them onto the ceiling",
+   "primary": "family",
+   "secondary": "food",
+   "split": "train"
+  },
+  {
+   "id": 402,
+   "type": "line",
+   "text": "Wild camping with the uni lot, rain all night, best weekend",
+   "primary": "friends",
+   "secondary": "nature",
+   "split": "test"
+  },
+  {
+   "id": 403,
+   "type": "line",
+   "text": "burnt out. booked a week off. first time in two years",
+   "primary": "work",
+   "secondary": "health",
+   "split": "train"
+  },
+  {
+   "id": 404,
+   "type": "line",
+   "text": "The first cuckoo of spring, heard it from the bus stop",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 405,
+   "type": "line",
+   "text": "counted the stairs to the flat. 47. never noticed before.",
+   "primary": "moments",
+   "split": "train"
+  },
+  {
+   "id": 406,
+   "type": "line",
+   "text": "Inter-railing with Dom and Kai, sleeping in train stations",
+   "primary": "travel",
+   "secondary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 407,
+   "type": "line",
+   "text": "Do I actually like my life or am I just used to it?",
+   "primary": "reflection",
+   "split": "train"
+  },
+  {
+   "id": 408,
+   "type": "line",
+   "text": "My daughter's graduation. The gown was too big. She was perfect.",
+   "primary": "family",
+   "split": "test"
+  },
+  {
+   "id": 409,
+   "type": "line",
+   "text": "thank god for the NHS and the night staff on ward 7",
+   "primary": "gratitude",
+   "secondary": "health",
+   "split": "test"
+  },
+  {
+   "id": 410,
+   "type": "line",
+   "text": "Made my first ever birthday cake, three tiers, slightly leaning",
+   "primary": "food",
+   "split": "test"
+  },
+  {
+   "id": 411,
+   "type": "line",
+   "text": "Writing the eulogy for Grandad was the hardest thing I've ever written",
+   "primary": "creativity",
+   "split": "train"
+  },
+  {
+   "id": 412,
+   "type": "line",
+   "text": "the barista spelled my name wrong in a new way",
+   "primary": "moments",
+   "split": "test"
+  },
+  {
+   "id": 413,
+   "type": "line",
+   "text": "Hedgehog in the garden at dusk, snuffling under the hedge",
+   "primary": "nature",
+   "split": "train"
+  },
+  {
+   "id": 414,
+   "type": "line",
+   "text": "the psychiatrist upped my meds. hoping this helps",
+   "primary": "health",
+   "split": "train"
+  },
+  {
+   "id": 415,
+   "type": "line",
+   "text": "My first patient discharged home. She hugged me at the door.",
+   "primary": "work",
+   "split": "train"
+  },
+  {
+   "id": 416,
+   "type": "line",
+   "text": "Lunch with Ana. She's going through it. I mostly listened.",
+   "primary": "friends",
+   "split": "train"
+  },
+  {
+   "id": 417,
+   "type": "line",
+   "text": "Called my brother for his birthday. First time we've spoken in a year.",
+   "primary": "family",
+   "split": "train"
+  },
+  {
+   "id": 418,
+   "type": "line",
+   "text": "Gate B42 at Heathrow, coffee, people-watching",
+   "primary": "travel",
+   "split": "test"
+  },
+  {
+   "id": 419,
+   "type": "line",
+   "text": "Made biryani for 20 at the mosque iftar",
+   "primary": "food",
+   "split": "train"
+  },
+  {
+   "id": 420,
+   "type": "line",
+   "text": "I think I'm finally becoming someone I'd want to be friends with",
+   "primary": "reflection",
+   "split": "train"
+  }
+ ]
+}
