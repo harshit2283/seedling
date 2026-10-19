@@ -30,7 +30,7 @@ class _DriveApiFileStore implements DriveFileStore {
       final page = await _api.files.list(
         q: "name contains '$prefix' and trashed=false and 'appDataFolder' in parents",
         spaces: 'appDataFolder',
-        $fields: 'nextPageToken, files(id,name)',
+        $fields: 'nextPageToken, files(id,name,createdTime)',
         pageSize: 100,
         pageToken: pageToken,
       );
@@ -38,12 +38,45 @@ class _DriveApiFileStore implements DriveFileStore {
         final id = file.id;
         final name = file.name;
         if (id != null && name != null && name.startsWith(prefix)) {
-          found.add(DriveFileInfo(id: id, name: name));
+          found.add(
+            DriveFileInfo(id: id, name: name, createdAt: file.createdTime),
+          );
         }
       }
       pageToken = page.nextPageToken;
     } while (pageToken != null);
     return found;
+  }
+
+  @override
+  Future<DriveFileInfo?> findByName(String name) async {
+    // Names come from our own code (UUIDs, fixed prefixes); refuse quotes.
+    if (name.contains("'") || name.contains('\\')) {
+      throw ArgumentError.value(name, 'name');
+    }
+    final page = await _api.files.list(
+      q: "name = '$name' and trashed=false and 'appDataFolder' in parents",
+      spaces: 'appDataFolder',
+      $fields: 'files(id,name,createdTime)',
+      pageSize: 10,
+    );
+    final file = page.files?.firstOrNull;
+    if (file?.id == null) return null;
+    return DriveFileInfo(
+      id: file!.id!,
+      name: file.name ?? name,
+      createdAt: file.createdTime,
+    );
+  }
+
+  @override
+  Future<void> overwriteFromFile(String fileId, File source) async {
+    await _api.files.update(
+      drive.File(),
+      fileId,
+      uploadMedia: drive.Media(source.openRead(), await source.length()),
+      uploadOptions: drive.UploadOptions.resumable,
+    );
   }
 
   @override
@@ -361,10 +394,37 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   @override
-  Future<void> uploadMediaBlob(String assetId, File ciphertext) async {
+  Future<void> uploadMediaBlob(
+    String assetId,
+    File ciphertext, {
+    bool replace = false,
+  }) async {
     if (!await _ensureReady()) throw StateError('Google Drive not connected');
     final logs = await _logs();
-    await _withRetry(() => logs.uploadBlob(assetId, ciphertext));
+    await _withRetry(
+      () => logs.uploadBlob(assetId, ciphertext, replace: replace),
+    );
+  }
+
+  @override
+  Future<int> deleteOrphanMediaBlobs(Set<String> referenced) async {
+    if (!await _ensureReady()) return 0;
+    final logs = await _logs();
+    return _withRetry(() => logs.deleteOrphanBlobs(referenced));
+  }
+
+  @override
+  Future<List<String>> idleDeviceIds(Duration idle) async {
+    if (!await _ensureReady()) return const [];
+    final logs = await _logs();
+    return _withRetry(() => logs.idleDevices(idle));
+  }
+
+  @override
+  Future<void> deleteDeviceLogs(List<String> deviceIds) async {
+    if (!await _ensureReady()) return;
+    final logs = await _logs();
+    await _withRetry(() => logs.deleteDeviceLogs(deviceIds));
   }
 
   @override

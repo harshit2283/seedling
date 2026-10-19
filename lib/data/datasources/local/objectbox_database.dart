@@ -586,6 +586,14 @@ class ObjectBoxDatabase {
     return _plain(results);
   }
 
+  /// Every media blob id referenced by a stored entry (trash included).
+  List<String> getAllMediaAssetIds() {
+    final query = _entryBox.query(Entry_.mediaAssetId.notNull()).build();
+    final ids = query.property(Entry_.mediaAssetId).find();
+    query.close();
+    return ids;
+  }
+
   /// Every stored entry's syncUUID, including soft-deleted ones (reads only
   /// the indexed column; nothing is decrypted).
   List<String> getAllSyncUUIDs() {

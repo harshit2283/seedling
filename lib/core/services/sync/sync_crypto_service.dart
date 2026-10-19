@@ -312,6 +312,23 @@ class SyncCryptoService {
     return _verifyKeyCheck(_masterKey!, check);
   }
 
+  /// The keyring entry (`{kdfSalt, check}`) for the current per-user-salt
+  /// key, used to restore a missing keyring or add a missing key check.
+  /// Null when there is no key or it is a fixed-salt (v3) key.
+  Future<Map<String, dynamic>?> keyringForCurrentKey() async {
+    try {
+      await _loadMasterKey();
+    } on SyncPassphraseMissingException {
+      return null;
+    }
+    final salt = _masterKdfSaltBytes;
+    if (_masterVersion != syncEncryptionVersion || salt == null) return null;
+    return {
+      'kdfSalt': base64Encode(salt),
+      'check': await _keyCheck(_masterKey!),
+    };
+  }
+
   /// Identifies the current key (not secret): changes whenever the key is
   /// re-derived with a different salt. Null when no key is set up.
   Future<String?> keyFingerprint() async {

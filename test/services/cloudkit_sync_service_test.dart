@@ -28,6 +28,11 @@ class _FakeZone {
         if (bytes == null) return false;
         await File(args['destinationPath']! as String).writeAsBytes(bytes);
         return true;
+      case 'fsExists':
+        final id = args['id']! as String;
+        return files.containsKey(id)
+            ? {'id': id, 'name': id, 'createdAt': 0}
+            : null;
       case 'fsDelete':
         files.remove(args['id']! as String); // missing is fine
         return true;
@@ -42,6 +47,10 @@ class _BrokenStore implements DriveFileStore {
   @override
   Future<List<DriveFileInfo>> listByPrefix(String prefix) async =>
       throw PlatformException(code: 'NETWORK_UNAVAILABLE');
+  @override
+  Future<DriveFileInfo?> findByName(String name) async => null;
+  @override
+  Future<void> overwriteFromFile(String fileId, File source) async {}
   @override
   Future<List<int>?> read(String fileId) async => null;
   @override
@@ -171,5 +180,59 @@ void main() {
       'name',
       'sourcePath',
     });
+  });
+
+  test('pushes and blob calls use exact lookups, not zone scans', () async {
+    final calls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) {
+          calls.add(call.method);
+          return zone.handle(call);
+        });
+    final a = device('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    final tmp = await Directory.systemTemp.createTemp('ck_blob');
+    try {
+      for (var i = 0; i < 5; i++) {
+        await a.saveRecord(_rec('550e8400-e29b-41d4-a716-44665544009$i'));
+      }
+      final blob = File('${tmp.path}/b')..writeAsBytesSync([1, 2]);
+      await a.uploadMediaBlob(_asset, blob);
+      await a.downloadMediaBlob(_asset, File('${tmp.path}/out'));
+      await a.deleteMediaBlob(_asset);
+    } finally {
+      await tmp.delete(recursive: true);
+    }
+    // One listing to load this device's log once; everything else is by id.
+    expect(calls.where((m) => m == 'fsList'), hasLength(1));
+  });
+
+  test('throttling is retried, honouring retry-after', () async {
+    final sleeps = <Duration>[];
+    var failures = 2;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (failures-- > 0) {
+            throw PlatformException(
+              code: 'RATE_LIMITED',
+              details: {'retryAfterSeconds': 3.0},
+            );
+          }
+          return zone.handle(call);
+        });
+    final store = CloudKitFileStore(sleep: (d) async => sleeps.add(d));
+    expect(await store.findByName('nothing'), isNull);
+    expect(sleeps, [const Duration(seconds: 3), const Duration(seconds: 3)]);
+  });
+
+  test('non-throttling errors are not retried', () async {
+    var calls = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls++;
+          throw PlatformException(code: 'QUOTA_EXCEEDED');
+        });
+    final store = CloudKitFileStore(sleep: (_) async {});
+    await expectLater(store.findByName('x'), throwsA(isA<PlatformException>()));
+    expect(calls, 1);
   });
 }
