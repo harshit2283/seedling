@@ -94,11 +94,6 @@
           "type": 10
         },
         {
-          "id": "17:4822441182230169529",
-          "name": "connectedIds",
-          "type": 27
-        },
-        {
           "id": "18:7049565280661572356",
           "name": "capsuleUnlockDate",
           "indexId": "3:5594065671377155778",
@@ -244,7 +239,9 @@
   "modelVersionParserMinimum": 5,
   "retiredEntityUids": [],
   "retiredIndexUids": [],
-  "retiredPropertyUids": [],
+  "retiredPropertyUids": [
+    4822441182230169529
+  ],
   "retiredRelationUids": [],
   "version": 1
 }

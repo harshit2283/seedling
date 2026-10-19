@@ -299,7 +299,12 @@ class Entry {
   // AI Helper Methods (Phase 4)
   // ============================================================================
 
-  /// Get list of connected entry IDs
+  /// Get list of connected entry IDs.
+  ///
+  /// Transient: this is a view over [connectionIds]. When ObjectBox persisted
+  /// it, the stored value was parsed from the *encrypted* string (always
+  /// empty) and its setter ran after [connectionIds] on every load, wiping it.
+  @Transient()
   List<int> get connectedIds {
     if (connectionIds == null || connectionIds!.isEmpty) return [];
     return connectionIds!
