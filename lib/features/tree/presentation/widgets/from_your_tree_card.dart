@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../app/theme/radius.dart';
+import '../../../../app/theme/typography.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -65,7 +66,7 @@ class FromYourTreeCard extends ConsumerWidget {
   }
 }
 
-class _ResurfaceCardBody extends StatelessWidget {
+class _ResurfaceCardBody extends ConsumerWidget {
   const _ResurfaceCardBody({
     super.key,
     required this.memory,
@@ -89,76 +90,120 @@ class _ResurfaceCardBody extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final palette = context.palette;
     final secondary = palette.textSecondary;
-    final accent = palette.primary;
     final when = _whenLabel(context);
     final entry = memory.entry;
+    final hasPhoto =
+        (entry.type == EntryType.photo || entry.type == EntryType.object) &&
+        entry.mediaPath != null;
+    final photo = hasPhoto
+        ? ref.watch(resolvedMediaFileProvider(entry.mediaPath!)).value
+        : null;
 
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final dismiss = Semantics(
+      button: true,
+      label: 'Hide until tomorrow',
+      onTap: onDismiss,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onDismiss,
+        // A full 44x44 target; the icon stays small and right-aligned.
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Icon(
+              PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
+              color: palette.textMuted,
+              size: 16,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final header = Row(
       children: [
-        Row(
-          children: [
-            Icon(AdaptiveIcons.leaf, color: accent, size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'From your tree',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: secondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+        Icon(AdaptiveIcons.leaf, color: palette.primary, size: 15),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'From your tree',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: secondary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
             ),
-            Semantics(
-              button: true,
-              label: 'Hide until tomorrow',
-              onTap: onDismiss,
-              excludeSemantics: true,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onDismiss,
-                // A full 44x44 target; the icon stays small and right-aligned.
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Icon(
-                      PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
-                      color: secondary,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          entry.displayContent,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: palette.textPrimary,
-            height: 1.45,
-          ),
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          when,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: secondary,
-            fontStyle: FontStyle.italic,
           ),
         ),
+        dismiss,
       ],
     );
 
+    final body = Padding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 12, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header,
+          if (entry.displayContent.trim().isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Text(
+                entry.displayContent,
+                style: TextStyle(
+                  fontFamily: SeedlingTypography.serifFamily,
+                  fontSize: photo != null ? 17 : 19,
+                  height: 1.4,
+                  color: palette.textPrimary,
+                ),
+                maxLines: photo != null ? 2 : 4,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Text(
+            when,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: secondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (photo != null)
+          AspectRatio(
+            aspectRatio: 16 / 10,
+            child: Image.file(
+              photo,
+              fit: BoxFit.cover,
+              cacheWidth: 900,
+              semanticLabel: 'Photo from this memory',
+              errorBuilder: (_, _, _) => ColoredBox(
+                color: palette.accentPhoto.withValues(alpha: 0.12),
+              ),
+            ),
+          ),
+        body,
+      ],
+    );
+
+    // Warm paper, a touch of the tree's green; glass over the page on iOS.
+    final tint = Color.alphaBlend(
+      palette.primaryContainer.withValues(alpha: palette.isDark ? 0.10 : 0.16),
+      palette.card,
+    );
     final card = PlatformUtils.isIOS
         ? ClipRRect(
             borderRadius: SeedlingRadius.card,
@@ -166,16 +211,12 @@ class _ResurfaceCardBody extends StatelessWidget {
               filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemBackground
-                      .resolveFrom(context)
-                      .withValues(alpha: 0.7),
+                  color: tint.withValues(alpha: 0.78),
                   borderRadius: SeedlingRadius.card,
                   border: Border.all(
-                    color: CupertinoColors.separator
-                        .resolveFrom(context)
-                        .withValues(alpha: 0.2),
+                    color: palette.border.withValues(alpha: 0.5),
+                    width: 0.5,
                   ),
                 ),
                 child: content,
@@ -184,11 +225,11 @@ class _ResurfaceCardBody extends StatelessWidget {
           )
         : Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: palette.card,
+              color: tint,
               borderRadius: SeedlingRadius.card,
-              border: Border.all(color: palette.border),
+              border: Border.all(color: palette.border, width: 0.5),
             ),
             child: content,
           );

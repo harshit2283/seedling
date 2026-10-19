@@ -75,6 +75,15 @@ class AnimatedTreeVisualization extends StatefulWidget {
   /// the tree. Calm mode turns this off; the tree itself still grows.
   final bool showGrowthDetails;
 
+  /// Enlarges the whole drawing (the canvas still grows with the stage, so
+  /// relative growth is kept). The home screen uses this to make the tree
+  /// the hero of the page. Layers are rasterised at the scaled resolution,
+  /// so the tree stays crisp.
+  final double scale;
+
+  /// Space around the painted tree.
+  final EdgeInsets padding;
+
   const AnimatedTreeVisualization({
     super.key,
     required this.state,
@@ -86,6 +95,8 @@ class AnimatedTreeVisualization extends StatefulWidget {
     this.seed,
     this.memoryLights = 0,
     this.showGrowthDetails = true,
+    this.scale = 1.0,
+    this.padding = const EdgeInsets.all(24),
   });
 
   @override
@@ -342,7 +353,9 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   Widget build(BuildContext context) {
     final night = _night;
     final seed = widget.seed ?? _defaultSeed;
-    final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
+    final scale = widget.scale;
+    final pixelRatio =
+        (MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0) * scale;
     return Semantics(
       button: widget.onTap != null,
       label: widget.showGrowthDetails
@@ -353,51 +366,57 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 800),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.all(24),
+          padding: widget.padding,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                width: _getSize(),
-                height: _getSize(),
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([
-                    _swayAnimation,
-                    _growthAnimation,
-                    _celebrationController,
-                  ]),
-                  builder: (context, child) {
-                    final animating = _growthController.isAnimating;
-                    final target = _targetGrowth;
-                    final growth = animating
-                        ? (_fromGrowth +
-                                  (target - _fromGrowth) *
-                                      _growthAnimation.value)
-                              .clamp(0.0, 6.0)
-                        : target;
-                    return CustomPaint(
-                      painter: _TreePainter(
-                        scene: TreeScene(
-                          growth: growth,
-                          season: _season,
-                          night: night,
-                          seed: seed,
-                          personality: widget.personality,
-                          memoryLights: widget.memoryLights,
-                        ),
-                        settled: !animating,
-                        pixelRatio: pixelRatio,
-                        swayValue: _swayAnimation.value,
-                        motes: _motes,
-                        moteProgress: _celebrationController.value,
-                        ambientParticles: _ambientParticles,
-                        growthScale: animating
-                            ? 0.9 + 0.1 * _growthAnimation.value
-                            : 1.0,
-                      ),
-                      size: Size.infinite,
-                    );
-                  },
+                width: _getSize() * scale,
+                height: _getSize() * scale,
+                child: FittedBox(
+                  child: SizedBox(
+                    width: _getSize(),
+                    height: _getSize(),
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _swayAnimation,
+                        _growthAnimation,
+                        _celebrationController,
+                      ]),
+                      builder: (context, child) {
+                        final animating = _growthController.isAnimating;
+                        final target = _targetGrowth;
+                        final growth = animating
+                            ? (_fromGrowth +
+                                      (target - _fromGrowth) *
+                                          _growthAnimation.value)
+                                  .clamp(0.0, 6.0)
+                            : target;
+                        return CustomPaint(
+                          painter: _TreePainter(
+                            scene: TreeScene(
+                              growth: growth,
+                              season: _season,
+                              night: night,
+                              seed: seed,
+                              personality: widget.personality,
+                              memoryLights: widget.memoryLights,
+                            ),
+                            settled: !animating,
+                            pixelRatio: pixelRatio,
+                            swayValue: _swayAnimation.value,
+                            motes: _motes,
+                            moteProgress: _celebrationController.value,
+                            ambientParticles: _ambientParticles,
+                            growthScale: animating
+                                ? 0.9 + 0.1 * _growthAnimation.value
+                                : 1.0,
+                          ),
+                          size: Size.infinite,
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
               if (widget.showGrowthDetails) ...[

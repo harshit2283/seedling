@@ -1,74 +1,37 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/palette.dart';
-import '../../../../core/platform/platform_utils.dart';
+import '../../../../app/theme/typography.dart';
 
-/// Empty state shown when no memories have been captured yet
+/// First run: the seed sits above this one line of invitation. The add
+/// button below the page does the rest.
 class EmptyState extends StatelessWidget {
-  final VoidCallback? onAddTap;
-
-  const EmptyState({super.key, this.onAddTap});
+  const EmptyState({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 26, 24, 20),
-      decoration: BoxDecoration(
-        color:
-            Theme.of(context).cardTheme.color ??
-            Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(PlatformUtils.isIOS ? 20.0 : 12.0),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: context.palette.primaryContainer.withValues(alpha: 0.28),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.spa_outlined,
-              size: 32,
-              color: context.palette.primary,
-            ),
-          ),
-          const SizedBox(height: 14),
           Text(
-            'Plant your first memory',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: context.palette.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+            'Every tree begins with one memory.',
             textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: palette.textPrimary,
+              fontFamily: SeedlingTypography.serifFamily,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            'What stayed with you today?\nA moment, a feeling, or a thought.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: context.palette.textSecondary,
-              height: 1.45,
-            ),
+            'What stayed with you today?',
             textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
           ),
-          if (onAddTap != null) ...[
-            const SizedBox(height: 16),
-            TextButton.icon(
-              onPressed: onAddTap,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Memory'),
-              style: TextButton.styleFrom(
-                foregroundColor: context.palette.primary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

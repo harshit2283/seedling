@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/platform/platform_utils.dart';
-import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../app/theme/radius.dart';
 import '../../../../data/models/entry.dart';
@@ -15,69 +13,55 @@ class RecentEntryPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color:
-              Theme.of(context).cardTheme.color ??
-              Theme.of(context).colorScheme.surface,
-          borderRadius: SeedlingRadius.card,
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.9),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: context.palette.shadow,
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: _getTypeColor().withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(_getTypeIcon(), color: _getTypeColor(), size: 18),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final color = _getTypeColor(context);
+    return Semantics(
+      button: true,
+      // Transparent Material so the ink works under Cupertino scaffolds too.
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: SeedlingRadius.small,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+              child: Row(
                 children: [
-                  Text(
-                    entry.displayContent,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: context.palette.textPrimary,
-                      fontWeight: FontWeight.w500,
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      shape: BoxShape.circle,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    child: Icon(_getTypeIcon(), color: color, size: 18),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatDate(entry.createdAt),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: context.palette.textSecondary,
-                      fontSize: 11,
-                      letterSpacing: 0.2,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.displayContent,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: context.palette.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatDate(entry.createdAt),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: context.palette.textSecondary),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              PlatformUtils.isIOS ? Icons.arrow_forward : Icons.chevron_right,
-              color: context.palette.textMuted,
-              size: 16,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -102,23 +86,17 @@ class RecentEntryPreview extends StatelessWidget {
     }
   }
 
-  Color _getTypeColor() {
-    switch (entry.type) {
-      case EntryType.line:
-        return SeedlingColors.accentLine;
-      case EntryType.photo:
-        return SeedlingColors.accentPhoto;
-      case EntryType.voice:
-        return SeedlingColors.accentVoice;
-      case EntryType.object:
-        return SeedlingColors.accentObject;
-      case EntryType.fragment:
-        return SeedlingColors.accentFragment;
-      case EntryType.ritual:
-        return SeedlingColors.accentRitual;
-      case EntryType.release:
-        return SeedlingColors.accentRelease;
-    }
+  Color _getTypeColor(BuildContext context) {
+    final palette = context.palette;
+    return switch (entry.type) {
+      EntryType.line => palette.accentLine,
+      EntryType.photo => palette.accentPhoto,
+      EntryType.voice => palette.accentVoice,
+      EntryType.object => palette.accentObject,
+      EntryType.fragment => palette.accentFragment,
+      EntryType.ritual => palette.accentRitual,
+      EntryType.release => palette.accentRelease,
+    };
   }
 
   String _formatDate(DateTime date) {
@@ -132,7 +110,7 @@ class RecentEntryPreview extends StatelessWidget {
     } else if (difference.inDays < 7) {
       return DateFormat('EEEE').format(date); // Day name
     } else {
-      return DateFormat('MMM d').format(date).toUpperCase();
+      return DateFormat('MMM d').format(date);
     }
   }
 }

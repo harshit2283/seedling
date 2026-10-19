@@ -7,14 +7,10 @@ import '../../../../app/router.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
-import '../../../../core/widgets/glass/glass_container.dart';
 
-/// A gentle reminder card that appears on the tree screen when the user
-/// has not backed up their memories in more than 30 days.
-///
-/// Dismissing the card silences the reminder for another 30 days.
-/// Tapping "Back up now" navigates to the settings screen where the
-/// encrypted backup flow lives.
+/// A quiet line at the very end of the home page when the last backup is
+/// more than a month old. No card, no button colour: one muted sentence
+/// with a link to the backup settings and a way to hush it for 30 days.
 class BackupReminderCard extends ConsumerWidget {
   const BackupReminderCard({super.key});
 
@@ -23,113 +19,78 @@ class BackupReminderCard extends ConsumerWidget {
     final shouldShow = ref.watch(shouldShowBackupReminderProvider);
     if (!shouldShow) return const SizedBox.shrink();
 
-    final brown = context.palette.secondary;
-    final primary = context.palette.textPrimary;
-    final secondary = context.palette.textSecondary;
+    final palette = context.palette;
+    final style = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: palette.textSecondary);
 
-    return GlassContainer(
-      borderRadius: 18,
-      opacity: PlatformUtils.isIOS ? 0.80 : 1.0,
-      border: Border.all(color: brown.withValues(alpha: 0.25)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Icon(Icons.cloud_outlined, color: brown, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "It's been a while since your last backup",
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Your memories are precious. Consider creating an encrypted backup to keep them safe.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: secondary),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildBackupButton(context),
-                ],
-              ),
-            ),
-            _buildDismissButton(context, ref),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBackupButton(BuildContext context) {
-    if (PlatformUtils.isIOS) {
-      return CupertinoButton(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        color: context.palette.primary,
-        borderRadius: BorderRadius.circular(12),
-        minimumSize: Size.zero,
-        onPressed: () {
-          HapticFeedback.selectionClick();
-          context.push(AppRoutes.settings);
-        },
-        child: Text(
-          'Back up now',
-          style: TextStyle(
-            color: context.palette.onPrimaryFill,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
+    void openSettings() {
+      HapticFeedback.selectionClick();
+      context.push(AppRoutes.settings);
     }
 
-    return ElevatedButton(
-      onPressed: () {
-        HapticFeedback.selectionClick();
-        context.push(AppRoutes.settings);
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: context.palette.primaryFill,
-        foregroundColor: context.palette.onPrimaryFill,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: const Text(
-        'Back up now',
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-
-  Widget _buildDismissButton(BuildContext context, WidgetRef ref) {
-    final muted = context.palette.textMuted;
-    return GestureDetector(
-      onTap: () async {
-        HapticFeedback.selectionClick();
-        await ref.read(backupReminderServiceProvider).dismissReminder();
-        // Force provider to re-evaluate after dismissal.
-        ref.invalidate(shouldShowBackupReminderProvider);
-      },
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
-          PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
-          color: muted,
-          size: 18,
+    return Row(
+      children: [
+        Icon(
+          PlatformUtils.isIOS ? CupertinoIcons.cloud : Icons.cloud_outlined,
+          color: palette.textMuted,
+          size: 16,
         ),
-      ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Semantics(
+            button: true,
+            hint: 'Opens backup settings',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: openSettings,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(text: 'No backup in a while. '),
+                        TextSpan(
+                          text: 'Back up',
+                          style: TextStyle(
+                            color: palette.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    style: style,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Semantics(
+          button: true,
+          label: 'Hide backup reminder for a month',
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () async {
+              HapticFeedback.selectionClick();
+              await ref.read(backupReminderServiceProvider).dismissReminder();
+              ref.invalidate(shouldShowBackupReminderProvider);
+            },
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(
+                PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
+                color: palette.textMuted,
+                size: 14,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

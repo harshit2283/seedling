@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../app/theme/palette.dart';
 import '../../../app/theme/radius.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../data/prompt_repository.dart';
 
@@ -97,10 +98,7 @@ class _PromptCardState extends State<PromptCard>
           : _slideAnimation,
       child: FadeTransition(
         opacity: _fadeAnimation,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: _buildCard(context),
-        ),
+        child: Padding(padding: EdgeInsets.zero, child: _buildCard(context)),
       ),
     );
   }
@@ -138,80 +136,47 @@ class _PromptCardState extends State<PromptCard>
       decoration: BoxDecoration(
         color: context.palette.card,
         borderRadius: SeedlingRadius.card,
-        border: Border.all(
-          color: context.palette.primaryContainer.withValues(alpha: 0.6),
-          width: 1,
-        ),
+        border: Border.all(color: context.palette.border, width: 0.5),
       ),
       child: _buildContent(context),
     );
   }
 
   Widget _buildContent(BuildContext context) {
-    final labelColor = context.palette.textSecondary;
-    final bodyColor = context.palette.textPrimary;
-    final iconBgColor = context.palette.primary.withValues(alpha: 0.15);
-    final iconColor = context.palette.primary;
-
+    final palette = context.palette;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: _tap,
         borderRadius: SeedlingRadius.card,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+          padding: const EdgeInsets.fromLTRB(18, 10, 4, 10),
           child: Row(
             children: [
-              // Prompt icon
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  PlatformUtils.isIOS
-                      ? CupertinoIcons.sparkles
-                      : Icons.auto_awesome,
-                  color: iconColor,
-                  size: 20,
-                ),
+              Icon(
+                PlatformUtils.isIOS
+                    ? CupertinoIcons.sparkles
+                    : Icons.auto_awesome_outlined,
+                color: palette.primary,
+                size: 18,
               ),
               const SizedBox(width: 12),
-              // Prompt text
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Gentle prompt',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: labelColor,
-                        letterSpacing: 0.5,
-                      ),
+                child: Semantics(
+                  button: true,
+                  hint: 'Opens capture with this prompt',
+                  child: Text(
+                    widget.prompt.text,
+                    style: TextStyle(
+                      fontFamily: SeedlingTypography.serifFamily,
+                      fontSize: 17,
+                      fontStyle: FontStyle.italic,
+                      color: palette.textPrimary,
+                      height: 1.35,
                     ),
-                    const SizedBox(height: 4),
-                    Semantics(
-                      button: true,
-                      hint: 'Opens capture with this prompt',
-                      child: Text(
-                        widget.prompt.text,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color: bodyColor,
-                          height: 1.3,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              // Dismiss button
               // Dismiss button: 44x44 hit area, labelled for VoiceOver.
               Semantics(
                 button: true,
@@ -225,8 +190,8 @@ class _PromptCardState extends State<PromptCard>
                     height: 44,
                     child: Icon(
                       PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
-                      color: labelColor,
-                      size: 18,
+                      color: palette.textMuted,
+                      size: 16,
                     ),
                   ),
                 ),
