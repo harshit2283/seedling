@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
+import '../../../../core/widgets/feedback/seedling_toast.dart';
 
 /// Content widget for object capture mode
 /// Objects require a title and optionally include a photo and story
@@ -352,8 +353,6 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showSeedlingMessage(context, message);
   }
 }

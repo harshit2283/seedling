@@ -9,6 +9,7 @@ import '../../../core/services/providers.dart';
 import '../../../core/services/share/share_receiver_service.dart';
 import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
+import '../../../core/widgets/feedback/seedling_toast.dart';
 
 /// Shows a sheet for handling content shared from other apps
 void showSharedContentSheet(BuildContext context, SharedContent content) {
@@ -356,9 +357,7 @@ class _SharedContentSheetState extends ConsumerState<SharedContentSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_sanitizeErrorForUser(e))));
+        showSeedlingMessage(context, _sanitizeErrorForUser(e));
       }
     } finally {
       if (mounted) {

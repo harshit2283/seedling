@@ -12,10 +12,21 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.*
 import android.webkit.MimeTypeMap
-import android.util.Log
 
 
 object FileDirectory {
+
+    private val SAFE_EXTENSION = Regex("^[A-Za-z0-9]{1,8}$")
+
+    /** Returns a short alphanumeric extension from [name], or null. */
+    internal fun safeExtension(name: String?): String? {
+        if (name == null) return null
+        val base = name.substringAfterLast('/').substringAfterLast('\\')
+        val dot = base.lastIndexOf('.')
+        if (dot <= 0 || dot == base.length - 1) return null
+        val ext = base.substring(dot + 1)
+        return if (SAFE_EXTENSION.matches(ext)) ext.lowercase(Locale.ROOT) else null
+    }
 
     /**
      * Get a file path from a Uri. This will get the the path for Storage Access
@@ -91,33 +102,44 @@ object FileDirectory {
                               selectionArgs: Array<String>?): String? {
 
         if (uri.authority != null) {
+            // Seedling patch: never trust the sender-supplied _display_name as a
+            // path. A hostile content provider can return "../" segments and make
+            // us overwrite files in app-private storage ("Dirty Stream"). The
+            // display name is only used to pick a safe extension; the file itself
+            // gets a random name inside a dedicated intake directory.
             var cursor: Cursor? = null
             val column = "_display_name"
             val projection = arrayOf(column)
-            var targetFile: File? = null
+            var displayName: String? = null
             try {
                 cursor = context.contentResolver.query(uri, projection, selection, selectionArgs, null)
                 if (cursor != null && cursor.moveToFirst()) {
                     val columnIndex = cursor.getColumnIndexOrThrow(column)
-                    val fileName = cursor.getString(columnIndex)
-                    Log.i("FileDirectory", "File name: $fileName")
-                    targetFile = File(context.cacheDir, fileName)
+                    displayName = cursor.getString(columnIndex)
                 }
             } finally {
                 cursor?.close()
             }
 
-            if (targetFile == null) {
-                val mimeType = context.contentResolver.getType(uri)
-                val prefix = with(mimeType ?: "") {
-                    when {
-                        startsWith("image") -> "IMG"
-                        startsWith("video") -> "VID"
-                        else -> "FILE"
-                    }
+            val mimeType = context.contentResolver.getType(uri)
+            val extension = safeExtension(displayName)
+                ?: MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
+                    ?.let { safeExtension("x.$it") }
+            val prefix = with(mimeType ?: "") {
+                when {
+                    startsWith("image") -> "IMG"
+                    startsWith("video") -> "VID"
+                    else -> "FILE"
                 }
-                val type = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
-                targetFile = File(context.cacheDir, "${prefix}_${Date().time}.$type")
+            }
+
+            val intakeDir = File(context.cacheDir, "shared_intake")
+            if (!intakeDir.exists()) intakeDir.mkdirs()
+            val name = "${prefix}_${UUID.randomUUID()}" +
+                (if (extension != null) ".$extension" else "")
+            val targetFile = File(intakeDir, name)
+            if (!targetFile.canonicalPath.startsWith(intakeDir.canonicalPath + File.separator)) {
+                return null
             }
 
             context.contentResolver.openInputStream(uri)?.use { input ->

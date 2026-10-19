@@ -6,6 +6,7 @@ import '../../../../app/theme/colors.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/sync/sync_backend.dart';
 import '../../../../core/services/sync/sync_models.dart';
+import '../../../../core/widgets/feedback/seedling_toast.dart';
 
 // ---------------------------------------------------------------------------
 // Providers for Google Drive hardening features
@@ -651,10 +652,6 @@ class SyncStatusTile extends ConsumerWidget {
     String message, {
     bool isError = false,
   }) {
-    final snackBar = SnackBar(
-      content: Text(message),
-      backgroundColor: isError ? Colors.red : SeedlingColors.forestGreen,
-    );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    showSeedlingMessage(context, message, isError: isError);
   }
 }

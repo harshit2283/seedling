@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
+import '../../../../core/widgets/feedback/seedling_toast.dart';
 
 /// Content widget for photo capture mode
 class PhotoCaptureContent extends ConsumerStatefulWidget {
@@ -299,8 +300,6 @@ class _PhotoCaptureContentState extends ConsumerState<PhotoCaptureContent> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showSeedlingMessage(context, message);
   }
 }

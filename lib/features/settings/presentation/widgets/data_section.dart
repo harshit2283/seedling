@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,13 +10,11 @@ import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
+import '../../../../core/services/backup/backup_restore_service.dart';
 import '../../../../core/services/export/export_service.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/storage/storage_usage_service.dart';
-import '../../../../data/models/entry.dart';
 import 'settings_helpers.dart';
-
-enum _ImportMode { merge, replace }
 
 /// Settings section for export, import, storage, and tree rebuild.
 class DataSection extends ConsumerStatefulWidget {
@@ -471,7 +468,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       }
       if (!mounted) return;
 
-      if (mode == _ImportMode.replace) {
+      if (mode == BackupImportMode.replace) {
         final localCountBefore = ref.read(allEntriesProvider).length;
         final confirmed = await _confirmReplaceImport(
           context,
@@ -540,7 +537,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       }
       if (!mounted) return;
 
-      if (mode == _ImportMode.replace) {
+      if (mode == BackupImportMode.replace) {
         final localCountBefore = ref.read(allEntriesProvider).length;
         final confirmed = await _confirmReplaceImport(
           context,
@@ -578,206 +575,13 @@ class _DataSectionState extends ConsumerState<DataSection> {
 
   Future<ImportResult> _restoreLoadedBackup(
     LoadedEncryptedBackup loaded, {
-    required _ImportMode mode,
-  }) async {
-    final database = ref.read(databaseProvider);
-    final fileStorage = ref.read(fileStorageServiceProvider);
-    final existingEntries = mode == _ImportMode.merge
-        ? database.getAllEntries()
-        : <Entry>[];
-    final seenFingerprints = existingEntries
-        .map((entry) => _entryFingerprint(entry))
-        .toSet();
-
-    if (mode == _ImportMode.replace) {
-      // Stage deletion: soft-delete existing entries instead of destroying
-      // immediately. If import fails, entries remain recoverable.
-      final existing = database.getAllEntries();
-      for (final entry in existing) {
-        await database.softDeleteEntry(entry.id);
-      }
-      seenFingerprints.clear();
-    }
-
-    var importedEntries = 0;
-    var importedMediaFiles = 0;
-    var skippedDuplicates = 0;
-    final warnings = [...loaded.warnings];
-
-    for (final entryMap in loaded.entries) {
-      final fingerprint = _mapFingerprint(entryMap);
-      if (mode == _ImportMode.merge && seenFingerprints.contains(fingerprint)) {
-        skippedDuplicates++;
-        continue;
-      }
-
-      final restoredMediaPath = await _restoreMediaForEntry(
-        entryMap: entryMap,
-        mediaFiles: loaded.mediaFiles,
-      );
-      if (restoredMediaPath == null && entryMap['mediaPath'] != null) {
-        warnings.add('missing_media');
-      } else if (restoredMediaPath != null) {
-        importedMediaFiles++;
-      }
-
-      final createdAt =
-          DateTime.tryParse((entryMap['createdAt'] as String?) ?? '') ??
-          DateTime.now();
-      final type = _parseEntryType(entryMap['type'] as String?);
-
-      // Use factory constructors for proper type initialization
-      final Entry entry;
-      switch (type) {
-        case EntryType.line:
-          entry = Entry.line(
-            text: entryMap['text'] as String?,
-            context: entryMap['context'] as String?,
-            mood: entryMap['mood'] as String?,
-          );
-        case EntryType.photo:
-          entry = Entry.photo(
-            mediaPath: restoredMediaPath ?? '',
-            text: entryMap['text'] as String?,
-          );
-        case EntryType.voice:
-          entry = Entry.voice(
-            mediaPath: restoredMediaPath ?? '',
-            text: entryMap['text'] as String?,
-          );
-        case EntryType.object:
-          entry = Entry.object(
-            title: entryMap['title'] as String? ?? '',
-            mediaPath: restoredMediaPath,
-            text: entryMap['text'] as String?,
-          );
-        case EntryType.fragment:
-          entry = Entry.fragment(text: entryMap['text'] as String?);
-        case EntryType.ritual:
-          entry = Entry.ritual(
-            title: entryMap['title'] as String? ?? '',
-            text: entryMap['text'] as String?,
-          );
-        case EntryType.release:
-          entry = Entry.release(text: entryMap['text'] as String?);
-      }
-
-      // Rehydrate fields not set by factories
-      entry.createdAt = createdAt;
-      if (restoredMediaPath != null) entry.mediaPath = restoredMediaPath;
-      entry.title ??= entryMap['title'] as String?;
-      entry.context ??= entryMap['context'] as String?;
-      entry.mood ??= entryMap['mood'] as String?;
-      entry.tags = entryMap['tags'] as String?;
-      entry.isReleased = (entryMap['isReleased'] as bool?) ?? false;
-      entry.detectedTheme = entryMap['detectedTheme'] as String?;
-      entry.sentimentScore = (entryMap['sentimentScore'] as num?)?.toDouble();
-      entry.lastAnalyzedAt = DateTime.tryParse(
-        (entryMap['lastAnalyzedAt'] as String?) ?? '',
-      );
-      entry.capsuleUnlockDate = DateTime.tryParse(
-        (entryMap['capsuleUnlockDate'] as String?) ?? '',
-      );
-      // Rehydrate sync identity
-      entry.syncUUID = entryMap['syncUUID'] as String?;
-      entry.deviceId = entryMap['deviceId'] as String?;
-
-      await database.saveEntry(entry);
-      seenFingerprints.add(fingerprint);
-      importedEntries++;
-    }
-
-    await database.recountTrees();
-
-    // Import succeeded — permanently remove old data for replace mode
-    if (mode == _ImportMode.replace) {
-      final deleted = database.getDeletedEntries();
-      for (final entry in deleted) {
-        await database.deleteEntry(entry.id);
-      }
-      await fileStorage.clearAllMedia();
-    }
-
-    return ImportResult.success(
-      importedEntries: importedEntries,
-      importedMediaFiles: importedMediaFiles,
-      skippedDuplicates: skippedDuplicates,
-      warnings: warnings,
+    required BackupImportMode mode,
+  }) {
+    final service = BackupRestoreService(
+      database: ref.read(databaseProvider),
+      fileStorage: ref.read(fileStorageServiceProvider),
     );
-  }
-
-  Future<String?> _restoreMediaForEntry({
-    required Map<String, dynamic> entryMap,
-    required Map<String, List<int>> mediaFiles,
-  }) async {
-    final rawMediaPath = entryMap['mediaPath'] as String?;
-    if (rawMediaPath == null || rawMediaPath.isEmpty) {
-      return null;
-    }
-    final bytes = mediaFiles[rawMediaPath];
-    if (bytes == null) {
-      return null;
-    }
-
-    final fileStorage = ref.read(fileStorageServiceProvider);
-    final type = _parseEntryType(entryMap['type'] as String?);
-    final extension = _extensionFromArchivePath(rawMediaPath);
-
-    String targetPath;
-    switch (type) {
-      case EntryType.photo:
-        targetPath = await fileStorage.generatePhotoPath(extension: extension);
-        break;
-      case EntryType.object:
-        targetPath = await fileStorage.generateObjectPhotoPath(
-          extension: extension,
-        );
-        break;
-      case EntryType.voice:
-        targetPath = await fileStorage.generateVoicePath(extension: extension);
-        break;
-      default:
-        targetPath = await fileStorage.generatePhotoPath(extension: extension);
-        break;
-    }
-
-    await File(targetPath).writeAsBytes(bytes, flush: true);
-    return targetPath;
-  }
-
-  EntryType _parseEntryType(String? rawType) {
-    if (rawType == null) return EntryType.line;
-    return EntryType.values.firstWhere(
-      (type) => type.name == rawType,
-      orElse: () => EntryType.line,
-    );
-  }
-
-  String _extensionFromArchivePath(String path) {
-    final fileName = path.split('/').last;
-    final dot = fileName.lastIndexOf('.');
-    if (dot < 0 || dot == fileName.length - 1) {
-      return 'bin';
-    }
-    return fileName.substring(dot + 1);
-  }
-
-  String _entryFingerprint(Entry entry) {
-    final createdAt = entry.createdAt.toIso8601String();
-    final type = entry.type.name;
-    final text = (entry.text ?? '').trim().toLowerCase();
-    final title = (entry.title ?? '').trim().toLowerCase();
-    final capsule = entry.capsuleUnlockDate?.toIso8601String() ?? '';
-    return '$createdAt|$type|$text|$title|$capsule';
-  }
-
-  String _mapFingerprint(Map<String, dynamic> map) {
-    final createdAt = (map['createdAt'] as String?) ?? '';
-    final type = (map['type'] as String?) ?? '';
-    final text = ((map['text'] as String?) ?? '').trim().toLowerCase();
-    final title = ((map['title'] as String?) ?? '').trim().toLowerCase();
-    final capsule = (map['capsuleUnlockDate'] as String?) ?? '';
-    return '$createdAt|$type|$text|$title|$capsule';
+    return service.restore(loaded, mode: mode);
   }
 
   String _formatWarning(String warningCode) {
@@ -915,7 +719,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
     );
   }
 
-  Future<_ImportMode?> _promptImportMode(
+  Future<BackupImportMode?> _promptImportMode(
     BuildContext context,
     EncryptedBackupPreview preview,
   ) async {
@@ -932,7 +736,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         '$integrityText';
 
     if (PlatformUtils.isIOS) {
-      return showCupertinoDialog<_ImportMode>(
+      return showCupertinoDialog<BackupImportMode>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
           title: const Text('Import Backup'),
@@ -943,12 +747,14 @@ class _DataSectionState extends ConsumerState<DataSection> {
               child: const Text('Cancel'),
             ),
             CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(_ImportMode.merge),
+              onPressed: () =>
+                  Navigator.of(context).pop(BackupImportMode.merge),
               child: const Text('Merge (Keep current + add missing)'),
             ),
             CupertinoDialogAction(
               isDestructiveAction: true,
-              onPressed: () => Navigator.of(context).pop(_ImportMode.replace),
+              onPressed: () =>
+                  Navigator.of(context).pop(BackupImportMode.replace),
               child: const Text('Replace (Erase current and restore)'),
             ),
           ],
@@ -956,7 +762,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       );
     }
 
-    return showDialog<_ImportMode>(
+    return showDialog<BackupImportMode>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Import Backup'),
@@ -967,11 +773,12 @@ class _DataSectionState extends ConsumerState<DataSection> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(_ImportMode.merge),
+            onPressed: () => Navigator.of(context).pop(BackupImportMode.merge),
             child: const Text('Merge'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(_ImportMode.replace),
+            onPressed: () =>
+                Navigator.of(context).pop(BackupImportMode.replace),
             style: TextButton.styleFrom(foregroundColor: SeedlingColors.error),
             child: const Text('Replace'),
           ),

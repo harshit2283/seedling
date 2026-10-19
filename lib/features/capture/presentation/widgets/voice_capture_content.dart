@@ -8,6 +8,7 @@ import '../../../../app/theme/colors.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/media/audio_playback_service.dart';
 import '../../../../core/services/providers.dart';
+import '../../../../core/widgets/feedback/seedling_toast.dart';
 
 /// Content widget for voice capture mode
 class VoiceCaptureContent extends ConsumerStatefulWidget {
@@ -610,9 +611,7 @@ class _VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showSeedlingMessage(context, message);
   }
 
   String _formatDuration(Duration duration) {

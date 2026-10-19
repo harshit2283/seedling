@@ -17,6 +17,7 @@ import 'widgets/photo_viewer.dart';
 import 'widgets/memory_share_sheet.dart';
 import 'widgets/voice_player.dart';
 import 'widgets/similar_memories_section.dart';
+import '../../../core/widgets/feedback/seedling_toast.dart';
 
 /// Detail screen for viewing and editing a single memory entry
 class EntryDetailScreen extends ConsumerStatefulWidget {
@@ -1115,9 +1116,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     );
     if (resolvedPath == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Voice memo is unavailable')),
-        );
+        showSeedlingMessage(context, 'Voice memo is unavailable');
       }
       return;
     }
@@ -1157,17 +1156,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         HapticFeedback.lightImpact();
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('No speech detected')));
+          showSeedlingMessage(context, 'No speech detected');
         }
       }
     } catch (e) {
       debugPrint('Entry detail operation failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Transcription failed')));
+        showSeedlingMessage(context, 'Transcription failed');
       }
     } finally {
       if (mounted) {

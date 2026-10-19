@@ -8,9 +8,11 @@ import '../core/services/providers.dart';
 import '../core/services/share/share_receiver_service.dart';
 import '../features/capture/presentation/quick_capture_sheet.dart';
 import '../features/capture/presentation/shared_content_sheet.dart';
+import 'app_lock_gate.dart';
 import 'router.dart';
 import 'theme/cupertino_theme.dart';
 import 'theme/seedling_theme.dart';
+import '../core/widgets/feedback/seedling_toast.dart';
 
 /// Root widget for the Seedling app
 /// Uses CupertinoApp on iOS for native feel, MaterialApp on Android
@@ -40,13 +42,15 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    // Decide the lock state before the first frame so a cold start never
+    // renders memories unlocked, even for one frame.
+    final initialLockEnabled = ref.read(appLockEnabledProvider);
+    _lastKnownLockEnabled = initialLockEnabled;
+    _isLocked = initialLockEnabled;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final lockEnabled = ref.read(appLockEnabledProvider);
-      _lastKnownLockEnabled = lockEnabled;
-      if (lockEnabled) {
-        setState(() => _isLocked = true);
-      }
       unawaited(_applyScreenProtection(lockEnabled: lockEnabled));
 
       // Initialize cloud sync engine only if the master opt-in is on.
@@ -80,9 +84,7 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
         if (!mounted) return;
         final navContext = appRouter.routerDelegate.navigatorKey.currentContext;
         if (navContext == null) return;
-        ScaffoldMessenger.of(
-          navContext,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        showSeedlingMessage(navContext, message);
       });
     });
   }
@@ -134,28 +136,31 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
+    final lockEnabled = ref.read(appLockEnabledProvider);
+
+    // `inactive` alone is not backgrounding: the Face ID sheet, permission
+    // dialogs and the camera picker all pass through inactive -> resumed.
+    // Treating it as backgrounding re-locked the app right after unlocking.
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       _wasBackgrounded = true;
-      unawaited(
-        _applyScreenProtection(lockEnabled: ref.read(appLockEnabledProvider)),
-      );
+      // Lock on the way out (not on return) so the app-switcher snapshot
+      // already shows the lock screen.
+      if (lockEnabled && mounted && !_isLocked) {
+        setState(() => _isLocked = true);
+      }
+      unawaited(_applyScreenProtection(lockEnabled: lockEnabled));
     }
 
     if (state == AppLifecycleState.resumed && _wasBackgrounded) {
       _wasBackgrounded = false;
-
-      // Lock screen if enabled
-      final lockEnabled = ref.read(appLockEnabledProvider);
-      if (lockEnabled && mounted) {
-        setState(() => _isLocked = true);
-      }
       unawaited(_applyScreenProtection(lockEnabled: lockEnabled));
 
-      // Trigger cloud sync pull on resume
-      final syncEngine = ref.read(syncEngineProvider);
-      syncEngine.pull();
+      // Pull only when the user opted in to cloud sync.
+      if (ref.read(cloudSyncEnabledProvider)) {
+        ref.read(syncEngineProvider).pull();
+      }
     }
   }
 
@@ -208,49 +213,11 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
         }
       });
     }
-    if (!lockEnabled || !_isLocked) {
-      return child;
-    }
-
-    return Stack(
-      children: [
-        child,
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.86),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    CupertinoIcons.lock_shield_fill,
-                    color: Colors.white,
-                    size: 50,
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Seedling is locked',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  CupertinoButton.filled(
-                    onPressed: _isUnlocking ? null : _unlockApp,
-                    child: _isUnlocking
-                        ? const CupertinoActivityIndicator(color: Colors.white)
-                        : const Text('Unlock'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
+    return AppLockGate(
+      locked: lockEnabled && _isLocked,
+      isUnlocking: _isUnlocking,
+      onUnlock: _unlockApp,
+      child: child,
     );
   }
 
@@ -278,8 +245,10 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
               routerConfig: appRouter,
               // Wrap with Material theme for widgets that need it
               builder: (context, child) {
-                return Theme(
-                  data: isDark ? SeedlingTheme.dark : SeedlingTheme.light,
+                return wrapCupertinoAppContent(
+                  materialTheme: isDark
+                      ? SeedlingTheme.dark
+                      : SeedlingTheme.light,
                   child: _wrapWithAppLock(child ?? const SizedBox.shrink()),
                 );
               },

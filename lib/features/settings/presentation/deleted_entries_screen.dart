@@ -7,6 +7,7 @@ import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../data/models/entry.dart';
+import '../../../core/widgets/feedback/seedling_toast.dart';
 
 /// Screen for viewing and recovering soft-deleted entries
 class DeletedEntriesScreen extends ConsumerWidget {
@@ -326,11 +327,10 @@ class DeletedEntriesScreen extends ConsumerWidget {
       await ref.read(entryCreatorProvider.notifier).restoreEntry(entry.id);
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not restore memory: $error'),
-          backgroundColor: SeedlingColors.error,
-        ),
+      showSeedlingMessage(
+        context,
+        "Couldn't restore this memory. Please try again.",
+        isError: true,
       );
       return;
     }
@@ -440,11 +440,10 @@ class DeletedEntriesScreen extends ConsumerWidget {
           .permanentlyDeleteEntry(entry.id);
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not delete memory: $error'),
-          backgroundColor: SeedlingColors.error,
-        ),
+      showSeedlingMessage(
+        context,
+        "Couldn't delete this memory. Please try again.",
+        isError: true,
       );
     }
   }
