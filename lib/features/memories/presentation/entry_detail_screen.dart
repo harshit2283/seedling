@@ -412,7 +412,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: palette.textPrimary,
+          color: overMedia ? palette.onMedia : palette.textPrimary,
         ),
       ),
     );
