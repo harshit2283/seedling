@@ -292,6 +292,18 @@ void main() {
       expect(prefs.getString(PrefsKeys.resurfaceDismissedDate), '2026-10-19');
     });
 
+    testWidgets('the hide button is a full 44x44 target', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final memory = _line('Picnic under the oak', DateTime(2025, 8, 3));
+      await tester.pumpWidget(harness([memory]));
+      await tester.pumpAndSettle();
+
+      final size = tester.getSize(find.bySemanticsLabel('Hide until tomorrow'));
+      expect(size.width, greaterThanOrEqualTo(44));
+      expect(size.height, greaterThanOrEqualTo(44));
+      semantics.dispose();
+    });
+
     testWidgets('stays hidden when dismissed earlier today', (tester) async {
       await prefs.setString(PrefsKeys.resurfaceDismissedDate, '2026-10-19');
       await tester.pumpWidget(

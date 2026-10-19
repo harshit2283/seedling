@@ -121,9 +121,10 @@ class _ResurfaceCardBody extends StatelessWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: onDismiss,
+                // A full 44x44 target; the icon stays small and right-aligned.
                 child: SizedBox(
                   width: 44,
-                  height: 32,
+                  height: 44,
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: Icon(

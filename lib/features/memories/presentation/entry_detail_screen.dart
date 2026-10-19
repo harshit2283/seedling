@@ -450,11 +450,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         IconButton(
           icon: const Icon(Icons.edit_outlined),
           color: context.palette.primary,
+          tooltip: 'Edit memory',
           onPressed: () => _enterEditMode(entry),
         ),
       IconButton(
         icon: const Icon(Icons.delete_outline),
         color: context.palette.error,
+        tooltip: 'Delete memory',
         onPressed: () => _confirmDelete(context, entry),
       ),
     ];

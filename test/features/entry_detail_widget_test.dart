@@ -184,6 +184,16 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
     });
 
+    testWidgets('edit and delete buttons have tooltips', (tester) async {
+      final entry = createTestEntry(text: 'Labelled controls');
+
+      await tester.pumpWidget(buildTestWidget(entry));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Edit memory'), findsOneWidget);
+      expect(find.byTooltip('Delete memory'), findsOneWidget);
+    });
+
     testWidgets('delete triggers confirmation dialog', (tester) async {
       final entry = createTestEntry(text: 'Memory to delete');
 

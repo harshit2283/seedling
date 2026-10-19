@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/media/audio_playback_service.dart';
@@ -187,7 +186,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
           _isRecording ? 'Recording...' : 'Hold to record',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: _isRecording
-                ? SeedlingColors.accentVoice
+                ? context.palette.inkFor(context.palette.accentVoice)
                 : context.palette.textPrimary,
           ),
         ),
@@ -228,16 +227,16 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _isRecording
-                      ? SeedlingColors.accentVoice
-                      : SeedlingColors.accentVoice.withValues(alpha: 0.15),
+                      ? context.palette.accentVoice
+                      : context.palette.accentVoice.withValues(alpha: 0.15),
                   border: Border.all(
-                    color: SeedlingColors.accentVoice,
+                    color: context.palette.accentVoice,
                     width: 3,
                   ),
                   boxShadow: _isRecording
                       ? [
                           BoxShadow(
-                            color: SeedlingColors.accentVoice.withValues(
+                            color: context.palette.accentVoice.withValues(
                               alpha: 0.3,
                             ),
                             blurRadius: 20,
@@ -252,7 +251,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                     size: 40,
                     color: _isRecording
                         ? context.palette.onMedia
-                        : SeedlingColors.accentVoice,
+                        : context.palette.accentVoice,
                   ),
                 ),
               ),
@@ -278,7 +277,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
               painter: _WaveformPainter(
                 samples: List<double>.unmodifiable(_waveformSamples),
                 cursor: _waveformCursor,
-                color: SeedlingColors.accentVoice,
+                color: context.palette.accentVoice,
               ),
               size: const Size(double.infinity, 44),
             ),
@@ -303,10 +302,10 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
-            color: SeedlingColors.accentVoice.withValues(alpha: 0.1),
+            color: context.palette.accentVoice.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: SeedlingColors.accentVoice.withValues(alpha: 0.3),
+              color: context.palette.accentVoice.withValues(alpha: 0.3),
             ),
           ),
           child: Row(
@@ -315,7 +314,7 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                 PlatformUtils.isIOS
                     ? CupertinoIcons.waveform
                     : Icons.graphic_eq,
-                color: SeedlingColors.accentVoice,
+                color: context.palette.accentVoice,
                 size: 28,
               ),
               const SizedBox(width: 12),
@@ -355,8 +354,8 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
                     child: Center(
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: SeedlingColors.accentVoice,
+                        decoration: BoxDecoration(
+                          color: context.palette.accentVoice,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -407,9 +406,9 @@ class VoiceCaptureContentState extends ConsumerState<VoiceCaptureContent>
           borderRadius: BorderRadius.circular(2),
           child: LinearProgressIndicator(
             value: progress.clamp(0.0, 1.0),
-            backgroundColor: SeedlingColors.accentVoice.withValues(alpha: 0.2),
-            valueColor: const AlwaysStoppedAnimation<Color>(
-              SeedlingColors.accentVoice,
+            backgroundColor: context.palette.accentVoice.withValues(alpha: 0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              context.palette.accentVoice,
             ),
             minHeight: 4,
           ),

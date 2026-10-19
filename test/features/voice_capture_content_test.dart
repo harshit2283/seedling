@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:seedling/app/theme/colors.dart';
+import 'package:seedling/app/theme/palette.dart';
+import 'package:seedling/app/theme/seedling_theme.dart';
 import 'package:seedling/core/services/media/audio_playback_service.dart';
 import 'package:seedling/core/services/media/voice_recording_service.dart';
 import 'package:seedling/core/services/providers.dart';
@@ -61,13 +64,14 @@ void main() {
     when(() => playback.currentPath).thenReturn(null);
   });
 
-  Widget harness({bool show = true}) {
+  Widget harness({bool show = true, ThemeData? theme}) {
     return ProviderScope(
       overrides: [
         voiceRecordingServiceProvider.overrideWithValue(recording),
         audioPlaybackServiceProvider.overrideWithValue(playback),
       ],
       child: MaterialApp(
+        theme: theme,
         home: Scaffold(
           body: show
               ? VoiceCaptureContent(
@@ -143,5 +147,22 @@ void main() {
     await tester.pump();
 
     expect(savedPath, '/media/voices/max.m4a');
+  });
+
+  testWidgets('voice colors follow the palette (dark mode)', (tester) async {
+    final palette = SeedlingTheme.dark.palette;
+    expect(palette.accentVoice, isNot(SeedlingColors.accentVoice));
+    await tester.pumpWidget(harness(theme: SeedlingTheme.dark));
+    final gesture = await tester.startGesture(tester.getCenter(recordButton()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final label = tester.widget<Text>(find.text('Recording...'));
+    expect(label.style?.color, palette.inkFor(palette.accentVoice));
+    await gesture.up();
+    await tester.pump();
+
+    final icon = tester.widget<Icon>(find.byIcon(Icons.graphic_eq));
+    expect(icon.color, palette.accentVoice);
   });
 }
