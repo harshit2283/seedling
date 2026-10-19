@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
+import '../../core/platform/platform_utils.dart';
 import 'colors.dart';
 
-/// Seedling typography - warm, readable, and organic
-/// Uses Georgia for headers (classic, warm serif) and system sans for body
+/// Seedling typography - warm, readable, and organic.
+///
+/// Platform-correct families: on iOS everything uses the system font
+/// (SF Pro), matching Apple's design language; on Android headlines use
+/// Georgia (a warm, classic serif) and body copy uses the system sans
+/// (Roboto). A `null` family means "the platform default".
 class SeedlingTypography {
   SeedlingTypography._();
 
-  // Font families
-  static const String serifFamily = 'Georgia';
-  static const String sansFamily = '.AppleSystemUIFont'; // System font
+  /// Headline family: Georgia on Android, the system font (SF) on iOS.
+  static String? get serifFamily => PlatformUtils.isIOS ? null : 'Georgia';
+
+  /// Body family: always the platform's system font.
+  static String? get sansFamily => null;
 
   static TextTheme get textTheme => TextTheme(
     // Display - Large titles, rarely used
-    displayLarge: const TextStyle(
+    displayLarge: TextStyle(
       fontFamily: serifFamily,
       fontSize: 56,
       fontWeight: FontWeight.w300,
@@ -20,7 +27,7 @@ class SeedlingTypography {
       height: 1.05,
       color: SeedlingColors.textPrimary,
     ),
-    displayMedium: const TextStyle(
+    displayMedium: TextStyle(
       fontFamily: serifFamily,
       fontSize: 32,
       fontWeight: FontWeight.w400,
@@ -28,7 +35,7 @@ class SeedlingTypography {
       height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
-    displaySmall: const TextStyle(
+    displaySmall: TextStyle(
       fontFamily: serifFamily,
       fontSize: 28,
       fontWeight: FontWeight.w400,
@@ -38,7 +45,7 @@ class SeedlingTypography {
     ),
 
     // Headlines - Section headers
-    headlineLarge: const TextStyle(
+    headlineLarge: TextStyle(
       fontFamily: serifFamily,
       fontSize: 24,
       fontWeight: FontWeight.w400,
@@ -46,7 +53,7 @@ class SeedlingTypography {
       height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
-    headlineMedium: const TextStyle(
+    headlineMedium: TextStyle(
       fontFamily: serifFamily,
       fontSize: 20,
       fontWeight: FontWeight.w400,
@@ -54,7 +61,7 @@ class SeedlingTypography {
       height: 1.15,
       color: SeedlingColors.textPrimary,
     ),
-    headlineSmall: const TextStyle(
+    headlineSmall: TextStyle(
       fontFamily: serifFamily,
       fontSize: 18,
       fontWeight: FontWeight.w500,
@@ -64,7 +71,7 @@ class SeedlingTypography {
     ),
 
     // Titles - Card titles, list headers
-    titleLarge: const TextStyle(
+    titleLarge: TextStyle(
       fontFamily: sansFamily,
       fontSize: 18,
       fontWeight: FontWeight.w500,
@@ -72,7 +79,7 @@ class SeedlingTypography {
       height: 1.4,
       color: SeedlingColors.textPrimary,
     ),
-    titleMedium: const TextStyle(
+    titleMedium: TextStyle(
       fontFamily: sansFamily,
       fontSize: 16,
       fontWeight: FontWeight.w500,
@@ -80,7 +87,7 @@ class SeedlingTypography {
       height: 1.5,
       color: SeedlingColors.textPrimary,
     ),
-    titleSmall: const TextStyle(
+    titleSmall: TextStyle(
       fontFamily: sansFamily,
       fontSize: 14,
       fontWeight: FontWeight.w500,
@@ -90,7 +97,7 @@ class SeedlingTypography {
     ),
 
     // Body - Primary reading text
-    bodyLarge: const TextStyle(
+    bodyLarge: TextStyle(
       fontFamily: sansFamily,
       fontSize: 16,
       fontWeight: FontWeight.w400,
@@ -98,7 +105,7 @@ class SeedlingTypography {
       height: 1.6,
       color: SeedlingColors.textPrimary,
     ),
-    bodyMedium: const TextStyle(
+    bodyMedium: TextStyle(
       fontFamily: sansFamily,
       fontSize: 14,
       fontWeight: FontWeight.w400,
@@ -106,7 +113,7 @@ class SeedlingTypography {
       height: 1.6,
       color: SeedlingColors.textPrimary,
     ),
-    bodySmall: const TextStyle(
+    bodySmall: TextStyle(
       fontFamily: sansFamily,
       fontSize: 12,
       fontWeight: FontWeight.w400,
@@ -116,7 +123,7 @@ class SeedlingTypography {
     ),
 
     // Labels - Buttons, tags, metadata
-    labelLarge: const TextStyle(
+    labelLarge: TextStyle(
       fontFamily: sansFamily,
       fontSize: 14,
       fontWeight: FontWeight.w500,
@@ -124,7 +131,7 @@ class SeedlingTypography {
       height: 1.4,
       color: SeedlingColors.textPrimary,
     ),
-    labelMedium: const TextStyle(
+    labelMedium: TextStyle(
       fontFamily: sansFamily,
       fontSize: 12,
       fontWeight: FontWeight.w500,
@@ -132,20 +139,20 @@ class SeedlingTypography {
       height: 1.4,
       color: SeedlingColors.textSecondary,
     ),
-    labelSmall: const TextStyle(
+    labelSmall: TextStyle(
       fontFamily: sansFamily,
-      fontSize: 10,
+      fontSize: 12,
       fontWeight: FontWeight.w500,
-      letterSpacing: 0.5,
+      letterSpacing: 0.3,
       height: 1.4,
-      color: SeedlingColors.textMuted,
+      color: SeedlingColors.textSecondary,
     ),
   );
 
   /// Dark mode text theme - same typography, adjusted colors
   static TextTheme get textThemeDark => TextTheme(
     // Display - Large titles
-    displayLarge: const TextStyle(
+    displayLarge: TextStyle(
       fontFamily: serifFamily,
       fontSize: 56,
       fontWeight: FontWeight.w300,
@@ -153,7 +160,7 @@ class SeedlingTypography {
       height: 1.05,
       color: SeedlingColors.textPrimaryDark,
     ),
-    displayMedium: const TextStyle(
+    displayMedium: TextStyle(
       fontFamily: serifFamily,
       fontSize: 32,
       fontWeight: FontWeight.w400,
@@ -161,7 +168,7 @@ class SeedlingTypography {
       height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
-    displaySmall: const TextStyle(
+    displaySmall: TextStyle(
       fontFamily: serifFamily,
       fontSize: 28,
       fontWeight: FontWeight.w400,
@@ -171,7 +178,7 @@ class SeedlingTypography {
     ),
 
     // Headlines - Section headers
-    headlineLarge: const TextStyle(
+    headlineLarge: TextStyle(
       fontFamily: serifFamily,
       fontSize: 24,
       fontWeight: FontWeight.w400,
@@ -179,7 +186,7 @@ class SeedlingTypography {
       height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
-    headlineMedium: const TextStyle(
+    headlineMedium: TextStyle(
       fontFamily: serifFamily,
       fontSize: 20,
       fontWeight: FontWeight.w400,
@@ -187,7 +194,7 @@ class SeedlingTypography {
       height: 1.15,
       color: SeedlingColors.textPrimaryDark,
     ),
-    headlineSmall: const TextStyle(
+    headlineSmall: TextStyle(
       fontFamily: serifFamily,
       fontSize: 18,
       fontWeight: FontWeight.w500,
@@ -197,7 +204,7 @@ class SeedlingTypography {
     ),
 
     // Titles - Card titles, list headers
-    titleLarge: const TextStyle(
+    titleLarge: TextStyle(
       fontFamily: sansFamily,
       fontSize: 18,
       fontWeight: FontWeight.w500,
@@ -205,7 +212,7 @@ class SeedlingTypography {
       height: 1.4,
       color: SeedlingColors.textPrimaryDark,
     ),
-    titleMedium: const TextStyle(
+    titleMedium: TextStyle(
       fontFamily: sansFamily,
       fontSize: 16,
       fontWeight: FontWeight.w500,
@@ -213,7 +220,7 @@ class SeedlingTypography {
       height: 1.5,
       color: SeedlingColors.textPrimaryDark,
     ),
-    titleSmall: const TextStyle(
+    titleSmall: TextStyle(
       fontFamily: sansFamily,
       fontSize: 14,
       fontWeight: FontWeight.w500,
@@ -223,7 +230,7 @@ class SeedlingTypography {
     ),
 
     // Body - Primary reading text
-    bodyLarge: const TextStyle(
+    bodyLarge: TextStyle(
       fontFamily: sansFamily,
       fontSize: 16,
       fontWeight: FontWeight.w400,
@@ -231,7 +238,7 @@ class SeedlingTypography {
       height: 1.6,
       color: SeedlingColors.textPrimaryDark,
     ),
-    bodyMedium: const TextStyle(
+    bodyMedium: TextStyle(
       fontFamily: sansFamily,
       fontSize: 14,
       fontWeight: FontWeight.w400,
@@ -239,7 +246,7 @@ class SeedlingTypography {
       height: 1.6,
       color: SeedlingColors.textPrimaryDark,
     ),
-    bodySmall: const TextStyle(
+    bodySmall: TextStyle(
       fontFamily: sansFamily,
       fontSize: 12,
       fontWeight: FontWeight.w400,
@@ -249,7 +256,7 @@ class SeedlingTypography {
     ),
 
     // Labels - Buttons, tags, metadata
-    labelLarge: const TextStyle(
+    labelLarge: TextStyle(
       fontFamily: sansFamily,
       fontSize: 14,
       fontWeight: FontWeight.w500,
@@ -257,7 +264,7 @@ class SeedlingTypography {
       height: 1.4,
       color: SeedlingColors.textPrimaryDark,
     ),
-    labelMedium: const TextStyle(
+    labelMedium: TextStyle(
       fontFamily: sansFamily,
       fontSize: 12,
       fontWeight: FontWeight.w500,
@@ -265,19 +272,19 @@ class SeedlingTypography {
       height: 1.4,
       color: SeedlingColors.textSecondaryDark,
     ),
-    labelSmall: const TextStyle(
+    labelSmall: TextStyle(
       fontFamily: sansFamily,
-      fontSize: 10,
+      fontSize: 12,
       fontWeight: FontWeight.w500,
-      letterSpacing: 0.5,
+      letterSpacing: 0.3,
       height: 1.4,
-      color: SeedlingColors.textMutedDark,
+      color: SeedlingColors.textSecondaryDark,
     ),
   );
 
   /// Serif accent title — italic Georgia, used for entry titles or accents.
   /// Not applied globally; opt-in per widget.
-  static const TextStyle serifTitle = TextStyle(
+  static TextStyle get serifTitle => TextStyle(
     fontFamily: serifFamily,
     fontStyle: FontStyle.italic,
     fontSize: 22,

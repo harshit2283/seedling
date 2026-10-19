@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'colors.dart';
+import 'palette.dart';
 import 'typography.dart';
 
 /// Complete Seedling theme - organic, paper-like feel
@@ -11,6 +12,7 @@ class SeedlingTheme {
   static ThemeData get light => ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    extensions: const [SeedlingPalette.light],
 
     // Colors
     colorScheme: ColorScheme.light(
@@ -170,6 +172,7 @@ class SeedlingTheme {
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
+    extensions: const [SeedlingPalette.dark],
 
     // Colors
     colorScheme: ColorScheme.dark(
@@ -219,7 +222,7 @@ class SeedlingTheme {
     // Buttons
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: SeedlingColors.forestGreenDark,
+        backgroundColor: SeedlingPalette.dark.primaryFill,
         foregroundColor: SeedlingColors.textPrimaryDark,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -229,7 +232,7 @@ class SeedlingTheme {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: SeedlingColors.forestGreenDark,
+        foregroundColor: SeedlingColors.leafGreenDark,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         textStyle: SeedlingTypography.textThemeDark.labelLarge,
@@ -237,8 +240,8 @@ class SeedlingTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: SeedlingColors.forestGreenDark,
-        side: const BorderSide(color: SeedlingColors.forestGreenDark),
+        foregroundColor: SeedlingColors.leafGreenDark,
+        side: const BorderSide(color: SeedlingColors.leafGreenDark),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: SeedlingTypography.textThemeDark.labelLarge,
@@ -246,8 +249,8 @@ class SeedlingTheme {
     ),
 
     // Floating Action Button
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: SeedlingColors.forestGreenDark,
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: SeedlingPalette.dark.primaryFill,
       foregroundColor: SeedlingColors.textPrimaryDark,
       elevation: 2,
       shape: CircleBorder(),
