@@ -5,14 +5,10 @@ import '../../../features/tree/domain/tree_personality.dart';
 import '../ai/theme_detector_service.dart';
 import '../ai/connection_finder_service.dart';
 import '../ai/ritual_detection_service.dart';
-import '../ai/suggestion_engine.dart';
-import '../ai/ml_text_analyzer.dart';
 import '../ai/models/memory_connection.dart';
 import '../ai/models/memory_theme.dart';
 import '../ai/models/ritual_candidate.dart';
-import '../ai/models/smart_suggestion.dart';
 import '../ai/models/analysis_result.dart';
-import '../search/semantic_search_service.dart';
 import '../transcription/speech_transcription_service.dart';
 import '../ritual/ritual_service.dart';
 import '../../../features/review/domain/review_generator.dart';
@@ -22,11 +18,6 @@ import 'database_providers.dart';
 // AI Services Providers (Phase 4)
 // ============================================================================
 
-/// Provider for the ML text analyzer (CoreML on iOS, ML Kit on Android)
-final mlTextAnalyzerProvider = Provider<MLTextAnalyzer>((ref) {
-  return HybridMLTextAnalyzer();
-});
-
 /// Provider for the theme detector service
 final themeDetectorProvider = Provider<ThemeDetectorService>((ref) {
   return ThemeDetectorService();
@@ -35,12 +26,6 @@ final themeDetectorProvider = Provider<ThemeDetectorService>((ref) {
 /// Provider for the connection finder service
 final connectionFinderProvider = Provider<ConnectionFinderService>((ref) {
   return ConnectionFinderService();
-});
-
-/// Provider for the suggestion engine
-final suggestionEngineProvider = Provider<SuggestionEngine>((ref) {
-  final themeDetector = ref.watch(themeDetectorProvider);
-  return SuggestionEngine(themeDetector: themeDetector);
 });
 
 /// Provider for the ritual detection service.
@@ -88,13 +73,6 @@ final underrepresentedThemesProvider = Provider<List<MemoryTheme>>((ref) {
   final distribution = ref.watch(themeDistributionProvider);
   final themeDetector = ref.watch(themeDetectorProvider);
   return themeDetector.getUnderrepresentedThemes(distribution);
-});
-
-/// Provider for smart suggestion (uses suggestion engine)
-final smartSuggestionProvider = Provider<SmartSuggestion?>((ref) {
-  final entries = ref.watch(entriesProvider);
-  final suggestionEngine = ref.watch(suggestionEngineProvider);
-  return suggestionEngine.getNextSuggestion(entries);
 });
 
 /// Provider for recurring ritual candidates in recent entries.
@@ -189,18 +167,6 @@ final speechTranscriptionServiceProvider = Provider<SpeechTranscriptionService>(
     return SpeechTranscriptionService();
   },
 );
-
-// ============================================================================
-// Semantic Search Providers (Phase 5)
-// ============================================================================
-
-/// Provider for the semantic search service
-final semanticSearchServiceProvider = Provider<SemanticSearchService>((ref) {
-  return SemanticSearchService(
-    mlAnalyzer: ref.watch(mlTextAnalyzerProvider),
-    themeDetector: ref.watch(themeDetectorProvider),
-  );
-});
 
 // ============================================================================
 // Ritual Providers
