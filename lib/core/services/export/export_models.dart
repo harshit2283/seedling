@@ -61,13 +61,40 @@ class EncryptedBackupPreview {
 class LoadedEncryptedBackup {
   final EncryptedBackupPreview preview;
   final List<Map<String, dynamic>> entries;
+
+  /// Media held in memory, keyed by the entry map's `mediaPath`.
   final Map<String, List<int>> mediaFiles;
+
+  /// Media staged on disk (large imports), keyed by the entry map's
+  /// `mediaPath`; values are absolute paths of the staged files.
+  final Map<String, String> mediaFilePaths;
   final List<String> warnings;
 
   const LoadedEncryptedBackup({
     required this.preview,
     required this.entries,
     required this.mediaFiles,
+    this.mediaFilePaths = const {},
     this.warnings = const [],
   });
+}
+
+/// What an import would do, computed before anything is written.
+class ImportPreview {
+  /// Memories found in the file.
+  final int total;
+
+  /// Memories already in Seedling (same date + content, or same syncUUID).
+  final int duplicates;
+
+  /// Media files that would be copied in for the new memories.
+  final int mediaFiles;
+
+  const ImportPreview({
+    required this.total,
+    required this.duplicates,
+    required this.mediaFiles,
+  });
+
+  int get newEntries => total - duplicates;
 }
