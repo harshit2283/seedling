@@ -22,10 +22,13 @@ class YearReviewData {
   /// The most common theme (excluding moments), or null when no entries.
   final MemoryTheme? dominantTheme;
 
-  /// A handful of randomly-picked entries to highlight.
+  /// A handful of entries to highlight, photos first. Never includes
+  /// released memories (the person chose to let those go) or sealed
+  /// capsules.
   final List<Entry> memorableMoments;
 
-  /// Human-readable tree growth stage label (e.g. "Sapling").
+  /// Human-readable tree growth stage label (e.g. "Sapling",
+  /// "Young tree"), sentence case.
   final String treeStateLabel;
 
   /// Number of entries that have at least one connection.
@@ -44,7 +47,58 @@ class YearReviewData {
 
   /// Whether the user has enough entries (10+) to show a full review.
   bool get hasEnoughEntries => totalEntries >= 10;
+
+  /// The growth stage this year's memories add up to.
+  TreeState get treeState => treeStateForCount(totalEntries);
+
+  /// Progress (0..1) from [treeState] towards the next stage.
+  double get treeProgress => treeProgressForCount(totalEntries);
+
+  /// Whether [year] is over relative to [now] (a finished year is told in
+  /// the past tense; the current one is still taking shape).
+  bool isFinished(DateTime now) => year < now.year;
 }
+
+/// Growth stage for [count] memories, using the thresholds in [Tree].
+TreeState treeStateForCount(int count) {
+  var state = TreeState.seed;
+  for (final s in TreeState.values) {
+    if (count >= Tree.thresholds[s]!) state = s;
+  }
+  return state;
+}
+
+/// Progress (0..1) towards the stage after the one [count] reaches.
+double treeProgressForCount(int count) {
+  final state = treeStateForCount(count);
+  if (state == TreeState.ancientTree) return 1;
+  final from = Tree.thresholds[state]!;
+  final to = Tree.thresholds[TreeState.values[state.index + 1]]!;
+  return ((count - from) / (to - from)).clamp(0.0, 1.0);
+}
+
+/// Sentence-case stage name ("Young tree"), the app's shared vocabulary.
+String treeStageLabel(TreeState state) => switch (state) {
+  TreeState.seed => 'Seed',
+  TreeState.sprout => 'Sprout',
+  TreeState.sapling => 'Sapling',
+  TreeState.youngTree => 'Young tree',
+  TreeState.matureTree => 'Mature tree',
+  TreeState.ancientTree => 'Ancient tree',
+};
+
+/// Whether [entry] may be shown back to the person in a review: released
+/// memories were let go on purpose, and sealed capsules stay sealed.
+bool isReviewable(Entry entry) =>
+    !entry.isReleased &&
+    entry.type != EntryType.release &&
+    !entry.isLocked &&
+    !entry.isDeleted;
+
+/// Whether [entry] carries a picture worth showing (photo or object).
+bool hasPicture(Entry entry) =>
+    entry.hasMedia &&
+    (entry.type == EntryType.photo || entry.type == EntryType.object);
 
 /// Summary of entries that fall within a single season.
 class SeasonData {
@@ -54,13 +108,17 @@ class SeasonData {
   /// Number of entries in this season.
   final int entryCount;
 
-  /// First 50 characters of a randomly-chosen entry, or null.
+  /// First 50 characters of one of the season's memories, or null.
   final String? sampleSnippet;
+
+  /// Up to four photo or object memories from this season, for a mosaic.
+  final List<Entry> photos;
 
   const SeasonData({
     required this.name,
     required this.entryCount,
     this.sampleSnippet,
+    this.photos = const [],
   });
 }
 
@@ -123,13 +181,20 @@ class ReviewGenerator {
 
     return buckets.map((key, list) {
       final displayName = _seasonDisplayName(key);
-      final snippet = _sampleSnippet(list);
+      final shown = list.where(isReviewable).toList();
+      final snippet = _sampleSnippet(shown, salt: key.codeUnitAt(0));
+      final photos = _pick(
+        shown.where(hasPicture).toList(),
+        4,
+        salt: key.length,
+      )..sort((a, b) => a.createdAt.compareTo(b.createdAt));
       return MapEntry(
         key,
         SeasonData(
           name: displayName,
           entryCount: list.length,
           sampleSnippet: snippet,
+          photos: photos,
         ),
       );
     });
@@ -154,11 +219,11 @@ class ReviewGenerator {
     };
   }
 
-  /// Pick a random entry with text and return the first 50 characters.
-  String? _sampleSnippet(List<Entry> entries) {
+  /// Pick an entry with text and return the first 50 characters.
+  String? _sampleSnippet(List<Entry> entries, {required int salt}) {
     final withText = entries.where((e) => e.hasText).toList();
     if (withText.isEmpty) return null;
-    final pick = withText[Random().nextInt(withText.length)];
+    final pick = _pick(withText, 1, salt: salt).first;
     final content = pick.displayContent;
     if (content.length <= 50) return content;
     return '${content.substring(0, 50)}...';
@@ -192,17 +257,34 @@ class ReviewGenerator {
   // Memorable moments
   // ---------------------------------------------------------------------------
 
-  /// Picks 3-5 random entries, preferring those with text content.
+  /// Picks up to five moments: up to three pictures first (they carry a
+  /// year best), then memories with words. Released memories and sealed
+  /// capsules are never picked. The pick is stable for a given year, so
+  /// the review does not reshuffle every time it rebuilds.
   List<Entry> _pickMemorableMoments(List<Entry> entries) {
-    if (entries.isEmpty) return [];
+    final pool = entries.where(isReviewable).toList();
+    if (pool.isEmpty) return [];
 
-    // Prefer entries with text for richer display.
-    final candidates = entries.where((e) => e.hasText).toList();
-    final pool = candidates.isNotEmpty ? candidates : entries;
+    final pictures = _pick(pool.where(hasPicture).toList(), 3, salt: 7);
+    final words = _pick(
+      pool.where((e) => !hasPicture(e) && e.hasText).toList(),
+      5 - pictures.length,
+      salt: 11,
+    );
+    final picked = [...pictures, ...words];
+    if (picked.isEmpty) return _pick(pool, 3, salt: 13);
+    picked.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return picked;
+  }
 
-    final shuffled = List.of(pool)..shuffle(Random());
-    final pickCount = pool.length.clamp(0, 5);
-    return shuffled.take(pickCount).toList();
+  /// [count] entries from [from], chosen deterministically.
+  List<Entry> _pick(List<Entry> from, int count, {required int salt}) {
+    if (from.isEmpty || count <= 0) return [];
+    final sorted = List.of(from)
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final year = sorted.first.createdAt.year;
+    sorted.shuffle(Random(year * 101 + salt));
+    return sorted.take(count).toList();
   }
 
   // ---------------------------------------------------------------------------
@@ -211,14 +293,8 @@ class ReviewGenerator {
 
   /// Derives the tree state label purely from entry count, matching the
   /// thresholds defined in [Tree].
-  String _treeStateLabelForCount(int count) {
-    if (count >= Tree.thresholds[TreeState.ancientTree]!) return 'Ancient Tree';
-    if (count >= Tree.thresholds[TreeState.matureTree]!) return 'Mature Tree';
-    if (count >= Tree.thresholds[TreeState.youngTree]!) return 'Young Tree';
-    if (count >= Tree.thresholds[TreeState.sapling]!) return 'Sapling';
-    if (count >= Tree.thresholds[TreeState.sprout]!) return 'Sprout';
-    return 'Seed';
-  }
+  String _treeStateLabelForCount(int count) =>
+      treeStageLabel(treeStateForCount(count));
 
   // ---------------------------------------------------------------------------
   // Connections
