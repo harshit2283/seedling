@@ -476,15 +476,4 @@ class DriveSyncLogStore {
     final blob = await _findBlob(assetId);
     if (blob != null) await _files.delete(blob.id);
   }
-
-  /// Rewrites the legacy document with [quarantine] cleared.
-  Future<void> clearLegacyQuarantine() async {
-    final file = (await _files.listByPrefix(
-      legacyFileName,
-    )).where((f) => f.name == legacyFileName).firstOrNull;
-    final doc = await readLegacyDocument();
-    if (file == null || doc == null) return;
-    doc['quarantine'] = <String, dynamic>{};
-    await _files.overwrite(file.id, utf8.encode(jsonEncode(doc)));
-  }
 }

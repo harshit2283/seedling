@@ -169,6 +169,15 @@ final syncStateProvider = StreamProvider<SyncState>((ref) {
   return engine.stateStream;
 });
 
+/// How many synced changes are set aside because this device couldn't
+/// decrypt or authenticate them (see [SyncMetadata.quarantinedRecords]).
+///
+/// Re-read whenever the engine's state changes, so it updates after a pull.
+final syncQuarantineCountProvider = Provider<int>((ref) {
+  ref.watch(syncStateProvider);
+  return ref.watch(syncMetadataProvider).quarantineCount;
+});
+
 /// Provider for whether sync is enabled.
 ///
 /// Both the master cloud-sync opt-in ([cloudSyncEnabledProvider]) and the

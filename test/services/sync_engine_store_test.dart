@@ -758,7 +758,7 @@ void main() {
     // The token moves on: one bad record can't wedge sync forever.
     expect(metadata.changeToken, 't2');
     expect(metadata.quarantineCount, 1);
-    expect(metadata.lastError, contains("couldn't be decrypted"));
+    expect(metadata.lastError, isNull, reason: 'shown as a notice, not error');
 
     // Once the key is fixed, the quarantined record is retried and merged.
     crypto.undecryptable.clear();
