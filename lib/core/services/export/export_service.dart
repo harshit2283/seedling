@@ -14,6 +14,7 @@ import '../media/file_storage_service.dart';
 import 'backup_codec.dart';
 import 'export_cleanup.dart';
 import 'export_models.dart';
+import 'markdown_export.dart';
 
 export 'export_models.dart';
 
@@ -96,6 +97,82 @@ class ExportService {
       _errorReporter.report(e, stack: st, context: 'ExportService.exportToZip');
       return const ExportResult.failure('Could not create backup archive');
     }
+  }
+
+  /// Export every memory as an open, human-readable Markdown archive: one
+  /// `.md` file per memory (YAML front matter + body) under
+  /// `memories/<year>/<month>/`, still-sealed capsules under `capsules/`,
+  /// media under `media/`, and an `index.md`. Opens in any Markdown editor
+  /// or as an Obsidian vault, and imports back into Seedling.
+  ///
+  /// Media paths are resolved on this isolate (path_provider needs the
+  /// platform channel); building and zipping run in a background isolate,
+  /// streaming media from disk instead of loading it all into memory.
+  Future<ExportResult> exportToMarkdown(
+    List<Entry> entries,
+    String mediaBasePath, {
+    DateTime? now,
+  }) async {
+    try {
+      final exportedAt = now ?? DateTime.now();
+      final baseDir = mediaBasePath.trim().isEmpty
+          ? null
+          : Directory(mediaBasePath);
+      final items = <MarkdownExportItem>[];
+      for (final entry in entries) {
+        String? mediaPath;
+        if (entry.hasMedia && baseDir != null) {
+          mediaPath = await FileStorageService.resolveMediaPath(
+            entry.mediaPath,
+            baseDir: baseDir,
+          );
+          if (mediaPath != null && !await _isInside(mediaPath, baseDir.path)) {
+            mediaPath = null;
+          }
+        }
+        items.add(
+          MarkdownExportItem.fromEntry(
+            entry,
+            resolvedMediaPath: mediaPath,
+            now: exportedAt,
+          ),
+        );
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = exportedAt.toIso8601String().replaceAll(':', '-');
+      final filePath = '${tempDir.path}/seedling_markdown_$timestamp.zip';
+      await _runMarkdownExport(items, exportedAt, filePath);
+      return ExportResult.success(filePath);
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'ExportService.exportToMarkdown',
+      );
+      return const ExportResult.failure('Could not create Markdown export');
+    }
+  }
+
+  static Future<bool> _isInside(String path, String base) async {
+    try {
+      final resolvedBase = await Directory(base).resolveSymbolicLinks();
+      final resolved = await File(path).resolveSymbolicLinks();
+      return resolved.startsWith('$resolvedBase${Platform.pathSeparator}');
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  static Future<void> _runMarkdownExport(
+    List<MarkdownExportItem> items,
+    DateTime exportedAt,
+    String outputPath,
+  ) {
+    return Isolate.run(() {
+      final plan = buildMarkdownExport(items, exportedAt: exportedAt);
+      writeMarkdownExportZip(plan, outputPath);
+    });
   }
 
   /// Export entries and media as encrypted backup payload.
