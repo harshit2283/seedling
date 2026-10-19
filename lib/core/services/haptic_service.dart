@@ -1,57 +1,47 @@
 import 'package:flutter/services.dart';
 import 'ai/models/memory_theme.dart';
 
-/// Centralized haptic feedback service with theme-aware patterns
+/// Instance-based haptic interface so tests can substitute a fake.
 ///
-/// Provides consistent haptic feedback across the app, with special
-/// patterns for different memory themes to create subtle emotional
-/// associations with different types of memories.
-class HapticService {
-  HapticService._();
+/// Production code may keep using the static [HapticService] facade for
+/// brevity; new code that needs to be testable should depend on this
+/// interface (via [hapticServiceProvider]) instead.
+abstract class HapticServiceInterface {
+  void light();
+  void selection();
+  void medium();
+  void heavy();
+  Future<void> onEntrySaved(MemoryTheme? theme);
+  Future<void> onCapsuleCreated();
+  Future<void> onCapsuleUnlocked();
+}
 
-  // ─────────────────────────────────────────────────────────────────
-  // Standard Haptics (existing patterns formalized)
-  // ─────────────────────────────────────────────────────────────────
+/// Default implementation that calls [HapticFeedback] directly.
+class _DefaultHapticService implements HapticServiceInterface {
+  const _DefaultHapticService();
 
-  /// Light tap - for confirmations, dismissals, subtle feedback
-  static void light() {
+  @override
+  void light() {
     HapticFeedback.lightImpact();
   }
 
-  /// Selection click - for button taps, navigation, toggles
-  static void selection() {
+  @override
+  void selection() {
     HapticFeedback.selectionClick();
   }
 
-  /// Medium impact - for significant actions (recording start, filter changes)
-  static void medium() {
+  @override
+  void medium() {
     HapticFeedback.mediumImpact();
   }
 
-  /// Heavy impact - for critical actions (max duration, permanent delete)
-  static void heavy() {
+  @override
+  void heavy() {
     HapticFeedback.heavyImpact();
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Theme-Based Haptics (Phase 4.5)
-  // ─────────────────────────────────────────────────────────────────
-
-  /// Theme-specific haptic pattern when saving an entry
-  ///
-  /// Each theme has a subtle but distinct haptic signature:
-  /// - Gratitude: Double light tap (celebratory, warm)
-  /// - Release: Single medium (letting go, weight lifted)
-  /// - Nature: Light followed by selection (organic, flowing)
-  /// - Reflection: Medium followed by light (thoughtful, settling)
-  /// - Family/Friends: Double selection (connected, bonding)
-  /// - Travel: Selection-light-selection (journey, movement)
-  /// - Creativity: Triple light rapid (playful, energetic)
-  /// - Health: Medium-light (strong start, gentle finish)
-  /// - Food: Light-medium (savoring)
-  /// - Work: Single firm medium (accomplishment)
-  /// - Moments: Standard light (default, simple)
-  static Future<void> onEntrySaved(MemoryTheme? theme) async {
+  @override
+  Future<void> onEntrySaved(MemoryTheme? theme) async {
     switch (theme) {
       case MemoryTheme.gratitude:
         // Double light tap - celebratory warmth
@@ -127,12 +117,8 @@ class HapticService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Capsule-Specific Haptics (Phase 4.5)
-  // ─────────────────────────────────────────────────────────────────
-
-  /// Haptic for creating a time capsule - anticipatory, hopeful
-  static Future<void> onCapsuleCreated() async {
+  @override
+  Future<void> onCapsuleCreated() async {
     // Light-medium-light pattern - sealing something precious
     HapticFeedback.lightImpact();
     await Future.delayed(const Duration(milliseconds: 100));
@@ -141,8 +127,8 @@ class HapticService {
     HapticFeedback.lightImpact();
   }
 
-  /// Haptic for unlocking a time capsule - exciting, revealing
-  static Future<void> onCapsuleUnlocked() async {
+  @override
+  Future<void> onCapsuleUnlocked() async {
     // Building excitement pattern
     HapticFeedback.selectionClick();
     await Future.delayed(const Duration(milliseconds: 80));
@@ -152,4 +138,40 @@ class HapticService {
     await Future.delayed(const Duration(milliseconds: 60));
     HapticFeedback.heavyImpact();
   }
+}
+
+/// Default singleton used by the static [HapticService] facade.
+const HapticServiceInterface defaultHapticService = _DefaultHapticService();
+
+/// Centralized haptic feedback service with theme-aware patterns.
+///
+/// Static facade preserved for backwards compatibility; delegates to the
+/// default singleton. New code should prefer injecting
+/// [HapticServiceInterface] via the riverpod provider so tests can override.
+class HapticService {
+  HapticService._();
+
+  /// Light tap - for confirmations, dismissals, subtle feedback
+  static void light() => defaultHapticService.light();
+
+  /// Selection click - for button taps, navigation, toggles
+  static void selection() => defaultHapticService.selection();
+
+  /// Medium impact - for significant actions (recording start, filter changes)
+  static void medium() => defaultHapticService.medium();
+
+  /// Heavy impact - for critical actions (max duration, permanent delete)
+  static void heavy() => defaultHapticService.heavy();
+
+  /// Theme-specific haptic pattern when saving an entry.
+  static Future<void> onEntrySaved(MemoryTheme? theme) =>
+      defaultHapticService.onEntrySaved(theme);
+
+  /// Haptic for creating a time capsule - anticipatory, hopeful.
+  static Future<void> onCapsuleCreated() =>
+      defaultHapticService.onCapsuleCreated();
+
+  /// Haptic for unlocking a time capsule - exciting, revealing.
+  static Future<void> onCapsuleUnlocked() =>
+      defaultHapticService.onCapsuleUnlocked();
 }

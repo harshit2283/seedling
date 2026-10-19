@@ -263,6 +263,8 @@ class PhotoThumbnail extends StatelessWidget {
             return fallback();
           }
 
+          final dpr = MediaQuery.devicePixelRatioOf(context);
+          final cacheSize = (size * dpr).round();
           return ClipRRect(
             borderRadius: BorderRadius.circular(borderRadius),
             child: Image.file(
@@ -270,6 +272,8 @@ class PhotoThumbnail extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
+              cacheWidth: cacheSize,
+              cacheHeight: cacheSize,
               errorBuilder: (context, error, stackTrace) => fallback(),
             ),
           );

@@ -11,6 +11,9 @@ class PrefsKeys {
   // App lock
   static const String appLockEnabled = 'app_lock_enabled';
 
+  // Master cloud sync opt-in (off by default — gates any network upload).
+  static const String cloudSyncEnabled = 'cloud_sync_enabled';
+
   // Widget memory previews
   static const String widgetMemoryPreviewsEnabled =
       'widget_memory_previews_enabled';
@@ -62,4 +65,7 @@ class PrefsKeys {
 
   // Memories screen
   static const String memoriesGridView = 'memories_grid_view';
+
+  // On This Day card (day-keyed dismissal)
+  static const String onThisDayDismissedDate = 'on_this_day_dismissed_date';
 }

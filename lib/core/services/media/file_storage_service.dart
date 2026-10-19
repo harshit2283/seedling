@@ -3,10 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import '../error_reporter.dart';
 
 /// Service for managing media file storage
 /// Organizes files into photos/, voices/, objects/ subdirectories
 class FileStorageService {
+  FileStorageService({ErrorReporter? errorReporter})
+    : _errorReporter = errorReporter ?? const ErrorReporter();
+
+  final ErrorReporter _errorReporter;
+
   static const _uuid = Uuid();
   static const MethodChannel _fileProtectionChannel = MethodChannel(
     'com.seedling.media/file_protection',
@@ -196,8 +202,12 @@ class FileStorageService {
         return true;
       }
       return false;
-    } catch (e) {
-      debugPrint('FileStorageService.deleteFile failed for "$path": $e');
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'FileStorageService.deleteFile path="$path"',
+      );
       return false;
     }
   }

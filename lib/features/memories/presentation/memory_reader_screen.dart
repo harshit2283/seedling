@@ -499,10 +499,15 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
           if (resolvedPath == null) {
             return _buildGradientBackdrop(entry);
           }
+          final cacheWidth = MediaQuery.of(context).size.width.toInt();
           return Stack(
             fit: StackFit.expand,
             children: [
-              Image.file(File(resolvedPath), fit: BoxFit.cover),
+              Image.file(
+                File(resolvedPath),
+                fit: BoxFit.cover,
+                cacheWidth: cacheWidth,
+              ),
               BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(color: Colors.black.withValues(alpha: 0.24)),
@@ -569,6 +574,7 @@ class _MemoryReaderScreenState extends State<MemoryReaderScreen> {
                 : Image.file(
                     File(resolvedPath),
                     fit: BoxFit.cover,
+                    cacheWidth: MediaQuery.of(context).size.width.toInt(),
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: Theme.of(context).dividerColor,
                       alignment: Alignment.center,

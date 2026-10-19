@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +35,10 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
 
   bool _isGridView = false;
   int? _selectedEntryId;
+  final ScrollController _listScrollController = ScrollController();
+  String? _scrubberMonthLabel;
+  bool _scrubberLabelVisible = false;
+  Timer? _scrubberLabelHideTimer;
 
   @override
   void initState() {
@@ -61,6 +66,8 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _scrubberLabelHideTimer?.cancel();
+    _listScrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -945,47 +952,192 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
   }
 
   Widget _buildMemoriesList(BuildContext context, List<Entry> entries) {
-    // Group entries by date
-    final groupedEntries = _groupEntriesByDate(entries);
+    final groupedSections = _groupEntriesBySection(entries);
+    final recentlyInsertedId = ref.watch(recentlyInsertedEntryIdProvider);
+    final headerBackground = Theme.of(
+      context,
+    ).scaffoldBackgroundColor.withValues(alpha: 0.7);
+    final headerTextColor = SeedlingColors.textSecondary;
 
-    return ListView.builder(
+    final scrollView = CustomScrollView(
+      controller: _listScrollController,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(top: 8, bottom: 16),
-      itemCount: groupedEntries.length,
-      itemBuilder: (context, index) {
-        final group = groupedEntries[index];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Date header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Semantics(
-                header: true,
-                child: Text(
-                  group.dateLabel,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: SeedlingColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+      slivers: [
+        const SliverPadding(padding: EdgeInsets.only(top: 8)),
+        for (final section in groupedSections) ...[
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _StickySectionHeaderDelegate(
+              label: section.title,
+              backgroundColor: headerBackground,
+              textColor: headerTextColor,
             ),
-            // Entries for this date
-            ...group.entries.map(
-              (entry) => MemoryCard(
+          ),
+          SliverList.builder(
+            itemCount: section.entries.length,
+            itemBuilder: (context, index) {
+              final entry = section.entries[index];
+              final card = MemoryCard(
                 entry: entry,
                 style: MemoryCardStyle.list,
                 onLongPress: () => _showDeleteDialog(context, entry),
                 onTap: () {
                   context.push(AppRoutes.entryRoute(entry.id));
                 },
-              ),
-            ),
-          ],
+              );
+              final dismissible = Dismissible(
+                key: ValueKey('entry-${entry.id}'),
+                direction: DismissDirection.endToStart,
+                dismissThresholds: PlatformUtils.isIOS
+                    ? const {DismissDirection.endToStart: 0.5}
+                    : const {DismissDirection.endToStart: 0.4},
+                background: _buildDismissBackground(context),
+                onDismissed: (_) async {
+                  HapticFeedback.mediumImpact();
+                  await ref
+                      .read(entryCreatorProvider.notifier)
+                      .deleteEntry(entry.id);
+                  if (!context.mounted) return;
+                  _showUndoPill(context, entry.id);
+                },
+                child: card,
+              );
+              if (recentlyInsertedId == entry.id) {
+                return _NewlyInsertedCard(
+                  key: ValueKey('inserted-${entry.id}'),
+                  child: dismissible,
+                );
+              }
+              return dismissible;
+            },
+          ),
+        ],
+        const SliverPadding(padding: EdgeInsets.only(bottom: 16)),
+      ],
+    );
+
+    return Stack(
+      children: [
+        scrollView,
+        _TimelineScrubber(
+          controller: _listScrollController,
+          entries: entries,
+          onScrub: _handleScrub,
+          labelVisible: _scrubberLabelVisible,
+          label: _scrubberMonthLabel,
+        ),
+      ],
+    );
+  }
+
+  void _handleScrub(String? label) {
+    _scrubberLabelHideTimer?.cancel();
+    setState(() {
+      _scrubberMonthLabel = label;
+      _scrubberLabelVisible = label != null;
+    });
+    if (label == null) {
+      _scrubberLabelHideTimer = Timer(const Duration(milliseconds: 700), () {
+        if (!mounted) return;
+        setState(() => _scrubberLabelVisible = false);
+      });
+    }
+  }
+
+  /// Groups entries into sticky sections: Today / This week / This month / Earlier.
+  List<_SectionGroup> _groupEntriesBySection(List<Entry> entries) {
+    if (entries.isEmpty) return const [];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final monthStart = DateTime(now.year, now.month, 1);
+
+    final todayEntries = <Entry>[];
+    final weekEntries = <Entry>[];
+    final monthEntries = <Entry>[];
+    final earlierEntries = <Entry>[];
+
+    for (final entry in entries) {
+      final created = entry.createdAt;
+      final entryDate = DateTime(created.year, created.month, created.day);
+      final daysDiff = today.difference(entryDate).inDays;
+      if (daysDiff <= 0) {
+        todayEntries.add(entry);
+      } else if (daysDiff < 7) {
+        weekEntries.add(entry);
+      } else if (!entryDate.isBefore(monthStart)) {
+        monthEntries.add(entry);
+      } else {
+        earlierEntries.add(entry);
+      }
+    }
+
+    final groups = <_SectionGroup>[];
+    if (todayEntries.isNotEmpty) {
+      groups.add(_SectionGroup('Today', todayEntries));
+    }
+    if (weekEntries.isNotEmpty) {
+      groups.add(_SectionGroup('This week', weekEntries));
+    }
+    if (monthEntries.isNotEmpty) {
+      groups.add(_SectionGroup('This month', monthEntries));
+    }
+    if (earlierEntries.isNotEmpty) {
+      groups.add(_SectionGroup('Earlier', earlierEntries));
+    }
+    return groups;
+  }
+
+  Widget _buildDismissBackground(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      alignment: Alignment.centerRight,
+      decoration: BoxDecoration(
+        color: SeedlingColors.error.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        PlatformUtils.isIOS ? CupertinoIcons.trash : Icons.delete_outline,
+        color: SeedlingColors.error,
+        size: 22,
+      ),
+    );
+  }
+
+  void _showUndoPill(BuildContext context, int entryId) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    late OverlayEntry entryRef;
+    Timer? autoDismiss;
+    void close() {
+      autoDismiss?.cancel();
+      try {
+        entryRef.remove();
+      } catch (_) {}
+    }
+
+    entryRef = OverlayEntry(
+      builder: (ctx) {
+        final media = MediaQuery.of(ctx);
+        return Positioned(
+          left: 16,
+          right: 16,
+          bottom: media.padding.bottom + 24,
+          child: _UndoPill(
+            label: 'Memory removed',
+            onUndo: () async {
+              close();
+              await ref
+                  .read(entryCreatorProvider.notifier)
+                  .restoreEntry(entryId);
+              HapticFeedback.lightImpact();
+            },
+          ),
         );
       },
     );
+
+    overlay.insert(entryRef);
+    autoDismiss = Timer(const Duration(seconds: 4), close);
   }
 
   Widget _buildMemoriesGrid(BuildContext context, List<Entry> entries) {
@@ -1252,4 +1404,394 @@ class _DateGroup {
   final List<Entry> entries;
 
   _DateGroup(this.dateLabel, this.entries);
+}
+
+/// Helper class for section grouping (Today / This week / etc).
+class _SectionGroup {
+  final String title;
+  final List<Entry> entries;
+
+  _SectionGroup(this.title, this.entries);
+}
+
+class _StickySectionHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final String label;
+  final Color backgroundColor;
+  final Color textColor;
+
+  _StickySectionHeaderDelegate({
+    required this.label,
+    required this.backgroundColor,
+    required this.textColor,
+  });
+
+  static const double _height = 36;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          height: _height,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          color: backgroundColor,
+          alignment: Alignment.centerLeft,
+          child: Semantics(
+            header: true,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickySectionHeaderDelegate oldDelegate) {
+    return oldDelegate.label != label ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.textColor != textColor;
+  }
+}
+
+/// Right-edge scrubber that jumps the list scroll based on vertical drag.
+/// Hides itself when the list is too short to need scrubbing.
+class _TimelineScrubber extends StatefulWidget {
+  final ScrollController controller;
+  final List<Entry> entries;
+  final void Function(String? monthLabel) onScrub;
+  final bool labelVisible;
+  final String? label;
+
+  const _TimelineScrubber({
+    required this.controller,
+    required this.entries,
+    required this.onScrub,
+    required this.labelVisible,
+    required this.label,
+  });
+
+  @override
+  State<_TimelineScrubber> createState() => _TimelineScrubberState();
+}
+
+class _TimelineScrubberState extends State<_TimelineScrubber> {
+  double _thumbY = 0;
+  double _viewportHeight = 0;
+  bool _dragging = false;
+
+  static const _scrubberWidth = 12.0;
+  static const _trackWidth = 3.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _viewportHeight = constraints.maxHeight;
+        return ListenableBuilder(
+          listenable: widget.controller,
+          builder: (context, _) {
+            if (!widget.controller.hasClients) {
+              return const SizedBox.shrink();
+            }
+            final position = widget.controller.position;
+            final maxScroll = position.maxScrollExtent;
+            final viewport = position.viewportDimension;
+            // Hide scrubber when list is too short to benefit from scrubbing.
+            if (maxScroll < viewport * 1.5 || maxScroll <= 0) {
+              return const SizedBox.shrink();
+            }
+            if (!_dragging) {
+              final offset = position.pixels.clamp(0.0, maxScroll);
+              _thumbY = (offset / maxScroll) * (_viewportHeight - 40);
+            }
+            return Stack(
+              children: [
+                Positioned(
+                  right: 4,
+                  top: 8,
+                  bottom: 8,
+                  width: _scrubberWidth,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragStart: (details) =>
+                        _onDrag(details.localPosition.dy, maxScroll),
+                    onVerticalDragUpdate: (details) =>
+                        _onDrag(details.localPosition.dy, maxScroll),
+                    onVerticalDragEnd: (_) {
+                      setState(() => _dragging = false);
+                      widget.onScrub(null);
+                    },
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Container(
+                        width: _trackWidth,
+                        decoration: BoxDecoration(
+                          color: SeedlingColors.textMuted.withValues(
+                            alpha: _dragging ? 0.55 : 0.25,
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.labelVisible && widget.label != null)
+                  Positioned(
+                    right: 24,
+                    top: _thumbY.clamp(8.0, _viewportHeight - 48),
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      opacity: widget.labelVisible ? 1.0 : 0.0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).scaffoldBackgroundColor.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Theme.of(context).dividerColor,
+                              ),
+                            ),
+                            child: Text(
+                              widget.label!,
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: SeedlingColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _onDrag(double localY, double maxScroll) {
+    if (!widget.controller.hasClients) return;
+    final usableHeight = _viewportHeight - 16;
+    if (usableHeight <= 0) return;
+    final clamped = localY.clamp(0.0, usableHeight);
+    final fraction = clamped / usableHeight;
+    final target = (fraction * maxScroll).clamp(0.0, maxScroll);
+    widget.controller.jumpTo(target);
+    setState(() {
+      _dragging = true;
+      _thumbY = clamped;
+    });
+    widget.onScrub(_labelForOffset(target));
+  }
+
+  String? _labelForOffset(double offset) {
+    if (widget.entries.isEmpty || !widget.controller.hasClients) return null;
+    final maxScroll = widget.controller.position.maxScrollExtent;
+    if (maxScroll <= 0) return null;
+    final fraction = (offset / maxScroll).clamp(0.0, 1.0);
+    final index = (fraction * (widget.entries.length - 1)).round().clamp(
+      0,
+      widget.entries.length - 1,
+    );
+    final entry = widget.entries[index];
+    return _formatMonthYear(entry.createdAt);
+  }
+
+  String _formatMonthYear(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+}
+
+/// Soft glassy pill shown after a swipe-delete to offer Undo.
+class _UndoPill extends StatefulWidget {
+  final String label;
+  final VoidCallback onUndo;
+  const _UndoPill({required this.label, required this.onUndo});
+
+  @override
+  State<_UndoPill> createState() => _UndoPillState();
+}
+
+class _UndoPillState extends State<_UndoPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(curved);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              decoration: BoxDecoration(
+                color: SeedlingColors.warmBrown.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  PlatformUtils.isIOS
+                      ? CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          onPressed: widget.onUndo,
+                          child: const Text(
+                            'Undo',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )
+                      : TextButton(
+                          onPressed: widget.onUndo,
+                          child: const Text(
+                            'Undo',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Plays a soft fade+slide once when a freshly-saved memory enters the list.
+class _NewlyInsertedCard extends StatefulWidget {
+  final Widget child;
+  const _NewlyInsertedCard({super.key, required this.child});
+
+  @override
+  State<_NewlyInsertedCard> createState() => _NewlyInsertedCardState();
+}
+
+class _NewlyInsertedCardState extends State<_NewlyInsertedCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -0.06),
+      end: Offset.zero,
+    ).animate(curved);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(position: _slide, child: widget.child),
+    );
+  }
 }

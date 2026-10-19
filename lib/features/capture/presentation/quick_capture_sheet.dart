@@ -10,6 +10,7 @@ import '../../../core/services/haptic_service.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
+import '../domain/capture_intent.dart';
 import 'widgets/entry_type_button.dart';
 import 'widgets/object_capture_content.dart';
 import 'widgets/photo_capture_content.dart';
@@ -77,6 +78,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   bool _wasExplicitlySaved = false;
   Future<bool>? _saveFuture;
   bool _didPopDuringSave = false;
+  String? _saveError;
 
   // Photo capture state
   String? _photoPath;
@@ -157,7 +159,21 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
+            // Compression / save progress hairline
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: _isSaving
+                  ? const _SaveHairline(key: ValueKey('saving'))
+                  : const SizedBox(
+                      key: ValueKey('idle'),
+                      height: 2,
+                      width: double.infinity,
+                    ),
+            ),
+            const SizedBox(height: 12),
             // Main content area
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -181,6 +197,42 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
               ),
             ],
             const SizedBox(height: 20),
+            if (_saveError != null) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: SeedlingColors.error.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: SeedlingColors.error.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        AdaptiveIcons.error,
+                        size: 18,
+                        color: SeedlingColors.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _saveError!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: SeedlingColors.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             // Save hint and Plant button row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -214,6 +266,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                       onPressed: _canSave()
                           ? () {
                               HapticFeedback.selectionClick();
+                              if (_saveError != null) {
+                                setState(() => _saveError = null);
+                              }
                               _saveEntry();
                             }
                           : null,
@@ -250,35 +305,71 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   }
 
   Widget _buildContentArea() {
+    final Widget child;
     switch (_captureMode) {
       case CaptureMode.text:
-        return _buildTextField();
+        child = KeyedSubtree(
+          key: const ValueKey('mode-text'),
+          child: _buildTextField(),
+        );
+        break;
       case CaptureMode.photo:
-        return PhotoCaptureContent(
-          initialPhotoPath: _photoPath,
-          text: _photoText,
-          onPhotoPathChanged: (path) => setState(() => _photoPath = path),
-          onTextChanged: (text) => _photoText = text,
+        child = KeyedSubtree(
+          key: const ValueKey('mode-photo'),
+          child: PhotoCaptureContent(
+            initialPhotoPath: _photoPath,
+            text: _photoText,
+            onPhotoPathChanged: (path) => setState(() => _photoPath = path),
+            onTextChanged: (text) => _photoText = text,
+          ),
         );
+        break;
       case CaptureMode.voice:
-        return VoiceCaptureContent(
-          initialVoicePath: _voicePath,
-          initialDuration: _voiceDuration,
-          text: _voiceText,
-          onVoicePathChanged: (path) => setState(() => _voicePath = path),
-          onDurationChanged: (duration) => _voiceDuration = duration,
-          onTextChanged: (text) => _voiceText = text,
+        child = KeyedSubtree(
+          key: const ValueKey('mode-voice'),
+          child: VoiceCaptureContent(
+            initialVoicePath: _voicePath,
+            initialDuration: _voiceDuration,
+            text: _voiceText,
+            onVoicePathChanged: (path) => setState(() => _voicePath = path),
+            onDurationChanged: (duration) => _voiceDuration = duration,
+            onTextChanged: (text) => _voiceText = text,
+          ),
         );
+        break;
       case CaptureMode.object:
-        return ObjectCaptureContent(
-          initialPhotoPath: _objectPhotoPath,
-          initialTitle: _objectTitle,
-          initialStory: _objectStory,
-          onPhotoPathChanged: (path) => setState(() => _objectPhotoPath = path),
-          onTitleChanged: (title) => _objectTitle = title,
-          onStoryChanged: (story) => _objectStory = story,
+        child = KeyedSubtree(
+          key: const ValueKey('mode-object'),
+          child: ObjectCaptureContent(
+            initialPhotoPath: _objectPhotoPath,
+            initialTitle: _objectTitle,
+            initialStory: _objectStory,
+            onPhotoPathChanged: (path) =>
+                setState(() => _objectPhotoPath = path),
+            onTitleChanged: (title) => _objectTitle = title,
+            onStoryChanged: (story) => _objectStory = story,
+          ),
         );
+        break;
     }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SizeTransition(
+            sizeFactor: animation,
+            axis: Axis.vertical,
+            axisAlignment: -1,
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
   }
 
   Widget _buildTextField() {
@@ -814,6 +905,57 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     return saveFuture.whenComplete(() => _saveFuture = null);
   }
 
+  /// Translate sheet state into a [CaptureIntent]. Returns null when the
+  /// current draft has nothing to save (e.g. an object with no title).
+  CaptureIntent? _buildIntent() {
+    final capsuleUnlockDate = _sealAsCapsule ? _capsuleUnlockDate : null;
+    String? nullIfEmpty(String value) => value.isEmpty ? null : value;
+
+    switch (_captureMode) {
+      case CaptureMode.text:
+        final text = _textController.text.trim();
+        switch (_selectedType) {
+          case EntryType.line:
+            return LineCapture(text, capsuleUnlockDate: capsuleUnlockDate);
+          case EntryType.fragment:
+            return FragmentCapture(
+              nullIfEmpty(text),
+              capsuleUnlockDate: capsuleUnlockDate,
+            );
+          case EntryType.release:
+            return ReleaseCapture(
+              nullIfEmpty(text),
+              capsuleUnlockDate: capsuleUnlockDate,
+            );
+          default:
+            return null;
+        }
+      case CaptureMode.photo:
+        if (_photoPath == null) return null;
+        return PhotoCapture(
+          mediaPath: _photoPath!,
+          text: nullIfEmpty(_photoText.trim()),
+          capsuleUnlockDate: capsuleUnlockDate,
+        );
+      case CaptureMode.voice:
+        if (_voicePath == null) return null;
+        return VoiceCapture(
+          mediaPath: _voicePath!,
+          text: nullIfEmpty(_voiceText.trim()),
+          capsuleUnlockDate: capsuleUnlockDate,
+        );
+      case CaptureMode.object:
+        final title = _objectTitle.trim();
+        if (title.isEmpty) return null;
+        return ObjectCapture(
+          title: title,
+          mediaPath: _objectPhotoPath,
+          text: nullIfEmpty(_objectStory.trim()),
+          capsuleUnlockDate: capsuleUnlockDate,
+        );
+    }
+  }
+
   Future<bool> _performSaveEntry({bool fromDismiss = false}) async {
     // Bulletproof: if already explicitly saved, never save again
     if (_wasExplicitlySaved) return true;
@@ -825,79 +967,19 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     if (_isSaving) {
       return false;
     }
-    _isSaving = true;
+    if (mounted) {
+      setState(() => _isSaving = true);
+    } else {
+      _isSaving = true;
+    }
     _didPopDuringSave = false;
 
     try {
       final creator = ref.read(entryCreatorProvider.notifier);
-      final capsuleUnlockDate = _sealAsCapsule ? _capsuleUnlockDate : null;
-
-      switch (_captureMode) {
-        case CaptureMode.text:
-          final text = _textController.text.trim();
-          switch (_selectedType) {
-            case EntryType.line:
-              await creator.createLineEntry(
-                text,
-                capsuleUnlockDate: capsuleUnlockDate,
-              );
-              break;
-            case EntryType.fragment:
-              await creator.createFragmentEntry(
-                text.isEmpty ? null : text,
-                capsuleUnlockDate: capsuleUnlockDate,
-              );
-              break;
-            case EntryType.release:
-              await creator.createReleaseEntry(
-                text.isEmpty ? null : text,
-                capsuleUnlockDate: capsuleUnlockDate,
-              );
-              break;
-            default:
-              break;
-          }
-          break;
-
-        case CaptureMode.photo:
-          if (_photoPath != null) {
-            final text = _photoText.trim();
-            await creator.createPhotoEntry(
-              _photoPath!,
-              text: text.isEmpty ? null : text,
-              capsuleUnlockDate: capsuleUnlockDate,
-            );
-          }
-          break;
-
-        case CaptureMode.voice:
-          if (_voicePath != null) {
-            final text = _voiceText.trim();
-            await creator.createVoiceEntry(
-              _voicePath!,
-              text: text.isEmpty ? null : text,
-              capsuleUnlockDate: capsuleUnlockDate,
-            );
-          }
-          break;
-
-        case CaptureMode.object:
-          final title = _objectTitle.trim();
-          if (title.isNotEmpty) {
-            final story = _objectStory.trim();
-            await creator.createObjectEntry(
-              title,
-              mediaPath: _objectPhotoPath,
-              text: story.isEmpty ? null : story,
-              capsuleUnlockDate: capsuleUnlockDate,
-            );
-          }
-          break;
+      final intent = _buildIntent();
+      if (intent != null) {
+        await creator.create(intent);
       }
-
-      // Record usage for smart ordering
-      final usageService = ref.read(entryTypeUsageServiceProvider);
-      await usageService.recordUsage(_selectedType, isCapsule: _sealAsCapsule);
 
       if (_sealAsCapsule) {
         await HapticService.onCapsuleCreated();
@@ -912,16 +994,22 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         Navigator.of(context).pop();
       }
       return true;
-    } catch (e) {
-      // Silently fail on dismiss, show error otherwise
+    } catch (e, st) {
+      ref
+          .read(errorReporterProvider)
+          .report(e, stack: st, context: 'QuickCaptureSheet._saveEntry');
       if (!fromDismiss && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Could not save memory')));
+        setState(() {
+          _saveError = 'Could not save this memory. Please try again.';
+        });
       }
       return false;
     } finally {
-      _isSaving = false;
+      if (mounted) {
+        setState(() => _isSaving = false);
+      } else {
+        _isSaving = false;
+      }
     }
   }
 
@@ -998,5 +1086,25 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
       ),
     );
     return shouldDiscard ?? false;
+  }
+}
+
+/// Indeterminate hairline shown above the sheet content while saving.
+class _SaveHairline extends StatelessWidget {
+  const _SaveHairline({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 2,
+      width: double.infinity,
+      child: LinearProgressIndicator(
+        minHeight: 2,
+        backgroundColor: Colors.transparent,
+        valueColor: const AlwaysStoppedAnimation<Color>(
+          SeedlingColors.forestGreen,
+        ),
+      ),
+    );
   }
 }

@@ -13,6 +13,7 @@ import 'widgets/privacy_section.dart';
 import 'widgets/about_section.dart';
 import 'widgets/memories_section.dart';
 import 'widgets/experimental_section.dart';
+import 'widgets/sync_optional_section.dart';
 import 'widgets/danger_zone_section.dart';
 
 /// Settings screen with export, storage, and privacy info.
@@ -58,6 +59,7 @@ class SettingsScreen extends ConsumerWidget {
             AboutSection(),
             MemoriesSection(),
             ExperimentalSection(),
+            SyncOptionalSection(),
             DangerZoneSection(),
             SizedBox(height: 40),
           ],
@@ -92,6 +94,8 @@ class SettingsScreen extends ConsumerWidget {
           MemoriesSection(),
           SizedBox(height: 24),
           AboutSection(),
+          SizedBox(height: 24),
+          SyncOptionalSection(),
           SizedBox(height: 24),
           DangerZoneSection(),
           SizedBox(height: 40),

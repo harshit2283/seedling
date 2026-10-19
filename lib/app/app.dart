@@ -49,8 +49,13 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
       }
       unawaited(_applyScreenProtection(lockEnabled: lockEnabled));
 
-      // Initialize cloud sync engine if enabled.
-      ref.read(syncEngineProvider).init();
+      // Initialize cloud sync engine only if the master opt-in is on.
+      if (ref.read(cloudSyncEnabledProvider)) {
+        ref.read(syncEngineProvider).init();
+      }
+      // Mount the master cloud-sync listener so flipping the master toggle
+      // off cleanly tears down any active sync session.
+      ref.read(cloudSyncMasterGateProvider);
     });
 
     // Listen for shared content and widget taps after first frame

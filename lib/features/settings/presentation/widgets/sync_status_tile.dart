@@ -455,6 +455,16 @@ class SyncStatusTile extends ConsumerWidget {
     WidgetRef ref,
     bool enabled,
   ) async {
+    if (enabled && !ref.read(cloudSyncEnabledProvider)) {
+      if (context.mounted) {
+        _showMessage(
+          context,
+          'Turn on Cloud sync (optional) in Settings first',
+          isError: true,
+        );
+      }
+      return;
+    }
     try {
       await ref.read(syncEngineProvider).setEnabled(enabled);
       ref.invalidate(syncStateProvider);
