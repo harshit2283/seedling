@@ -303,3 +303,18 @@ final linkedEntriesProvider = Provider.autoDispose.family<List<Entry>, String>((
   if (syncUUIDs.isEmpty) return [];
   return db.getEntriesBySyncUUIDs(syncUUIDs);
 });
+
+/// A single memory by id, from any year, kept fresh as entries change.
+///
+/// The detail screen uses this so a memory from an earlier year (a resurfaced
+/// memory, a deep link, a link or a related memory) opens instead of showing
+/// "Memory not found". Returns null for unknown ids, anything in the trash and
+/// capsules that are still sealed.
+final entryByIdProvider = Provider.autoDispose.family<Entry?, int>((ref, id) {
+  final db = ref.watch(databaseProvider);
+  // Re-read whenever any entry changes (edits, deletes, capsule unlocks).
+  ref.watch(allEntriesStreamProvider);
+  final entry = db.getEntry(id);
+  if (entry == null || entry.isDeleted || entry.isLocked) return null;
+  return entry;
+});
