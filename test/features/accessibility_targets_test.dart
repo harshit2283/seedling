@@ -106,7 +106,17 @@ void main() {
       ) async {
         final handle = tester.ensureSemantics();
         await pumpSheet(tester, theme);
-        for (final label in ['Photo', 'Voice', 'Title', 'Let go', 'Ritual']) {
+        await tester.tap(find.text('More'));
+        await tester.pumpAndSettle();
+        for (final label in [
+          'Photo',
+          'Voice',
+          'Title',
+          'More',
+          'Let go',
+          'Ritual',
+          'Capsule',
+        ]) {
           final rich = tester.widget<RichText>(
             find.descendant(
               of: find.text(label),
@@ -128,6 +138,7 @@ void main() {
           'Let go mode',
           'Ritual mode',
           'Enable capsule mode',
+          'Hide Let go, Ritual and Capsule',
         ]) {
           final size = tester.getSize(find.bySemanticsLabel(label));
           expect(size.height, greaterThanOrEqualTo(44), reason: label);
@@ -142,6 +153,8 @@ void main() {
     ) async {
       final handle = tester.ensureSemantics();
       await pumpSheet(tester, SeedlingTheme.light);
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Let go'));
       await tester.pump();
       expect(

@@ -133,6 +133,15 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   bool _holdStarted = false;
   bool _voiceWasOpenOnDown = false;
 
+  /// The inline Camera / Library choice under the field.
+  bool _photoSourceOpen = false;
+
+  /// The second row of quiet buttons (Let go, Ritual, Capsule).
+  bool _modesOpen = false;
+
+  /// When the memory happened, if the person moved it. Null means now.
+  DateTime? _createdAt;
+
   // Capsule capture state
   bool _sealAsCapsule = false;
   DateTime? _capsuleUnlockDate;
@@ -315,12 +324,21 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                       const SizedBox(height: 12),
                     ],
                     _buildTextField(),
+                    if (!_sealAsCapsule) ...[
+                      const SizedBox(height: 6),
+                      _buildWhenLine(),
+                    ],
+                    if (_photoSourceOpen) ...[
+                      const SizedBox(height: 12),
+                      _buildPhotoSourceRow(),
+                    ],
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            // Attachments + the few deliberate modes, all secondary.
+            const SizedBox(height: 10),
+            // Attachments + the few deliberate modes: one row of quiet
+            // buttons, the deliberate ones folded under "More".
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: _buildToolbar(),
@@ -379,6 +397,9 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
                     child: Text(
                       _canSave() ? _readyLabel() : _getSaveHint(),
                       style: mutedText,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.fade,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -491,48 +512,238 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     }
   }
 
+  /// The page: no box, large comfortable type.
+  static const _fieldFontSize = 20.0;
+  static const _fieldLineHeight = 1.4;
+
+  TextStyle _fieldStyle() => TextStyle(
+    fontSize: _fieldFontSize,
+    height: _fieldLineHeight,
+    color: context.palette.textPrimary,
+    letterSpacing: -0.1,
+  );
+
+  /// The longest of the candidate hints that fits in two lines at [width]:
+  /// the person's own cue plus the question, then the cue alone, then the
+  /// plain question. Never cut mid-word.
+  String _fittingHint(String hint, double width) {
+    final candidates = <String>[hint];
+    const suffix = '… what stayed with you?';
+    if (hint.endsWith(suffix)) {
+      candidates.add('${hint.substring(0, hint.length - suffix.length)}…');
+    }
+    candidates.add(captureHintFor(null));
+    final textScaler = MediaQuery.textScalerOf(context);
+    for (final candidate in candidates) {
+      final painter = TextPainter(
+        text: TextSpan(text: candidate, style: _fieldStyle()),
+        textDirection: Directionality.of(context),
+        textScaler: textScaler,
+        maxLines: 2,
+      )..layout(maxWidth: width);
+      final fits = !painter.didExceedMaxLines;
+      painter.dispose();
+      if (fits) return candidate;
+    }
+    return candidates.last;
+  }
+
   Widget _buildTextField() {
-    final textColor = context.palette.textPrimary;
-    if (PlatformUtils.isIOS) {
-      return CupertinoTextField(
-        key: const ValueKey('capture-text'),
-        controller: _textController,
-        focusNode: _focusNode,
-        maxLines: 5,
-        minLines: 2,
-        textCapitalization: TextCapitalization.sentences,
-        placeholder: _getHintText(),
-        placeholderStyle: TextStyle(
-          color: CupertinoColors.placeholderText,
-          fontSize: 16,
+    final rawHint = _getHintText();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hint = _fittingHint(rawHint, constraints.maxWidth);
+        final style = _fieldStyle();
+        final hintColor = context.palette.textMuted;
+        if (PlatformUtils.isIOS) {
+          return CupertinoTextField(
+            key: const ValueKey('capture-text'),
+            controller: _textController,
+            focusNode: _focusNode,
+            maxLines: 8,
+            minLines: 2,
+            textCapitalization: TextCapitalization.sentences,
+            placeholder: hint,
+            placeholderStyle: style.copyWith(color: hintColor),
+            style: style,
+            cursorColor: context.palette.primary,
+            decoration: const BoxDecoration(color: Colors.transparent),
+            padding: EdgeInsets.zero,
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _saveEntry(),
+          );
+        }
+
+        return TextField(
+          key: const ValueKey('capture-text'),
+          controller: _textController,
+          focusNode: _focusNode,
+          maxLines: 8,
+          minLines: 2,
+          textCapitalization: TextCapitalization.sentences,
+          style: style,
+          cursorColor: context.palette.primary,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintMaxLines: 2,
+            hintStyle: style.copyWith(color: hintColor),
+            // A page, not a form field: the theme's outlined borders and
+            // fill are switched off.
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            filled: false,
+            isCollapsed: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => _saveEntry(),
+        );
+      },
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // When it happened
+  // ───────────────────────────────────────────────────────────────────────
+
+  String _whenLabel(DateTime at) {
+    final locale = Localizations.maybeLocaleOf(context)?.toLanguageTag();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(at.year, at.month, at.day);
+    final diff = today.difference(day).inDays;
+    final String date;
+    if (diff == 0) {
+      date = 'Today';
+    } else if (diff == 1) {
+      date = 'Yesterday';
+    } else if (at.year == now.year) {
+      date = DateFormat.MMMEd(locale).format(at);
+    } else {
+      date = DateFormat.yMMMd(locale).format(at);
+    }
+    final time = DateFormat.jm(locale).format(at).toLowerCase();
+    return '$date, $time';
+  }
+
+  Widget _buildWhenLine() {
+    final at = _createdAt ?? DateTime.now();
+    final palette = context.palette;
+    final moved = _createdAt != null;
+    final label = _whenLabel(at);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Semantics(
+        button: true,
+        label: 'When: $label',
+        hint: 'Change when this happened',
+        excludeSemantics: true,
+        child: GestureDetector(
+          key: const ValueKey('capture-when'),
+          behavior: HitTestBehavior.opaque,
+          onTap: _pickWhen,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  PlatformUtils.isIOS ? CupertinoIcons.clock : Icons.schedule,
+                  size: 15,
+                  color: moved ? palette.primary : palette.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: moved ? palette.primary : palette.textSecondary,
+                    fontWeight: moved ? FontWeight.w500 : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        style: TextStyle(fontSize: 16, color: textColor),
-        decoration: const BoxDecoration(color: Colors.transparent),
-        padding: EdgeInsets.zero,
-        onChanged: (_) => setState(() {}),
-        onSubmitted: (_) => _saveEntry(),
+      ),
+    );
+  }
+
+  /// Backdates the memory. Optional; never in the future.
+  Future<void> _pickWhen() async {
+    HapticFeedback.selectionClick();
+    final now = DateTime.now();
+    final initial = _createdAt ?? now;
+    final first = DateTime(1900);
+
+    if (PlatformUtils.isIOS) {
+      var selected = initial;
+      await showCupertinoModalPopup<void>(
+        context: context,
+        builder: (sheetContext) => Container(
+          height: 300,
+          color: CupertinoColors.systemBackground.resolveFrom(sheetContext),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      onPressed: () {
+                        setState(() => _createdAt = null);
+                        Navigator.of(sheetContext).pop();
+                      },
+                      child: const Text('Now'),
+                    ),
+                    CupertinoButton(
+                      onPressed: () {
+                        final future = selected.isAfter(DateTime.now());
+                        setState(() => _createdAt = future ? null : selected);
+                        Navigator.of(sheetContext).pop();
+                      },
+                      child: const Text('Done'),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: CupertinoDatePicker(
+                    mode: CupertinoDatePickerMode.dateAndTime,
+                    minimumDate: first,
+                    maximumDate: now,
+                    initialDateTime: initial,
+                    onDateTimeChanged: (value) => selected = value,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
+      return;
     }
 
-    return TextField(
-      key: const ValueKey('capture-text'),
-      controller: _textController,
-      focusNode: _focusNode,
-      maxLines: 5,
-      minLines: 2,
-      textCapitalization: TextCapitalization.sentences,
-      style: Theme.of(context).textTheme.bodyLarge,
-      decoration: InputDecoration(
-        hintText: _getHintText(),
-        hintStyle: Theme.of(
-          context,
-        ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
-        border: InputBorder.none,
-        filled: false,
-      ),
-      onChanged: (_) => setState(() {}),
-      onSubmitted: (_) => _saveEntry(),
+    final date = await showDatePicker(
+      context: context,
+      firstDate: first,
+      lastDate: now,
+      initialDate: initial,
+      helpText: 'When did this happen?',
     );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (!mounted) return;
+    final t = time ?? TimeOfDay.fromDateTime(initial);
+    var picked = DateTime(date.year, date.month, date.day, t.hour, t.minute);
+    if (picked.isAfter(DateTime.now())) picked = DateTime.now();
+    final isNow = DateTime.now().difference(picked).inMinutes.abs() < 1;
+    setState(() => _createdAt = isNow ? null : picked);
   }
 
   Widget _buildTitleField() {
@@ -714,92 +925,133 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     });
   }
 
+  bool get _modesVisible => _modesOpen || _isDeliberateMode || _sealAsCapsule;
+
   Widget _buildToolbar() {
     final attachEnabled = !_isDeliberateMode;
     final deliberateEnabled = !_hasAttachments && !_voiceOpen;
-    return Row(
+    final palette = context.palette;
+    final activeMode = _explicitType == EntryType.release
+        ? palette.accentRelease
+        : _explicitType == EntryType.ritual
+        ? palette.accentRitual
+        : _sealAsCapsule
+        ? palette.accentGold
+        : palette.primary;
+
+    final attachRow = Row(
       children: [
-        _AttachButton(
-          icon: AdaptiveIcons.photo,
-          label: 'Photo',
-          semanticLabel: _voicePath != null
-              ? 'Replace the voice memo with a photo'
-              : (_photoPath == null ? 'Add a photo' : 'Replace photo'),
-          color: context.palette.accentPhoto,
-          active: _photoPath != null,
-          enabled: attachEnabled && !_isPickingPhoto,
-          onTap: _attachPhoto,
+        Expanded(
+          child: _AttachButton(
+            icon: AdaptiveIcons.photo,
+            label: 'Photo',
+            semanticLabel: _voicePath != null
+                ? 'Replace the voice memo with a photo'
+                : (_photoPath == null ? 'Add a photo' : 'Replace photo'),
+            color: palette.accentPhoto,
+            active: _photoPath != null || _photoSourceOpen,
+            enabled: attachEnabled && !_isPickingPhoto,
+            onTap: _attachPhoto,
+          ),
         ),
-        _buildMicButton(enabled: attachEnabled),
-        _AttachButton(
-          icon: PlatformUtils.isIOS ? CupertinoIcons.textformat : Icons.title,
-          label: 'Title',
-          semanticLabel: _showTitle ? 'Remove title' : 'Add a title',
-          color: _explicitType == EntryType.ritual
-              ? context.palette.accentRitual
-              : context.palette.accentObject,
-          active: _showTitle,
-          enabled:
-              _explicitType != EntryType.ritual &&
-              _explicitType != EntryType.release,
-          onTap: _toggleTitle,
-        ),
-        Container(
-          width: 1,
-          height: 28,
-          margin: const EdgeInsets.symmetric(horizontal: 8),
-          color: Theme.of(context).dividerColor,
+        Expanded(child: _buildMicButton(enabled: attachEnabled)),
+        Expanded(
+          child: _AttachButton(
+            icon: PlatformUtils.isIOS ? CupertinoIcons.textformat : Icons.title,
+            label: 'Title',
+            semanticLabel: _showTitle ? 'Remove title' : 'Add a title',
+            color: _explicitType == EntryType.ritual
+                ? palette.accentRitual
+                : palette.accentObject,
+            active: _showTitle,
+            enabled:
+                _explicitType != EntryType.ritual &&
+                _explicitType != EntryType.release,
+            onTap: _toggleTitle,
+          ),
         ),
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: [
-                _ModeChip(
-                  icon: AdaptiveIcons.wind,
-                  label: 'Let go',
-                  semanticLabel: 'Let go mode',
-                  hint: 'For releasing something you want to leave behind',
-                  color: context.palette.accentRelease,
-                  selected: _explicitType == EntryType.release,
-                  enabled: deliberateEnabled,
-                  onTap: () => _toggleExplicit(EntryType.release),
-                ),
-                _ModeChip(
-                  icon: PlatformUtils.isIOS
-                      ? CupertinoIcons.repeat
-                      : Icons.repeat,
-                  label: 'Ritual',
-                  semanticLabel: 'Ritual mode',
-                  hint: 'For a moment that keeps coming back',
-                  color: context.palette.accentRitual,
-                  selected: _explicitType == EntryType.ritual,
-                  enabled: deliberateEnabled,
-                  onTap: () => _toggleExplicit(EntryType.ritual),
-                ),
-                _ModeChip(
-                  icon: CupertinoIcons.lock_shield,
-                  label: 'Capsule',
-                  semanticLabel: _sealAsCapsule
-                      ? 'Capsule mode enabled'
-                      : 'Enable capsule mode',
-                  hint: 'Adds an unlock date before this memory can be opened',
-                  color: context.palette.accentGold,
-                  selected: _sealAsCapsule,
-                  enabled: true,
-                  onTap: () {
-                    setState(() {
-                      _sealAsCapsule = !_sealAsCapsule;
-                      if (!_sealAsCapsule) _capsuleUnlockDate = null;
-                    });
-                  },
-                ),
-              ],
-            ),
+          child: _AttachButton(
+            key: const ValueKey('capture-more'),
+            icon: PlatformUtils.isIOS
+                ? CupertinoIcons.ellipsis
+                : Icons.more_horiz,
+            label: 'More',
+            semanticLabel: _modesVisible
+                ? 'Hide Let go, Ritual and Capsule'
+                : 'More: Let go, Ritual, Capsule',
+            color: activeMode,
+            active: _modesVisible,
+            enabled: true,
+            onTap: () => setState(() {
+              // A chosen mode keeps its row open; "More" then just stays lit.
+              _modesOpen = !_modesOpen;
+            }),
           ),
         ),
       ],
+    );
+
+    final modesRow = Row(
+      children: [
+        Expanded(
+          child: _AttachButton(
+            icon: AdaptiveIcons.wind,
+            label: 'Let go',
+            semanticLabel: 'Let go mode',
+            hint: 'For releasing something you want to leave behind',
+            color: palette.accentRelease,
+            active: _explicitType == EntryType.release,
+            enabled: deliberateEnabled,
+            onTap: () => _toggleExplicit(EntryType.release),
+          ),
+        ),
+        Expanded(
+          child: _AttachButton(
+            icon: PlatformUtils.isIOS ? CupertinoIcons.repeat : Icons.repeat,
+            label: 'Ritual',
+            semanticLabel: 'Ritual mode',
+            hint: 'For a moment that keeps coming back',
+            color: palette.accentRitual,
+            active: _explicitType == EntryType.ritual,
+            enabled: deliberateEnabled,
+            onTap: () => _toggleExplicit(EntryType.ritual),
+          ),
+        ),
+        Expanded(
+          child: _AttachButton(
+            icon: CupertinoIcons.lock_shield,
+            label: 'Capsule',
+            semanticLabel: _sealAsCapsule
+                ? 'Capsule mode enabled'
+                : 'Enable capsule mode',
+            hint: 'Adds an unlock date before this memory can be opened',
+            color: palette.accentGold,
+            active: _sealAsCapsule,
+            enabled: true,
+            onTap: () {
+              setState(() {
+                _sealAsCapsule = !_sealAsCapsule;
+                if (!_sealAsCapsule) _capsuleUnlockDate = null;
+              });
+            },
+          ),
+        ),
+        const Expanded(child: SizedBox.shrink()),
+      ],
+    );
+
+    return AnimatedSize(
+      duration: _motion(200),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          attachRow,
+          if (_modesVisible) ...[const SizedBox(height: 4), modesRow],
+        ],
+      ),
     );
   }
 
@@ -948,58 +1200,91 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   // Photo
   // ───────────────────────────────────────────────────────────────────────
 
-  Future<_PhotoSource?> _choosePhotoSource() {
-    if (PlatformUtils.isIOS) {
-      return showCupertinoModalPopup<_PhotoSource>(
-        context: context,
-        builder: (sheetContext) => CupertinoActionSheet(
-          actions: [
-            CupertinoActionSheetAction(
-              onPressed: () =>
-                  Navigator.of(sheetContext).pop(_PhotoSource.camera),
-              child: const Text('Camera'),
+  /// Camera and Library, inline under the field: two quiet tiles instead of
+  /// a second sheet stacked on top of this one.
+  Widget _buildPhotoSourceRow() {
+    final palette = context.palette;
+    Widget tile(_PhotoSource source, IconData icon, String label) {
+      return Expanded(
+        child: Semantics(
+          button: true,
+          label: source == _PhotoSource.camera
+              ? 'Take a photo'
+              : 'Choose from library',
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              unawaited(_pickPhoto(source));
+            },
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 52),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: palette.accentPhoto.withValues(alpha: 0.10),
+                borderRadius: SeedlingRadius.small,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: palette.inkFor(palette.accentPhoto),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: palette.inkFor(palette.accentPhoto),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            CupertinoActionSheetAction(
-              onPressed: () =>
-                  Navigator.of(sheetContext).pop(_PhotoSource.library),
-              child: const Text('Library'),
-            ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(sheetContext).pop(),
-            child: const Text('Cancel'),
           ),
         ),
       );
     }
-    return showModalBottomSheet<_PhotoSource>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Camera'),
-              onTap: () => Navigator.of(sheetContext).pop(_PhotoSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Library'),
-              onTap: () => Navigator.of(sheetContext).pop(_PhotoSource.library),
-            ),
-          ],
+
+    return Row(
+      key: const ValueKey('capture-photo-source'),
+      children: [
+        tile(
+          _PhotoSource.camera,
+          PlatformUtils.isIOS
+              ? CupertinoIcons.camera
+              : Icons.camera_alt_outlined,
+          'Camera',
         ),
-      ),
+        const SizedBox(width: 10),
+        tile(
+          _PhotoSource.library,
+          PlatformUtils.isIOS
+              ? CupertinoIcons.photo_on_rectangle
+              : Icons.photo_library_outlined,
+          'Library',
+        ),
+      ],
     );
   }
 
   Future<void> _attachPhoto() async {
     if (_isPickingPhoto) return;
+    if (_photoSourceOpen) {
+      setState(() => _photoSourceOpen = false);
+      return;
+    }
     // A memory holds one photo or one voice memo: ask before a photo takes
     // the place of a recording. The recording stays until a photo arrives.
-    final replacesVoice = _voicePath != null;
-    if (replacesVoice) {
+    if (_voicePath != null) {
       final replace = await _confirmReplaceAttachment(
         title: 'Replace the voice memo with a photo?',
         keepLabel: 'Keep voice memo',
@@ -1012,10 +1297,16 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         _voiceReplacesPhoto = false;
       });
     }
-    final source = await _choosePhotoSource();
-    if (source == null || !mounted) return;
+    setState(() => _photoSourceOpen = true);
+  }
 
-    setState(() => _isPickingPhoto = true);
+  Future<void> _pickPhoto(_PhotoSource source) async {
+    if (_isPickingPhoto) return;
+    final replacesVoice = _voicePath != null;
+    setState(() {
+      _photoSourceOpen = false;
+      _isPickingPhoto = true;
+    });
     final service = ref.read(photoCaptureServiceProvider);
     final PhotoCaptureResult result;
     try {
@@ -1297,26 +1588,26 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
   }
 
   String _readyLabel() {
-    if (_sealAsCapsule) return 'Ready to seal this capsule';
+    if (_sealAsCapsule) return 'Ready to seal';
     return switch (_inferredType) {
-      EntryType.photo => 'Saving as a photo memory',
-      EntryType.voice => 'Saving as a voice memory',
+      EntryType.photo => 'A photo memory',
+      EntryType.voice => 'A voice memory',
       EntryType.object => 'Saving as an object',
       EntryType.ritual => 'Saving as a ritual',
-      EntryType.release => 'Ready to let this go',
-      _ => 'Ready to save this memory',
+      EntryType.release => 'Ready to let go',
+      _ => 'Ready to save',
     };
   }
 
   String _getSaveHint() {
     if (_sealAsCapsule && _capsuleUnlockDate == null) {
-      return 'Select an unlock date to save';
+      return 'Pick an unlock date';
     }
-    if (_explicitType == EntryType.ritual) return 'Give the ritual a name';
+    if (_explicitType == EntryType.ritual) return 'Name the ritual';
     if (_voiceOpen && _voicePath == null) {
       return 'Hold the mic to record';
     }
-    return 'Swipe down to save when you\'re ready';
+    return 'Swipe down to save';
   }
 
   // ───────────────────────────────────────────────────────────────────────
@@ -1440,7 +1731,10 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         _setNotSaving();
         return false;
       }
-      saved = await creator.create(intent);
+      saved = await creator.create(
+        intent,
+        createdAt: _sealAsCapsule ? null : _createdAt,
+      );
     } catch (e, st) {
       errorReporter.report(
         e,
@@ -1628,7 +1922,7 @@ class _AttachButtonFace extends StatelessWidget {
             : const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
         constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         decoration: BoxDecoration(
           color: active ? color.withValues(alpha: 0.14) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
@@ -1638,12 +1932,17 @@ class _AttachButtonFace extends StatelessWidget {
           children: [
             Icon(icon, size: 22, color: tint),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: labelColor,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+            // Shrinks rather than clips on narrow screens or large text.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: labelColor,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
           ],
@@ -1655,6 +1954,7 @@ class _AttachButtonFace extends StatelessWidget {
 
 class _AttachButton extends StatelessWidget {
   const _AttachButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.semanticLabel,
@@ -1662,11 +1962,13 @@ class _AttachButton extends StatelessWidget {
     required this.active,
     required this.enabled,
     required this.onTap,
+    this.hint,
   });
 
   final IconData icon;
   final String label;
   final String semanticLabel;
+  final String? hint;
   final Color color;
   final bool active;
   final bool enabled;
@@ -1685,6 +1987,7 @@ class _AttachButton extends StatelessWidget {
       enabled: enabled,
       selected: active,
       label: semanticLabel,
+      hint: hint,
       onTap: handleTap,
       excludeSemantics: true,
       child: GestureDetector(
@@ -1696,99 +1999,6 @@ class _AttachButton extends StatelessWidget {
           color: color,
           active: active,
           enabled: enabled,
-        ),
-      ),
-    );
-  }
-}
-
-/// A quiet pill for the deliberate modes (Let go, Ritual, Capsule).
-class _ModeChip extends StatelessWidget {
-  const _ModeChip({
-    required this.icon,
-    required this.label,
-    required this.semanticLabel,
-    required this.hint,
-    required this.color,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final String semanticLabel;
-  final String hint;
-  final Color color;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final duration = reduceMotion
-        ? Duration.zero
-        : const Duration(milliseconds: 200);
-    final palette = context.palette;
-    final tint = selected ? color : palette.textSecondary;
-    final VoidCallback? handleTap = enabled
-        ? () {
-            HapticFeedback.selectionClick();
-            onTap();
-          }
-        : null;
-    final labelColor = selected ? palette.inkFor(color) : palette.textSecondary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: Semantics(
-        button: true,
-        selected: selected,
-        enabled: enabled,
-        label: semanticLabel,
-        hint: hint,
-        onTap: handleTap,
-        excludeSemantics: true,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: handleTap,
-          child: AnimatedOpacity(
-            duration: duration,
-            opacity: enabled ? 1 : 0.4,
-            child: AnimatedContainer(
-              duration: duration,
-              curve: Curves.easeOutCubic,
-              constraints: const BoxConstraints(minHeight: 44),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected
-                    ? color.withValues(alpha: 0.15)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: selected ? color : palette.border,
-                  width: selected ? 1.5 : 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: tint),
-                  const SizedBox(width: 5),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: labelColor,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ),
     );

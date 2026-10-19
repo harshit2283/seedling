@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
@@ -16,6 +20,25 @@ class MockObjectBoxDatabase extends Mock implements ObjectBoxDatabase {}
 class MockSyncEngine extends Mock implements SyncEngine {}
 
 class MockRitualService extends Mock implements RitualService {}
+
+/// Loads Roboto from the Flutter SDK's cache, next to the test runner.
+Future<void> _loadRoboto() async {
+  final engineDir = File(Platform.resolvedExecutable).parent;
+  final fonts = Directory('${engineDir.parent.parent.path}/material_fonts');
+  // Android's system font, also standing in for the Cupertino family that
+  // falls back to it on Android.
+  for (final family in ['Roboto', 'CupertinoSystemText']) {
+    final loader = FontLoader(family);
+    for (final name in ['Roboto-Regular.ttf', 'Roboto-Medium.ttf']) {
+      final file = File('${fonts.path}/$name');
+      if (!file.existsSync()) continue;
+      loader.addFont(
+        Future.value(ByteData.sublistView(file.readAsBytesSync())),
+      );
+    }
+    await loader.load();
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -114,7 +137,10 @@ void main() {
       expect(find.text('Photo'), findsOneWidget);
       expect(find.text('Voice'), findsOneWidget);
       expect(find.text('Title'), findsOneWidget);
-      // Deliberate modes stay reachable.
+      // Deliberate modes stay reachable, one tap away under "More".
+      expect(find.text('Let go'), findsNothing);
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
       expect(find.text('Let go'), findsOneWidget);
       expect(find.text('Ritual'), findsOneWidget);
       expect(find.text('Capsule'), findsOneWidget);
@@ -146,7 +172,118 @@ void main() {
       await tester.enterText(find.byType(TextField), 'Something I noticed');
       await tester.pump();
 
-      expect(find.text('Ready to save this memory'), findsOneWidget);
+      expect(find.text('Ready to save'), findsOneWidget);
+    });
+
+    testWidgets('at 320pt wide every control fits and the hint is one line', (
+      tester,
+    ) async {
+      // Measure with the real Roboto from the Flutter SDK (the default test
+      // font draws every glyph a full em wide).
+      await tester.runAsync(_loadRoboto);
+      tester.view.physicalSize = const Size(640, 1136);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
+
+      const screen = Rect.fromLTWH(0, 0, 320, 568);
+      for (final label in [
+        'Photo',
+        'Voice',
+        'Title',
+        'More',
+        'Let go',
+        'Ritual',
+        'Capsule',
+      ]) {
+        final rect = tester.getRect(find.text(label));
+        expect(
+          screen.contains(rect.topLeft) && screen.contains(rect.bottomRight),
+          isTrue,
+          reason: '$label at $rect',
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text(label),
+        );
+        expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+        expect(
+          paragraph.size.width,
+          greaterThanOrEqualTo(paragraph.getMaxIntrinsicWidth(100) - 0.5),
+          reason: '$label is cut off',
+        );
+      }
+      final hint = tester.getSize(find.text('Swipe down to save'));
+      expect(hint.height, lessThan(24), reason: 'one line');
+      final hintParagraph = tester.renderObject<RenderParagraph>(
+        find.text('Swipe down to save'),
+      );
+      expect(
+        hintParagraph.size.width,
+        greaterThanOrEqualTo(hintParagraph.getMaxIntrinsicWidth(100) - 0.5),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a long intention never cuts the hint mid-word', (
+      tester,
+    ) async {
+      await prefs.setString(
+        'capture_intention',
+        'When I sit down on the train home after a long day at the office',
+      );
+      tester.view.physicalSize = const Size(640, 1136);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('capture-text')),
+      );
+      final hint = field.decoration!.hintText!;
+      expect(
+        hint,
+        anyOf(
+          'When I sit down on the train home after a long day at the office…',
+          'What stayed with you?',
+        ),
+      );
+    });
+
+    testWidgets('the when line backdates the saved memory', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'The first frost on the car',
+      );
+      await tester.pump();
+      expect(find.textContaining('Today, '), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('capture-when')));
+      await tester.pumpAndSettle();
+      // Go back a month and pick its 1st, then keep the suggested time.
+      await tester.tap(find.byTooltip('Previous month'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('1').first);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      final now = DateTime.now();
+      final expected = DateTime(now.year, now.month - 1, 1);
+      expect(find.textContaining('Today, '), findsNothing);
+
+      await tester.tap(find.text('Save memory'));
+      await tester.pumpAndSettle();
+      final saved = savedEntries().single;
+      expect(saved.createdAt.year, expected.year);
+      expect(saved.createdAt.month, expected.month);
+      expect(saved.createdAt.day, 1);
+      expect(saved.text, 'The first frost on the car');
     });
 
     testWidgets('a full sentence saves as a line', (tester) async {
@@ -208,6 +345,8 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Let go'));
       await tester.pumpAndSettle();
       final field = tester.widget<TextField>(
@@ -230,10 +369,12 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Ritual'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('capture-title')), findsOneWidget);
-      expect(find.text('Give the ritual a name'), findsOneWidget);
+      expect(find.text('Name the ritual'), findsOneWidget);
 
       await tester.enterText(
         find.byKey(const ValueKey('capture-title')),
@@ -264,6 +405,8 @@ void main() {
     Future<void> saveRelease(WidgetTester tester) async {
       await tester.pumpWidget(launcher());
       await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('More'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Let go'));
       await tester.pumpAndSettle();

@@ -77,9 +77,11 @@ class EntryCreatorNotifier extends Notifier<void> {
   Future<Entry> createLineEntry(
     String text, {
     DateTime? capsuleUnlockDate,
+    DateTime? createdAt,
   }) async {
     final entry = Entry.line(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
+    if (createdAt != null) entry.createdAt = createdAt;
     return _saveAndSync(entry);
   }
 
@@ -87,9 +89,11 @@ class EntryCreatorNotifier extends Notifier<void> {
   Future<Entry> createReleaseEntry(
     String? text, {
     DateTime? capsuleUnlockDate,
+    DateTime? createdAt,
   }) async {
     final entry = Entry.release(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
+    if (createdAt != null) entry.createdAt = createdAt;
     return _saveAndSync(entry);
   }
 
@@ -97,9 +101,11 @@ class EntryCreatorNotifier extends Notifier<void> {
   Future<Entry> createFragmentEntry(
     String? text, {
     DateTime? capsuleUnlockDate,
+    DateTime? createdAt,
   }) async {
     final entry = Entry.fragment(text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
+    if (createdAt != null) entry.createdAt = createdAt;
     return _saveAndSync(entry);
   }
 
@@ -109,9 +115,11 @@ class EntryCreatorNotifier extends Notifier<void> {
     String title, {
     String? text,
     DateTime? capsuleUnlockDate,
+    DateTime? createdAt,
   }) async {
     final entry = Entry.ritual(title: title, text: text ?? title);
     entry.capsuleUnlockDate = capsuleUnlockDate;
+    if (createdAt != null) entry.createdAt = createdAt;
     return _saveAndSync(entry);
   }
 
@@ -120,9 +128,11 @@ class EntryCreatorNotifier extends Notifier<void> {
     String mediaPath, {
     String? text,
     DateTime? capsuleUnlockDate,
+    DateTime? createdAt,
   }) async {
     final entry = Entry.photo(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
+    if (createdAt != null) entry.createdAt = createdAt;
     return _saveAndSync(entry);
   }
 
@@ -131,9 +141,11 @@ class EntryCreatorNotifier extends Notifier<void> {
     String mediaPath, {
     String? text,
     DateTime? capsuleUnlockDate,
+    DateTime? createdAt,
   }) async {
     final entry = Entry.voice(mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
+    if (createdAt != null) entry.createdAt = createdAt;
     return _saveAndSync(entry);
   }
 
@@ -143,9 +155,11 @@ class EntryCreatorNotifier extends Notifier<void> {
     String? mediaPath,
     String? text,
     DateTime? capsuleUnlockDate,
+    DateTime? createdAt,
   }) async {
     final entry = Entry.object(title: title, mediaPath: mediaPath, text: text);
     entry.capsuleUnlockDate = capsuleUnlockDate;
+    if (createdAt != null) entry.createdAt = createdAt;
     return _saveAndSync(entry);
   }
 
@@ -221,27 +235,40 @@ class EntryCreatorNotifier extends Notifier<void> {
 
   /// Single entry point: build the right entry kind for a [CaptureIntent].
   /// The typed `create*Entry` methods above remain for backwards compat.
-  Future<Entry> create(CaptureIntent intent) {
+  /// Saves [intent] as a new entry. [createdAt] backdates it (the capture
+  /// sheet's "Today, 6:05 pm" line); null means now.
+  Future<Entry> create(CaptureIntent intent, {DateTime? createdAt}) {
     return switch (intent) {
       LineCapture(:final text, :final capsuleUnlockDate) => createLineEntry(
         text,
         capsuleUnlockDate: capsuleUnlockDate,
+        createdAt: createdAt,
       ),
       FragmentCapture(:final text, :final capsuleUnlockDate) =>
-        createFragmentEntry(text, capsuleUnlockDate: capsuleUnlockDate),
+        createFragmentEntry(
+          text,
+          capsuleUnlockDate: capsuleUnlockDate,
+          createdAt: createdAt,
+        ),
       ReleaseCapture(:final text, :final capsuleUnlockDate) =>
-        createReleaseEntry(text, capsuleUnlockDate: capsuleUnlockDate),
+        createReleaseEntry(
+          text,
+          capsuleUnlockDate: capsuleUnlockDate,
+          createdAt: createdAt,
+        ),
       PhotoCapture(:final mediaPath, :final text, :final capsuleUnlockDate) =>
         createPhotoEntry(
           mediaPath,
           text: text,
           capsuleUnlockDate: capsuleUnlockDate,
+          createdAt: createdAt,
         ),
       VoiceCapture(:final mediaPath, :final text, :final capsuleUnlockDate) =>
         createVoiceEntry(
           mediaPath,
           text: text,
           capsuleUnlockDate: capsuleUnlockDate,
+          createdAt: createdAt,
         ),
       ObjectCapture(
         :final title,
@@ -254,12 +281,14 @@ class EntryCreatorNotifier extends Notifier<void> {
           mediaPath: mediaPath,
           text: text,
           capsuleUnlockDate: capsuleUnlockDate,
+          createdAt: createdAt,
         ),
       RitualCapture(:final title, :final text, :final capsuleUnlockDate) =>
         createRitualEntry(
           title,
           text: text,
           capsuleUnlockDate: capsuleUnlockDate,
+          createdAt: createdAt,
         ),
       CapsuleCapture(:final text, :final unlockDate) => createCapsuleEntry(
         text,
