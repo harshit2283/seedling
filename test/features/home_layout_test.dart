@@ -70,7 +70,10 @@ void main() {
     required List<Entry> entries,
     required bool calm,
     required Size size,
+    double textScale = 1.0,
   }) async {
+    tester.platformDispatcher.textScaleFactorTestValue = textScale;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     tester.view.physicalSize = size * 3;
     tester.view.devicePixelRatio = 3;
     tester.view.padding = const FakeViewPadding(top: 141, bottom: 102);
@@ -79,6 +82,10 @@ void main() {
     SharedPreferences.setMockInitialValues({
       PrefsKeys.calmModeEnabled: calm,
       PrefsKeys.onboardingCompleted: true,
+      // A tree a month old: the backup line may show at the very end.
+      PrefsKeys.firstMemorySeenAt: now
+          .subtract(const Duration(days: 30))
+          .toIso8601String(),
     });
     final prefs = await SharedPreferences.getInstance();
     final router = GoRouter(
@@ -99,7 +106,13 @@ void main() {
 
   for (final ios in [false, true]) {
     for (final size in const [Size(390, 844), Size(320, 568)]) {
-      for (final scenario in ['first run', 'populated', 'calm']) {
+      for (final scenario in [
+        'first run',
+        'populated',
+        'calm',
+        'populated, text 1.6',
+        'first run, text 1.6',
+      ]) {
         final name =
             '${ios ? 'iOS' : 'Android'} ${size.width.toInt()}w $scenario';
         testWidgets('$name: the add button never covers the last item', (
@@ -109,9 +122,10 @@ void main() {
           addTearDown(() => PlatformUtils.debugIsIOSOverride = null);
           await pumpHome(
             tester,
-            entries: scenario == 'first run' ? const [] : populated(),
+            entries: scenario.startsWith('first run') ? const [] : populated(),
             calm: scenario == 'calm',
             size: size,
+            textScale: scenario.endsWith('text 1.6') ? 1.6 : 1.0,
           );
 
           final position = tester
@@ -131,6 +145,11 @@ void main() {
             lessThanOrEqualTo(button.top),
             reason: 'last item $last vs button $button',
           );
+          // A soft fade sits behind the button, covering it fully.
+          final fade = tester.getRect(
+            find.byKey(const ValueKey('home-add-fade')),
+          );
+          expect(fade.top, lessThan(button.top));
           expect(tester.takeException(), isNull);
           // Let the tree's ambient timers finish.
           await tester.pumpWidget(const SizedBox());
@@ -160,7 +179,8 @@ void main() {
       size: const Size(390, 844),
     );
     expect(find.textContaining('Seed'), findsNothing);
-    expect(find.textContaining('memories'), findsOneWidget); // "All memories"
+    expect(find.text('All memories'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'\d+ memories')), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });

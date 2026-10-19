@@ -20,6 +20,19 @@ class AddMemoryButton extends StatelessWidget {
 
   static const _pillHeight = 52.0;
   static const _fabHeight = 56.0;
+  static const _pillFontSize = 17.0;
+  static const _fabFontSize = 16.0;
+
+  /// The button's height with the current text size: its resting height,
+  /// or taller when large text needs it (label line plus 14pt above and
+  /// below).
+  static double buttonHeight(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final ios = PlatformUtils.isIOS;
+    final base = ios ? _pillHeight : _fabHeight;
+    final line = scaler.scale(ios ? _pillFontSize : _fabFontSize) * 1.25;
+    return math.max(base, (line + 28).ceilToDouble());
+  }
 
   /// Gap between the button and the bottom safe area on iOS.
   static double iosBottomOffset(BuildContext context) =>
@@ -28,12 +41,13 @@ class AddMemoryButton extends StatelessWidget {
   /// Scroll padding the page keeps clear under its content: the button,
   /// its margin to the screen edge and a little breathing room above it.
   static double reservedHeight(BuildContext context) {
+    final height = buttonHeight(context);
     if (PlatformUtils.isIOS) {
-      return _pillHeight + iosBottomOffset(context) + 24;
+      return height + iosBottomOffset(context) + 24;
     }
     // FloatingActionButtonLocation.centerFloat sits 16dp above the safe
     // area.
-    return _fabHeight + 16 + MediaQuery.viewPaddingOf(context).bottom + 24;
+    return height + 16 + MediaQuery.viewPaddingOf(context).bottom + 24;
   }
 
   void _tap() {
@@ -44,21 +58,30 @@ class AddMemoryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final height = buttonHeight(context);
     if (!PlatformUtils.isIOS) {
-      return FloatingActionButton.extended(
-        key: const ValueKey('home-add-memory'),
-        heroTag: 'home-add-memory',
-        onPressed: _tap,
-        backgroundColor: palette.primaryFill,
-        foregroundColor: palette.onPrimaryFill,
-        elevation: 2,
-        highlightElevation: 4,
-        shape: const StadiumBorder(),
-        extendedPadding: const EdgeInsets.symmetric(horizontal: 24),
-        icon: Icon(AdaptiveIcons.add),
-        label: const Text(
-          'Add memory',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+      // Held to [buttonHeight] so the page's reserved space is exact even
+      // with large text.
+      return SizedBox(
+        height: height,
+        child: FloatingActionButton.extended(
+          key: const ValueKey('home-add-memory'),
+          heroTag: 'home-add-memory',
+          onPressed: _tap,
+          backgroundColor: palette.primaryFill,
+          foregroundColor: palette.onPrimaryFill,
+          elevation: 2,
+          highlightElevation: 4,
+          shape: const StadiumBorder(),
+          extendedPadding: const EdgeInsets.symmetric(horizontal: 24),
+          icon: Icon(AdaptiveIcons.add),
+          label: const Text(
+            'Add memory',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: _fabFontSize,
+            ),
+          ),
         ),
       );
     }
@@ -74,7 +97,7 @@ class AddMemoryButton extends StatelessWidget {
         onTap: _tap,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(_pillHeight / 2),
+            borderRadius: BorderRadius.circular(height / 2),
             boxShadow: [
               BoxShadow(
                 color: palette.shadow,
@@ -84,15 +107,15 @@ class AddMemoryButton extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(_pillHeight / 2),
+            borderRadius: BorderRadius.circular(height / 2),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
               child: Container(
-                height: _pillHeight,
+                height: height,
                 padding: const EdgeInsets.symmetric(horizontal: 26),
                 decoration: BoxDecoration(
                   color: palette.primaryFill.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(_pillHeight / 2),
+                  borderRadius: BorderRadius.circular(height / 2),
                   border: Border.all(
                     color: palette.onPrimaryFill.withValues(alpha: 0.12),
                   ),
@@ -106,13 +129,18 @@ class AddMemoryButton extends StatelessWidget {
                       size: 20,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'Add memory',
-                      style: TextStyle(
-                        color: palette.onPrimaryFill,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
+                    Flexible(
+                      child: Text(
+                        'Add memory',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.onPrimaryFill,
+                          fontSize: _pillFontSize,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                        ),
                       ),
                     ),
                   ],

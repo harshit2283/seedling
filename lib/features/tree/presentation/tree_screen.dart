@@ -97,22 +97,26 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       child: Stack(
         children: [
           Positioned.fill(child: _buildScroll(context, reserve)),
-          // Content dissolves into the page under the button instead of
-          // being cut off by it.
+          // Content dissolves into the page behind the button instead of
+          // being cut off by it: the fade starts a little above the button
+          // and is nearly solid by the button's middle.
           Positioned(
+            key: const ValueKey('home-add-fade'),
             left: 0,
             right: 0,
             bottom: 0,
-            height: reserve * 0.8,
+            height: reserve + 16,
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
+                    stops: const [0, 0.45, 1],
                     colors: [
                       palette.backgroundGradientEnd.withValues(alpha: 0),
-                      palette.backgroundGradientEnd.withValues(alpha: 0.92),
+                      palette.backgroundGradientEnd.withValues(alpha: 0.88),
+                      palette.backgroundGradientEnd.withValues(alpha: 0.97),
                     ],
                   ),
                 ),
@@ -124,7 +128,10 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               left: 0,
               right: 0,
               bottom: AddMemoryButton.iosBottomOffset(context),
-              child: Center(child: AddMemoryButton(onPressed: _addMemory)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Center(child: AddMemoryButton(onPressed: _addMemory)),
+              ),
             ),
         ],
       ),
@@ -304,20 +311,30 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 ),
               ),
             ),
-            PlatformUtils.isIOS
-                ? CupertinoButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    minimumSize: const Size(44, 44),
-                    onPressed: () => context.push(AppRoutes.memories),
-                    child: Text(
-                      'All memories',
-                      style: TextStyle(color: palette.primary, fontSize: 15),
+            Flexible(
+              child: PlatformUtils.isIOS
+                  ? CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: const Size(44, 44),
+                      onPressed: () => context.push(AppRoutes.memories),
+                      child: Text(
+                        'All memories',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: palette.primary, fontSize: 15),
+                      ),
+                    )
+                  : TextButton(
+                      onPressed: () => context.push(AppRoutes.memories),
+                      child: const Text(
+                        'All memories',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  )
-                : TextButton(
-                    onPressed: () => context.push(AppRoutes.memories),
-                    child: const Text('All memories'),
-                  ),
+            ),
           ],
         ),
         for (var i = 0; i < shown.length; i++) ...[
