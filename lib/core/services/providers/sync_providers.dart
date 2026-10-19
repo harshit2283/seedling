@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../security/secure_storage.dart';
 import '../sync/cloudkit_sync_service.dart';
 import '../sync/google_drive_sync_service.dart';
 import '../sync/sync_backend.dart';
@@ -51,13 +54,41 @@ final cloudKitSyncServiceProvider = Provider<CloudKitSyncService>((ref) {
 
 /// Provider for secure storage used by sync cryptography.
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
-  return const FlutterSecureStorage();
+  return createSeedlingSecureStorage();
 });
 
 /// Provider for sync payload encryption/decryption.
 final syncCryptoServiceProvider = Provider<SyncCryptoService>((ref) {
-  return SyncCryptoService(secureStorage: ref.watch(secureStorageProvider));
+  return SyncCryptoService(
+    secureStorage: ref.watch(secureStorageProvider),
+    kdfSaltProvider: () => resolveSyncKdfSalt(
+      cloudSyncEnabled: ref.read(cloudSyncEnabledProvider),
+      backend: ref.read(syncBackendProvider),
+    ),
+  );
 });
+
+/// Reads the account's per-user key salt from the sync backend, creating a
+/// random one on first use. Only contacts the backend after the cloud-sync
+/// opt-in.
+Future<List<int>> resolveSyncKdfSalt({
+  required bool cloudSyncEnabled,
+  required SyncBackend backend,
+}) async {
+  if (!cloudSyncEnabled || !await backend.isAvailable()) {
+    throw const SyncPayloadCryptoException(
+      'Turn on cloud sync and connect your account before setting a sync '
+      'passphrase.',
+    );
+  }
+  final existing = await backend.readKdfSalt();
+  if (existing != null) return base64Decode(existing);
+  final random = Random.secure();
+  final fresh = base64Encode(
+    List<int>.generate(32, (_) => random.nextInt(256)),
+  );
+  return base64Decode(await backend.publishKdfSalt(fresh));
+}
 
 /// Whether a sync passphrase-derived key is configured.
 final syncPassphraseConfiguredProvider = FutureProvider<bool>((ref) async {
@@ -87,14 +118,24 @@ final syncMetadataProvider = Provider<SyncMetadata>((ref) {
   return SyncMetadata(prefs, namespace: providerType.name);
 });
 
+/// Account status text shown before the user has opted in to cloud sync.
+const String syncAccountStatusOptedOut = 'Cloud sync is off';
+
 /// Provider for current sync backend account status text.
+///
+/// Gated on [cloudSyncEnabledProvider]: until the user opts in, this never
+/// touches Google Sign-In / CloudKit account APIs (which may hit the network).
 final syncAccountStatusProvider = FutureProvider<String>((ref) async {
+  if (!ref.watch(cloudSyncEnabledProvider)) return syncAccountStatusOptedOut;
   final backend = ref.watch(syncBackendProvider);
   return backend.getAccountStatus();
 });
 
 /// Provider for whether backend account/session is currently available.
+///
+/// Gated on [cloudSyncEnabledProvider]; always false until opt-in.
 final syncAccountConnectedProvider = FutureProvider<bool>((ref) async {
+  if (!ref.watch(cloudSyncEnabledProvider)) return false;
   final backend = ref.watch(syncBackendProvider);
   return backend.isAvailable();
 });

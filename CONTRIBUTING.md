@@ -1,15 +1,30 @@
 # Contributing
 
-Seedling is currently in alpha.
+Thank you for wanting to help Seedling grow. It's open source (MIT) and free,
+and contributions are welcome: bug fixes, accessibility improvements,
+translations, documentation, tests, and well-reasoned ideas.
 
-This repository is public for transparency and reference, but external
-contributions are not being accepted at this time.
+Seedling is maintained by one person, so reviews may take a little while.
+For anything larger than a small fix, please open an issue first so we can
+agree on the shape before you spend time on it.
+
+## What fits
+
+Seedling should feel like breathing, not documenting. Changes that keep it
+calm, private, and friction-free fit well. These won't be accepted:
+
+- gamification (streaks, badges, scores) or pressure to use the app more
+- social features, feeds, or public profiles
+- analytics, tracking, ads, or any data sent to the developer
+- anything that locks a feature behind payment
+- nags: repeated prompts, launch popups, or guilt-based copy
 
 ## Setup
 
 1. Install Flutter stable and platform toolchains.
 2. Run `flutter pub get`.
-3. Run `flutter analyze` and `flutter test` before opening a PR.
+3. Run `dart format .`, `flutter analyze`, and `flutter test` before opening a PR
+   (`make check` runs analyze and test).
 
 ## Optional Private Integrations
 
@@ -23,13 +38,19 @@ These features require private configuration that is intentionally not committed
 
 See [docs/open-source/configuration.md](docs/open-source/configuration.md) and [docs/open-source/secrets.md](docs/open-source/secrets.md).
 
-## Pull Requests
+## Translations
 
-Pull requests from external contributors are currently not being accepted.
+Seedling doesn't have a translation pipeline yet. If you'd like to translate
+it, open an issue naming the language. That will help decide how
+localization gets set up.
+
+## Pull Requests
 
 Keep PRs focused. If you change privacy, sync, export, storage, or signing behavior:
 - add or update tests
 - update user-facing copy if behavior changed
+- update [PRIVACY.md](PRIVACY.md) if what leaves the device changed
 - update release or setup docs if credentials/config expectations changed
 
-Use the PR template and complete the quality gates.
+Use the PR template and complete the quality gates. By contributing, you
+agree that your contribution is licensed under the MIT License.

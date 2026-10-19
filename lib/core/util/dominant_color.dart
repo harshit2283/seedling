@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import '../services/error_reporter.dart';
 
 /// Extracts a dominant color from [imageFile] by downscaling to 32x32 and
 /// bucketing pixels into a 6x6x6 RGB cube. Excludes very-bright (>240) and
@@ -25,8 +26,8 @@ Future<Color?> extractDominantColor(File imageFile) async {
     image.dispose();
     if (raw == null) return null;
     return _bucketRgba(raw.buffer.asUint8List());
-  } catch (e) {
-    debugPrint('extractDominantColor failed: $e');
+  } catch (e, st) {
+    const ErrorReporter().report(e, stack: st, context: 'extractDominantColor');
     return null;
   }
 }

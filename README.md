@@ -1,88 +1,169 @@
 # Seedling
 
-Private-first memory keeping built with Flutter.
+**Memory-keeping that feels like breathing, not documenting.**
 
-Seedling is local-first by default. Optional cloud sync, exports, widgets, and sharing are available, but they require explicit user action or private platform configuration.
+Seedling is a small, private place to keep the moments that stay with you: a
+line someone said, a photo, a voice memo, an object with a story, a half
+thought. Each memory is a seed. Over a year they grow into a tree, and over
+the years, a forest.
 
-## Requirements
+There are no streaks, badges, feeds, or followers. No field is required. You
+don't have to explain anything. You just plant it and move on with your day.
 
-1. Flutter stable
-2. Xcode for iOS builds
-3. Android SDK for Android builds
+Seedling is **free and open source** (MIT). Nothing is locked, and nothing
+ever will be. If it means something to you, you can
+[help keep it growing](#supporting-seedling), but you never have to.
 
-## Local Setup
+## Screenshots
+
+_Screenshots coming soon. Contributions of clean, sample-data screenshots
+are welcome._
+
+<!--
+| Tree | Capture | Memories | Year in Review |
+| ---- | ------- | -------- | -------------- |
+| ![](docs/screenshots/tree.png) | ![](docs/screenshots/capture.png) | ![](docs/screenshots/memories.png) | ![](docs/screenshots/review.png) |
+-->
+
+## Features
+
+- **Seven ways to plant a memory:** line, photo, voice, object, fragment,
+  ritual, and release (for things you're letting go).
+- **A tree that grows by count, not frequency:** seed, sprout, sapling, young,
+  mature, and ancient, with seasonal colours. One tree per year; past years
+  become a forest.
+- **Memory capsules** that stay sealed until a date you choose.
+- **Gentle connections:** on-device theme detection, related memories, "On
+  this day", rituals noticed from your own patterns, and a Year in Review.
+- **Search, filters, and a reading view** for wandering back through it all.
+- **Home screen widgets, a share extension, and Siri / Shortcuts actions (iOS).**
+- **Native on both platforms:** Cupertino with glass on iOS, Material on
+  Android, warm light and dark themes.
+- **Optional, opt-in extras:** gentle reminders (off by default), app lock,
+  encrypted backups, and cloud sync to your own account.
+
+## Privacy model
+
+Seedling is local-first. The full policy is in [PRIVACY.md](PRIVACY.md).
+
+**On your device, always**
+- All memories and media. Written fields are encrypted at rest with a key
+  in the Keychain / Keystore; iOS media files use system file protection.
+- All analysis: themes, connections, sentiment, and suggestions.
+- Voice transcription (iOS only, on-device recognition required; Android
+  doesn't transcribe rather than risk sending audio to a server).
+
+**Only when you opt in**
+- Cloud sync to *your* iCloud (CloudKit private database) or *your* Google
+  Drive (hidden app-data folder). Off by default. Memory text is encrypted
+  with a passphrase you choose before upload.
+- Exports, encrypted backups, and sharing, which always go through the
+  system share sheet to wherever you pick.
+- Gentle reminders, app lock, and memory text in widgets.
+
+**Never**
+- Accounts, analytics, ads, crash reporting, or developer-run servers.
+
+**Threat model, briefly.** Seedling aims to protect your memories from the
+developer (who receives nothing), from cloud providers (synced text is
+passphrase-encrypted), and from casual access to an unlocked phone (optional
+app lock). It does not protect against a compromised or jailbroken device.
+Known gaps, listed openly in [PRIVACY.md](PRIVACY.md#known-limitations):
+synced photos and voice memos and some sync metadata are not
+passphrase-encrypted, and ML Kit on Android may download its model from
+Google on first launch.
+
+## Build and run
+
+Requirements: Flutter stable (Dart 3.10+), Xcode for iOS (iOS 15+), and the
+Android SDK for Android.
 
 ```bash
 flutter pub get
 flutter analyze
-flutter test
+flutter test          # or: make check
+flutter run -d iphone # or: flutter run -d android
 ```
 
-## Run
+After changing an ObjectBox model in `lib/data/models/`:
 
 ```bash
-flutter run -d iphone
-flutter run -d android
+dart run build_runner build --delete-conflicting-outputs
 ```
 
-Public contributors do not need Apple or Google credentials to run the app locally.
+A few tests run against a real ObjectBox store and are skipped unless the
+native `libobjectbox` library is on the loader path (for example via
+`LD_LIBRARY_PATH` on Linux).
 
-## Optional Private Integrations
+You don't need Apple or Google credentials to build and run locally. CloudKit
+sync, signed widgets, Google Drive, and store publishing need private
+configuration; see [docs/open-source/configuration.md](docs/open-source/configuration.md)
+and [docs/open-source/secrets.md](docs/open-source/secrets.md). Release steps
+are in [docs/release/](docs/release/), including an honest
+[F-Droid readiness assessment](docs/release/fdroid.md).
 
-- CloudKit sync and widgets on signed iOS builds
-- Google Drive backup/sign-in
-- signed Android release builds
-- App Store / Play publishing
+## Architecture
 
-See:
-- [docs/open-source/configuration.md](docs/open-source/configuration.md)
-- [docs/open-source/secrets.md](docs/open-source/secrets.md)
-- [docs/release/ios-release.md](docs/release/ios-release.md)
-- [docs/release/android-release.md](docs/release/android-release.md)
-- [docs/release/credentials-and-portal-setup.md](docs/release/credentials-and-portal-setup.md)
+```
+lib/
+├── main.dart            # Opens DB, media, prefs, reminders; runs the app
+├── app/                 # App shell, GoRouter routes, AppLockGate, theme
+├── data/
+│   ├── models/          # ObjectBox entities: Entry, Tree, Ritual
+│   └── datasources/local/objectbox_database.dart  # CRUD, soft delete, capsules
+├── core/
+│   ├── constants/       # PrefsKeys, SupportLinks
+│   ├── platform/        # Platform detection, adaptive icons
+│   ├── widgets/         # Glass containers, showSeedlingMessage toasts
+│   └── services/
+│       ├── providers/   # Riverpod providers, split by domain
+│       ├── ai/          # Theme detection, connections, suggestions, ML bridge
+│       ├── sync/        # Sync engine, passphrase crypto, CloudKit + Drive backends
+│       ├── security/    # At-rest encryption, app lock, clock guard
+│       ├── backup/      # Backup reminders, BackupRestoreService
+│       ├── export/      # JSON / ZIP / encrypted backup export
+│       ├── media/       # Capture, compression, storage, playback
+│       ├── transcription/ notifications/ ritual/ search/ share/ widget/ storage/
+└── features/            # Screens: tree, capture, memories, capsules, prompts,
+                         # review, onboarding, settings, support
+```
 
-## Privacy Notes
+- **State:** Riverpod 3. **Routing:** GoRouter. **Storage:** ObjectBox.
+- **Native code:** `ios/Runner/` has Swift plugins for CloudKit sync, on-device
+  speech, NaturalLanguage analysis, media file protection, and App Intents;
+  `android/app/src/main/kotlin/` has the ML Kit analyzer, widget provider, and
+  a transcription stub.
+- More detail for contributors (and AI assistants) lives in
+  [CLAUDE.md](CLAUDE.md) and [docs/engineering/](docs/engineering/).
 
-- Local storage is the default.
-- Cloud sync is optional.
-- Export and backup flows are explicit user actions.
-- Widget memory previews are off by default.
-- Speech transcription prefers on-device recognition where supported by platform and language.
-- No analytics or ad tracking are included.
+## Contributing
 
-## Release Artifacts
+Contributions are welcome: bug fixes, accessibility, translations,
+documentation, and thoughtful ideas. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md) first. Security issues go through
+[SECURITY.md](SECURITY.md), not public issues.
 
-- signed iOS `.ipa`
-- signed Android `.aab`
-- signed Android `.apk`
+Ideas that add gamification, social features, tracking, or anything that
+pressures people to use the app more will be declined, kindly.
 
-Release steps:
-- [docs/release/release-checklist.md](docs/release/release-checklist.md)
+## Supporting Seedling
 
-## Project Docs
+Seedling is made by one person and will always be free. Support keeps it
+independent and maintained; it never unlocks anything, and it will never pay
+for ads or growth tricks. The app has a quiet **Settings → Support Seedling**
+page and will invite you at most once, ever.
 
-- `CLAUDE.md`
-- `docs/plans/`
-- `docs/engineering/coding-standards.md`
-- `docs/engineering/testing-standards.md`
-- `docs/engineering/manual-verification-matrix.md`
+Ways to help: star the repo, contribute, translate, or tell a friend who might
+like it. Donation links will appear here and in the app only once they exist.
 
-## Inspiration And Planning Notes
+## Credits and license
 
-- A source of inspiration for this project was [Capturing your life while living](https://notesbyallie.substack.com/p/capturing-your-life-while-living).
-- The planning documents in `docs/plans/` were created with LLM assistance.
-- Some subsequent related documentation in `docs/` also began as LLM-assisted drafts and were then adapted for this repository.
+- Inspired in part by [Capturing your life while living](https://notesbyallie.substack.com/p/capturing-your-life-while-living).
+- Planning documents in `docs/plans/` and some other docs began as
+  LLM-assisted drafts and were adapted for this repository.
 
-## Open Source
-
-- [LICENSE](LICENSE)
-- [SECURITY.md](SECURITY.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-
-## Name And Branding
-
-The code in this repository is MIT-licensed.
-
-The `Seedling` name and `2283 Labs` branding are not granted for reuse by this
-README notice alone. If you fork or redistribute this project, use your own
-name and branding unless you have separate written permission.
+The code is [MIT-licensed](LICENSE). The `Seedling` name and `2283 Labs`
+branding are not granted for reuse by this notice alone. If you fork or
+redistribute this project, please use your own name and branding unless you
+have separate written permission.

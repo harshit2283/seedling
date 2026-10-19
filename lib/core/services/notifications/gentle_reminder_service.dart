@@ -217,6 +217,12 @@ class GentleReminderService {
     );
   }
 
+  /// Lock-screen-safe ritual notification copy. Ritual names are often
+  /// lifted from memory text, so they never appear in a notification.
+  static const String ritualNotificationTitle = 'A ritual moment';
+  static const String ritualNotificationBody =
+      'You usually capture something around now.';
+
   Future<void> scheduleRitualReminders(List<Ritual> dueRituals) async {
     await init();
 
@@ -234,6 +240,8 @@ class GentleReminderService {
         channelDescription: 'Reminders for your recurring ritual moments',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
+        // On a secure lock screen Android shows only "Contents hidden".
+        visibility: NotificationVisibility.private,
       ),
       iOS: DarwinNotificationDetails(
         interruptionLevel: InterruptionLevel.passive,
@@ -250,8 +258,8 @@ class GentleReminderService {
 
       await _plugin.zonedSchedule(
         notificationId,
-        ritual.name,
-        'You usually capture this around now',
+        ritualNotificationTitle,
+        ritualNotificationBody,
         scheduledTime,
         details,
         uiLocalNotificationDateInterpretation:

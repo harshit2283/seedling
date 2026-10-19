@@ -9,6 +9,15 @@ import '../../../../core/services/providers.dart';
 import 'sync_status_tile.dart';
 import 'settings_helpers.dart';
 
+/// Title of the Privacy row explaining that device backups skip memories.
+const String deviceBackupNoteTitle = 'Keeping a copy';
+
+/// Memories are excluded from iCloud/iTunes (and Android) device backups, so a
+/// lost phone means lost memories unless the person keeps their own copy.
+const String deviceBackupNoteSubtitle =
+    "Device backups don't include your memories, so they stay with you. "
+    'To keep a copy somewhere safe, use Export or turn on sync.';
+
 /// Settings section for privacy, app lock, sync passphrase, and widget previews.
 class PrivacySection extends ConsumerWidget {
   const PrivacySection({super.key});
@@ -39,6 +48,15 @@ class PrivacySection extends ConsumerWidget {
             subtitle: const Text(
               'Stored locally by default. Sync, widgets, export, and sharing are optional.',
             ),
+          ),
+          CupertinoListTile(
+            leading: buildSettingsIconBox(
+              context,
+              AdaptiveIcons.download,
+              SeedlingColors.forestGreen,
+            ),
+            title: const Text(deviceBackupNoteTitle),
+            subtitle: const Text(deviceBackupNoteSubtitle, maxLines: 3),
           ),
           const CupertinoListTile(title: SyncStatusTile()),
           CupertinoListTile(
@@ -114,6 +132,12 @@ class PrivacySection extends ConsumerWidget {
           title: 'On your device',
           subtitle:
               'Stored locally by default. Sync, widgets, export, and sharing are optional.',
+        ),
+        buildMaterialInfoTile(
+          context,
+          icon: AdaptiveIcons.download,
+          title: deviceBackupNoteTitle,
+          subtitle: deviceBackupNoteSubtitle,
         ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),

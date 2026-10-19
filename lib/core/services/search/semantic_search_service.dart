@@ -1,9 +1,9 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 
 import '../../../data/models/entry.dart';
 import '../ai/ml_text_analyzer.dart';
 import '../ai/theme_detector_service.dart';
+import '../error_reporter.dart';
 
 /// A search result with relevance scoring
 class SearchResult {
@@ -78,9 +78,11 @@ class SemanticSearchService {
           normalizedQuery,
           content.length > 200 ? content.substring(0, 200) : content,
         );
-      } catch (e) {
-        debugPrint(
-          'SemanticSearchService.search semantic scoring failed for entry ${entry.id}: $e',
+      } catch (e, st) {
+        const ErrorReporter().report(
+          e,
+          stack: st,
+          context: 'SemanticSearchService.search',
         );
         // ML unavailable, skip semantic scoring
       }

@@ -6,9 +6,11 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pointycastle/export.dart';
 
+import 'secure_storage.dart';
+
 /// Encrypts/decrypts sensitive entry fields for local at-rest protection.
 class AtRestEncryptionService {
-  static const _keyStorageId = 'seedling_local_master_key_v1';
+  static const keyStorageId = 'seedling_local_master_key_v1';
   static const _payloadPrefix = 'enc:v1:';
 
   final FlutterSecureStorage _secureStorage;
@@ -21,14 +23,14 @@ class AtRestEncryptionService {
   int get decryptCount => _decryptCount;
 
   AtRestEncryptionService({FlutterSecureStorage? secureStorage})
-    : _secureStorage = secureStorage ?? const FlutterSecureStorage();
+    : _secureStorage = secureStorage ?? createSeedlingSecureStorage();
 
   Future<void> init() async {
-    final existing = await _secureStorage.read(key: _keyStorageId);
+    final existing = await _secureStorage.read(key: keyStorageId);
     if (existing == null || existing.isEmpty) {
       final generated = _randomBytes(32);
       await _secureStorage.write(
-        key: _keyStorageId,
+        key: keyStorageId,
         value: base64Encode(generated),
       );
       _masterKey = generated;

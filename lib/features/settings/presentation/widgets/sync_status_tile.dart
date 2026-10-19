@@ -19,7 +19,11 @@ final _lockedAccountProvider = FutureProvider<String?>((ref) async {
 });
 
 /// Resolves how many records are currently in quarantine (Android only).
+///
+/// Reading quarantine requires a Drive session, so this is gated on the
+/// master cloud-sync opt-in and never authenticates before it.
 final _quarantineCountProvider = FutureProvider<int>((ref) async {
+  if (!ref.watch(cloudSyncEnabledProvider)) return 0;
   final backend = ref.watch(googleDriveSyncServiceProvider);
   return backend.quarantineCount;
 });

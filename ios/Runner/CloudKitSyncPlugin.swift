@@ -75,19 +75,20 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
             let changeTokenBase64 = args?["changeToken"] as? String
             fetchChanges(changeTokenBase64: changeTokenBase64, result: result)
 
-        case "uploadAsset":
+        case "readKeyring":
+            readKeyring(result: result)
+
+        case "publishKeyring":
             guard let args = call.arguments as? [String: Any],
-                  let syncUUID = args["syncUUID"] as? String,
-                  let filePath = args["filePath"] as? String,
-                  let fieldName = args["fieldName"] as? String else {
+                  let kdfSalt = args["kdfSalt"] as? String, !kdfSalt.isEmpty else {
                 result(FlutterError(
                     code: "INVALID_ARGS",
-                    message: "uploadAsset requires syncUUID, filePath, and fieldName",
+                    message: "publishKeyring requires kdfSalt",
                     details: nil
                 ))
                 return
             }
-            uploadAsset(syncUUID: syncUUID, filePath: filePath, fieldName: fieldName, result: result)
+            publishKeyring(kdfSalt: kdfSalt, result: result)
 
         case "downloadAsset":
             guard let args = call.arguments as? [String: Any],
@@ -216,6 +217,57 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                 }
             }
         }
+    }
+
+    // MARK: - Keyring (per-user key-derivation salt)
+
+    /// One record holds the account's random PBKDF2 salt so every device
+    /// derives the same sync key without the salt being app-wide.
+    private let keyringRecordType = "SeedlingKeyring"
+    private var keyringRecordID: CKRecord.ID { CKRecord.ID(recordName: "seedling-keyring-v1") }
+
+    /// Returns the stored salt, or nil when no keyring exists yet.
+    private func readKeyring(result: @escaping FlutterResult) {
+        privateDB.fetch(withRecordID: keyringRecordID) { record, error in
+            DispatchQueue.main.async {
+                if let ckError = error as? CKError, ckError.code == .unknownItem {
+                    result(nil)
+                    return
+                }
+                if let error = error {
+                    self.handleCKError(error, result: result)
+                    return
+                }
+                result(record?["kdfSalt"] as? String)
+            }
+        }
+    }
+
+    /// Creates the keyring with `kdfSalt` unless one exists, then returns the
+    /// salt in effect. Saving a brand-new CKRecord whose ID already exists
+    /// fails with `.serverRecordChanged`, so the first device wins atomically.
+    private func publishKeyring(kdfSalt: String, result: @escaping FlutterResult) {
+        let record = CKRecord(recordType: keyringRecordType, recordID: keyringRecordID)
+        record["kdfSalt"] = kdfSalt as CKRecordValue
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        operation.savePolicy = .ifServerRecordUnchanged
+        operation.modifyRecordsCompletionBlock = { [weak self] _, _, error in
+            guard let self = self else { return }
+            if let ckError = error as? CKError {
+                let partial = ckError.partialErrorsByItemID?[self.keyringRecordID] as? CKError
+                let code = partial?.code ?? ckError.code
+                if code != .serverRecordChanged {
+                    DispatchQueue.main.async { self.handleCKError(ckError, result: result) }
+                    return
+                }
+            } else if let error = error {
+                DispatchQueue.main.async { self.handleCKError(error, result: result) }
+                return
+            }
+            // Created, or someone else's already exists: report what is stored.
+            self.readKeyring(result: result)
+        }
+        privateDB.add(operation)
     }
 
     // MARK: - deleteRecord
@@ -485,73 +537,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         }
 
         privateDB.add(zoneChangesOp)
-    }
-
-    // MARK: - uploadAsset
-
-    /// Attach a CKAsset from a local file to an existing record
-    private func uploadAsset(
-        syncUUID: String,
-        filePath: String,
-        fieldName: String,
-        result: @escaping FlutterResult
-    ) {
-        guard Self.assetFieldAllowlist.contains(fieldName) else {
-            result(FlutterError(
-                code: "INVALID_FIELD",
-                message: "Field '\(fieldName)' is not allowed for asset upload",
-                details: nil
-            ))
-            return
-        }
-
-        let fileURL = URL(fileURLWithPath: filePath)
-
-        guard FileManager.default.fileExists(atPath: filePath) else {
-            result(FlutterError(
-                code: "FILE_NOT_FOUND",
-                message: "File does not exist at path: \(filePath)",
-                details: nil
-            ))
-            return
-        }
-
-        let recordID = CKRecord.ID(recordName: syncUUID)
-
-        privateDB.fetch(withRecordID: recordID) { [weak self] existingRecord, fetchError in
-            guard let self = self else { return }
-
-            if let fetchError = fetchError {
-                DispatchQueue.main.async {
-                    self.handleCKError(fetchError, result: result)
-                }
-                return
-            }
-
-            guard let record = existingRecord else {
-                DispatchQueue.main.async {
-                    result(FlutterError(
-                        code: "RECORD_NOT_FOUND",
-                        message: "No record found with syncUUID: \(syncUUID)",
-                        details: nil
-                    ))
-                }
-                return
-            }
-
-            let asset = CKAsset(fileURL: fileURL)
-            record[fieldName] = asset
-
-            self.privateDB.save(record) { savedRecord, saveError in
-                DispatchQueue.main.async {
-                    if let saveError = saveError {
-                        self.handleCKError(saveError, result: result)
-                        return
-                    }
-                    result(true)
-                }
-            }
-        }
     }
 
     // MARK: - downloadAsset

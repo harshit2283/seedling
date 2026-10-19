@@ -309,30 +309,28 @@ class GoogleDriveSyncService implements SyncBackend {
   }
 
   @override
+  Future<String?> readKdfSalt() async {
+    if (!await _ensureReady()) {
+      throw StateError('Google Drive not connected');
+    }
+    final logs = await _logs();
+    return _withRetry(logs.readKdfSalt);
+  }
+
+  @override
+  Future<String> publishKdfSalt(String salt) async {
+    if (!await _ensureReady()) {
+      throw StateError('Google Drive not connected');
+    }
+    final logs = await _logs();
+    return _withRetry(() => logs.publishKdfSalt(salt));
+  }
+
+  @override
   Future<SyncFetchResult?> fetchChanges({String? changeToken}) async {
     if (!await _ensureReady()) return null;
     final logs = await _logs();
     return _withRetry(() => logs.fetch(changeToken));
-  }
-
-  @override
-  Future<String?> uploadAsset(String localPath, String syncUUID) async {
-    if (!await _ensureReady() || _driveApi == null) return null;
-    final file = File(localPath);
-    if (!await file.exists()) return null;
-
-    return _withRetry(() async {
-      final api = _driveApi!;
-      final folderName = 'seedling_media';
-      final folderId = await _findOrCreateFolder(folderName);
-      final fileName = '${syncUUID}_${file.uri.pathSegments.last}';
-      final media = drive.Media(file.openRead(), await file.length());
-      final metadata = drive.File()
-        ..name = fileName
-        ..parents = [folderId];
-      final created = await api.files.create(metadata, uploadMedia: media);
-      return created.id;
-    });
   }
 
   @override
@@ -412,27 +410,5 @@ class GoogleDriveSyncService implements SyncBackend {
       );
       return null;
     }
-  }
-
-  Future<String> _findOrCreateFolder(String folderName) async {
-    final api = _driveApi!;
-    final files = await api.files.list(
-      q: "name='$folderName' and mimeType='application/vnd.google-apps.folder' and trashed=false and 'appDataFolder' in parents",
-      spaces: 'appDataFolder',
-      $fields: 'files(id,name)',
-      pageSize: 1,
-    );
-    final found = files.files;
-    if (found != null && found.isNotEmpty && found.first.id != null) {
-      return found.first.id!;
-    }
-
-    final created = await api.files.create(
-      drive.File()
-        ..name = folderName
-        ..mimeType = 'application/vnd.google-apps.folder'
-        ..parents = ['appDataFolder'],
-    );
-    return created.id!;
   }
 }

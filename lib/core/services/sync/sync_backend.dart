@@ -27,16 +27,31 @@ abstract class SyncBackend {
 
   /// Persist several records. Backends that rewrite a whole document per
   /// write should do it once for the batch.
-  Future<void> saveRecords(List<Map<String, dynamic>> records);
+  Future<void> saveRecords(List<Map<String, dynamic>> records) async {
+    for (final record in records) {
+      await saveRecord(record);
+    }
+  }
 
   /// Delete several records by sync UUID.
-  Future<void> deleteRecords(List<String> syncUUIDs);
+  Future<void> deleteRecords(List<String> syncUUIDs) async {
+    for (final syncUUID in syncUUIDs) {
+      await deleteRecord(syncUUID);
+    }
+  }
+
+  /// The per-user key-derivation salt (base64) kept in the user's remote
+  /// sync space, or null if none has been created yet.
+  Future<String?> readKdfSalt() async => null;
+
+  /// Stores [salt] as the per-user key salt unless one already exists, and
+  /// returns the salt in effect afterwards (the existing one wins). Every
+  /// device must end up with the same answer.
+  Future<String> publishKdfSalt(String salt) async =>
+      throw UnsupportedError('This sync backend has no keyring');
 
   /// Fetch remote changes since [changeToken].
   Future<SyncFetchResult?> fetchChanges({String? changeToken});
-
-  /// Upload a media asset referenced by [syncUUID].
-  Future<String?> uploadAsset(String localPath, String syncUUID);
 
   /// Download a media asset referenced by [syncUUID].
   Future<String?> downloadAsset(String syncUUID, String targetPath);

@@ -165,6 +165,24 @@ void main() {
     expect(second.deletedUUIDs, isEmpty);
   });
 
+  test('key salt: first publisher wins and racing devices agree', () async {
+    expect(await a.readKdfSalt(), isNull);
+    final saltA = base64Encode(List<int>.filled(32, 9));
+    final saltB = base64Encode(List<int>.filled(32, 3));
+    final results = await Future.wait([
+      a.publishKdfSalt(saltA),
+      b.publishKdfSalt(saltB),
+    ]);
+    // Both devices, and any later reader, settle on one salt.
+    expect(results[0], results[1]);
+    expect(await c.readKdfSalt(), results[0]);
+    // Publishing again never replaces it.
+    expect(
+      await c.publishKdfSalt(base64Encode(List<int>.filled(32, 1))),
+      results[0],
+    );
+  });
+
   test('an unreadable log from one device does not block the others', () async {
     await drive.create('${DriveSyncLogStore.logPrefix}broken.json', [1, 2, 3]);
     await b.saveRecord(_rec(_uuid(1), modifiedAt: 1, text: 'ok'));

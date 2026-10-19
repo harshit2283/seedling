@@ -355,6 +355,42 @@ class DriveSyncLogStore {
     }
   }
 
+  /// The per-user key salt file. Several can exist if two devices enabled
+  /// sync at the same instant (Drive has no create-if-absent); every reader
+  /// picks the same one (smallest salt), so all devices agree.
+  static const keyringPrefix = 'seedling_sync_keyring_v1';
+
+  Future<String?> readKdfSalt() async {
+    final salts = <String>[];
+    for (final file in await _files.listByPrefix(keyringPrefix)) {
+      final bytes = await _files.read(file.id);
+      if (bytes == null || bytes.isEmpty) continue;
+      try {
+        final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+        final salt = json['kdfSalt'] as String?;
+        if (salt != null && base64Decode(salt).length >= 16) salts.add(salt);
+      } catch (_) {
+        continue;
+      }
+    }
+    if (salts.isEmpty) return null;
+    salts.sort();
+    return salts.first;
+  }
+
+  Future<String> publishKdfSalt(String salt) async {
+    final existing = await readKdfSalt();
+    if (existing != null) return existing;
+    await _files.create(
+      '${keyringPrefix}_$_deviceId.json',
+      utf8.encode(
+        jsonEncode({'v': 1, 'kdf': 'pbkdf2-sha256', 'kdfSalt': salt}),
+      ),
+    );
+    // Re-read: if another device raced us, both settle on the same file.
+    return (await readKdfSalt())!;
+  }
+
   /// Rewrites the legacy document with [quarantine] cleared.
   Future<void> clearLegacyQuarantine() async {
     final file = (await _files.listByPrefix(

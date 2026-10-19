@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
@@ -67,6 +68,18 @@ class SyncEngine {
 
     final available = await _backend.isAvailable();
     if (!available) {
+      _setState(SyncState.error);
+      return;
+    }
+
+    // A key derived with a different salt than the account's keyring would
+    // push records no other device can read; stop and ask for the passphrase.
+    final remoteSalt = await _backend.readKdfSalt();
+    if (remoteSalt != null &&
+        await _crypto.hasPassphrase() &&
+        !await _crypto.usesKdfSalt(base64Decode(remoteSalt))) {
+      const mismatch = SyncKeySaltMismatchException();
+      await _metadata.setLastError(mismatch.message);
       _setState(SyncState.error);
       return;
     }

@@ -400,8 +400,12 @@ class _DataSectionState extends ConsumerState<DataSection> {
         // Record the backup date for reminder tracking (best-effort).
         try {
           await ref.read(backupReminderServiceProvider).recordBackup();
-        } catch (e) {
-          debugPrint('Failed to record backup date: $e');
+        } catch (e, st) {
+          const ErrorReporter().report(
+            e,
+            stack: st,
+            context: 'DataSection.recordBackup',
+          );
         }
         await exportService.shareFile(
           result.filePath!,

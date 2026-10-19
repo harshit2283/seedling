@@ -16,6 +16,7 @@ import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/memories/presentation/object_gallery_screen.dart';
 import '../features/review/presentation/year_in_review_screen.dart';
 import '../features/settings/presentation/rituals_screen.dart';
+import '../features/support/presentation/support_screen.dart';
 
 /// App routes
 class AppRoutes {
@@ -29,6 +30,7 @@ class AppRoutes {
   static const String deletedEntries = '/settings/deleted';
   static const String themeInsights = '/settings/themes';
   static const String rituals = '/settings/rituals';
+  static const String support = '/settings/support';
   static const String capsules = '/capsules';
   static const String collection = '/collection';
   static const String yearReview = '/review/:year';
@@ -137,6 +139,12 @@ GoRouter createAppRouter(SharedPreferences prefs) {
         name: 'rituals',
         pageBuilder: (context, state) =>
             _buildPage(key: state.pageKey, child: const RitualsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.support,
+        name: 'support',
+        pageBuilder: (context, state) =>
+            _buildPage(key: state.pageKey, child: const SupportScreen()),
       ),
       GoRoute(
         path: AppRoutes.collection,

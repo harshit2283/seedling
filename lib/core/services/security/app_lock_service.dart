@@ -1,5 +1,5 @@
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter/foundation.dart';
+import '../error_reporter.dart';
 
 /// Service responsible for biometric/device authentication.
 class AppLockService {
@@ -10,8 +10,12 @@ class AppLockService {
       final canCheckBiometrics = await _localAuth.canCheckBiometrics;
       final isSupported = await _localAuth.isDeviceSupported();
       return canCheckBiometrics || isSupported;
-    } catch (e) {
-      debugPrint('AppLockService.canAuthenticate failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'AppLockService.canAuthenticate',
+      );
       return false;
     }
   }
@@ -26,8 +30,12 @@ class AppLockService {
           useErrorDialogs: true,
         ),
       );
-    } catch (e) {
-      debugPrint('AppLockService.authenticate failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'AppLockService.authenticate',
+      );
       return false;
     }
   }

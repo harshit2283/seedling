@@ -21,6 +21,14 @@ class _FakeSession extends Fake implements SyncEncryptionSession {}
 
 /// Pass-through "encryption" that still enforces the version envelope.
 class _FakeCrypto extends Fake implements SyncCryptoService {
+  bool keyMatchesKeyring = true;
+
+  @override
+  Future<bool> hasPassphrase() async => true;
+
+  @override
+  Future<bool> usesKdfSalt(List<int> kdfSalt) async => keyMatchesKeyring;
+
   @override
   Future<SyncEncryptionSession> createEncryptionSession() async =>
       _FakeSession();
@@ -86,8 +94,11 @@ class _MemoryBackend implements SyncBackend {
         );
   }
 
+  String? kdfSalt;
   @override
-  Future<String?> uploadAsset(String localPath, String syncUUID) async => null;
+  Future<String?> readKdfSalt() async => kdfSalt;
+  @override
+  Future<String> publishKdfSalt(String salt) async => kdfSalt ??= salt;
   @override
   Future<String?> downloadAsset(String syncUUID, String targetPath) async =>
       null;
@@ -414,6 +425,31 @@ void main() {
       dbB.close();
       await dirB.delete(recursive: true);
     }
+  });
+
+  test('a key derived with another salt never pushes', () async {
+    if (skip()) return;
+    backend.kdfSalt = 'AAAAAAAAAAAAAAAAAAAAAA==';
+    final crypto = _FakeCrypto()..keyMatchesKeyring = false;
+    final mismatched = SyncEngine(
+      database: db!,
+      backend: backend,
+      metadata: metadata,
+      cryptoService: crypto,
+    );
+    final entry = await db!.saveEntry(Entry.line(text: 'unreadable'));
+    await metadata.addPendingChange(
+      SyncChange(
+        syncUUID: entry.syncUUID!,
+        changeType: SyncChangeType.create,
+        timestamp: DateTime.now(),
+      ),
+    );
+    await mismatched.init();
+    expect(mismatched.currentState, SyncState.error);
+    expect(metadata.lastError, contains('Re-enter your sync passphrase'));
+    expect(backend.saved, isEmpty);
+    mismatched.dispose();
   });
 
   test('first enable uploads existing entries', () async {

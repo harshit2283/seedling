@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/entry.dart';
 import '../constants/prefs_keys.dart';
+import 'error_reporter.dart';
 
 /// Tracks entry type usage for smart ordering of capture buttons
 class EntryTypeUsageService {
@@ -96,8 +96,12 @@ class EntryTypeUsageService {
       return decoded.map(
         (key, value) => MapEntry(key, (value as List<dynamic>).cast<int>()),
       );
-    } catch (e) {
-      debugPrint('EntryTypeUsageService: parse failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'EntryTypeUsageService.parse',
+      );
       return {};
     }
   }

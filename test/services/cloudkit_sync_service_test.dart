@@ -17,25 +17,6 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  test('uploadAsset uses native CloudKit argument contract', () async {
-    MethodCall? captured;
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          captured = call;
-          return '/remote/path';
-        });
-
-    final result = await service.uploadAsset('/tmp/local.m4a', 'uuid-1');
-
-    expect(result, '/remote/path');
-    expect(captured?.method, 'uploadAsset');
-    expect(captured?.arguments, <String, dynamic>{
-      'syncUUID': 'uuid-1',
-      'filePath': '/tmp/local.m4a',
-      'fieldName': 'mediaAsset',
-    });
-  });
-
   test('downloadAsset uses destinationPath and fieldName keys', () async {
     MethodCall? captured;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

@@ -693,7 +693,6 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
 
   void _unlinkEntries(Entry current, Entry linked) {
     HapticFeedback.lightImpact();
-    final db = ref.read(databaseProvider);
 
     // Ensure both have syncUUIDs before proceeding
     final currentUUID = _ensureSyncUUID(current);
@@ -705,13 +704,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     current.manualLinkIds = currentLinks.isEmpty
         ? null
         : currentLinks.join(',');
-    db.updateEntry(current);
+    _updateAndSync(current);
 
     // Remove current's UUID from linked's manualLinkIds
     final linkedLinks = List<String>.from(linked.manualLinkList)
       ..remove(currentUUID);
     linked.manualLinkIds = linkedLinks.isEmpty ? null : linkedLinks.join(',');
-    db.updateEntry(linked);
+    _updateAndSync(linked);
   }
 
   void _showLinkPicker(BuildContext context, Entry current) {
@@ -738,7 +737,6 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
 
   void _linkEntries(Entry current, Entry other) {
     HapticFeedback.lightImpact();
-    final db = ref.read(databaseProvider);
 
     // Ensure both entries have a syncUUID
     final currentUUID = _ensureSyncUUID(current);
@@ -758,7 +756,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       currentLinks.add(otherUUID);
     }
     current.manualLinkIds = currentLinks.join(',');
-    db.updateEntry(current);
+    _updateAndSync(current);
 
     // Add currentUUID to other's manualLinkIds (bidirectional, avoid duplicates)
     final otherLinks = List<String>.from(other.manualLinkList);
@@ -766,7 +764,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       otherLinks.add(currentUUID);
     }
     other.manualLinkIds = otherLinks.join(',');
-    db.updateEntry(other);
+    _updateAndSync(other);
+  }
+
+  /// Saves [entry] and queues it for sync, so links and transcriptions reach
+  /// the user's other devices.
+  void _updateAndSync(Entry entry) {
+    ref.read(entryCreatorProvider.notifier).saveEdit(entry);
   }
 
   /// Returns the existing syncUUID or generates and assigns a new one.
@@ -1149,7 +1153,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         final freshEntry = db.getEntry(entry.id);
         if (freshEntry != null) {
           freshEntry.transcription = result.transcription;
-          db.updateEntry(freshEntry);
+          _updateAndSync(freshEntry);
         }
         HapticFeedback.lightImpact();
       } else {
@@ -1157,8 +1161,12 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
           showSeedlingMessage(context, 'No speech detected');
         }
       }
-    } catch (e) {
-      debugPrint('Entry detail operation failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'EntryDetail.transcribe',
+      );
       if (mounted) {
         showSeedlingMessage(context, 'Transcription failed');
       }
