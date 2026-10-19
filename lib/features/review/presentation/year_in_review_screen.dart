@@ -21,6 +21,7 @@ import 'widgets/season_card.dart';
 import 'widgets/theme_garden.dart';
 import 'widgets/shareable_card.dart';
 import '../../../core/platform/platform_utils.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 const _months = [
   '',
@@ -82,9 +83,7 @@ class YearInReviewScreen extends ConsumerWidget {
       appBar: isIOS
           ? CupertinoNavigationBar(
                   middle: const Text('Year in review'),
-                  backgroundColor: context.palette.background.withValues(
-                    alpha: 0.85,
-                  ),
+                  backgroundColor: context.barBackground(),
                   border: null,
                 )
                 as PreferredSizeWidget

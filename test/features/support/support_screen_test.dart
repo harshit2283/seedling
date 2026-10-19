@@ -1,14 +1,21 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedling/app/theme/seedling_theme.dart';
 import 'package:seedling/core/constants/support_links.dart';
+import 'package:seedling/core/platform/platform_utils.dart';
 import 'package:seedling/features/support/presentation/support_screen.dart';
 
-Future<void> _pump(WidgetTester tester, SupportScreen screen) async {
+Future<void> _pump(
+  WidgetTester tester,
+  SupportScreen screen, {
+  ThemeData? theme,
+}) async {
   tester.view.physicalSize = const Size(1200, 4000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(MaterialApp(home: screen));
+  await tester.pumpWidget(MaterialApp(theme: theme, home: screen));
   await tester.pumpAndSettle();
 }
 
@@ -133,5 +140,15 @@ void main() {
     expect(copied, SupportLinks.repositoryUrl);
     expect(find.text('Link copied. Paste it in your browser.'), findsOneWidget);
     await tester.pumpAndSettle(const Duration(seconds: 4));
+  });
+
+  testWidgets('iOS dark: nav bar fill is dark, not light grey', (tester) async {
+    PlatformUtils.debugIsIOSOverride = true;
+    addTearDown(() => PlatformUtils.debugIsIOSOverride = null);
+    await _pump(tester, const SupportScreen(), theme: SeedlingTheme.dark);
+    final bar = tester.widget<CupertinoNavigationBar>(
+      find.byType(CupertinoNavigationBar),
+    );
+    expect(bar.backgroundColor!.computeLuminance(), lessThan(0.05));
   });
 }

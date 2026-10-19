@@ -11,6 +11,7 @@ import '../../../app/theme/palette.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../data/models/entry.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// A dedicated gallery view for Object entries — a personal museum.
 class ObjectGalleryScreen extends ConsumerWidget {
@@ -22,8 +23,10 @@ class ObjectGalleryScreen extends ConsumerWidget {
 
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
-        navigationBar: const CupertinoNavigationBar(
-          middle: Text('Your Collection'),
+        navigationBar: CupertinoNavigationBar(
+          backgroundColor: context.barBackground(),
+          border: null,
+          middle: const Text('Your Collection'),
           previousPageTitle: 'Settings',
         ),
         child: _buildBody(context, objects),

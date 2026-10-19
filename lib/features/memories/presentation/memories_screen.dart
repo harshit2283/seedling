@@ -22,6 +22,7 @@ import 'entry_detail_screen.dart';
 import 'memory_card.dart';
 import 'memories_filter_state.dart';
 import 'memory_reader_screen.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// Screen showing all memories with search, filter, and sort
 class MemoriesScreen extends ConsumerStatefulWidget {
@@ -131,8 +132,12 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
   ) {
     return CupertinoPageScaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // Clear at rest; a translucent palette fill once the list scrolls
+      // under it, so the title never sits on top of memories.
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: context.barBackground(
+          under: Theme.of(context).scaffoldBackgroundColor,
+        ),
         border: null,
         middle: const Text('Memories'),
         leading: CupertinoNavigationBarBackButton(

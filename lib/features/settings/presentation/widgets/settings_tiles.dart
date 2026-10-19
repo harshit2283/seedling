@@ -5,6 +5,7 @@ import '../../../../app/theme/palette.dart';
 import '../../../../app/theme/radius.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
+import '../../../../app/theme/bar_surfaces.dart';
 
 /// Picks the Cupertino glyph on iOS and the Material one elsewhere.
 IconData adaptiveIcon(IconData cupertino, IconData material) =>
@@ -361,10 +362,10 @@ class SettingsSubScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.systemGroupedBackground,
+        backgroundColor: context.groupedBackground,
         navigationBar: CupertinoNavigationBar(
-          backgroundColor: CupertinoColors.systemGroupedBackground.withValues(
-            alpha: 0.9,
+          backgroundColor: context.barBackground(
+            under: context.groupedBackground,
           ),
           border: null,
           middle: Text(title),

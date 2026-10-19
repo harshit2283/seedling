@@ -8,6 +8,7 @@ import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import '../../../core/services/ai/models/analysis_result.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// Screen showing insights about theme distribution in memories
 class ThemeInsightsScreen extends ConsumerWidget {
@@ -31,10 +32,10 @@ class ThemeInsightsScreen extends ConsumerWidget {
     Map<MemoryTheme, int> distribution,
   ) {
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground,
+      backgroundColor: context.groupedBackground,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: CupertinoColors.systemGroupedBackground.withValues(
-          alpha: 0.9,
+        backgroundColor: context.barBackground(
+          under: context.groupedBackground,
         ),
         border: null,
         middle: const Text('Themes'),

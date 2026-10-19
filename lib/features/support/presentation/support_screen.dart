@@ -9,6 +9,7 @@ import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/widgets/feedback/seedling_toast.dart';
 import '../../../core/widgets/glass/glass_container.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// "Support Seedling" — a quiet page about how Seedling is made and paid for.
 ///
@@ -51,10 +52,10 @@ class SupportScreen extends StatelessWidget {
 
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.systemGroupedBackground,
+        backgroundColor: context.groupedBackground,
         navigationBar: CupertinoNavigationBar(
-          backgroundColor: CupertinoColors.systemGroupedBackground.withValues(
-            alpha: 0.7,
+          backgroundColor: context.barBackground(
+            under: context.groupedBackground,
           ),
           border: null,
           middle: const Text(_title),

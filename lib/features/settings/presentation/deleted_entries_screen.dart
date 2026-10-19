@@ -9,6 +9,7 @@ import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../data/models/entry.dart';
 import '../../../core/widgets/feedback/seedling_toast.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// Screen for viewing and recovering soft-deleted entries
 class DeletedEntriesScreen extends ConsumerWidget {
@@ -30,10 +31,10 @@ class DeletedEntriesScreen extends ConsumerWidget {
     List<Entry> entries,
   ) {
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground,
+      backgroundColor: context.groupedBackground,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: CupertinoColors.systemGroupedBackground.withValues(
-          alpha: 0.9,
+        backgroundColor: context.barBackground(
+          under: context.groupedBackground,
         ),
         border: null,
         middle: const Text('Recently Deleted'),

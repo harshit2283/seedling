@@ -8,6 +8,7 @@ import '../../../core/services/providers.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../data/models/ritual.dart';
 import 'widgets/ritual_patterns_sheet.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// Screen for managing confirmed rituals — pause, archive, delete.
 class RitualsScreen extends ConsumerWidget {
@@ -19,9 +20,11 @@ class RitualsScreen extends ConsumerWidget {
 
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.systemGroupedBackground,
+        backgroundColor: context.groupedBackground,
         navigationBar: CupertinoNavigationBar(
-          backgroundColor: CupertinoColors.systemGroupedBackground,
+          backgroundColor: context.barBackground(
+            under: context.groupedBackground,
+          ),
           border: null,
           middle: const Text('Rituals'),
           previousPageTitle: 'Settings',

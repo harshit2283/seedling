@@ -1,9 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:seedling/app/router.dart';
+import 'package:seedling/app/theme/palette.dart';
+import 'package:seedling/app/theme/seedling_theme.dart';
+import 'package:seedling/core/platform/platform_utils.dart';
 import 'package:seedling/core/constants/prefs_keys.dart';
 import 'package:seedling/core/services/notifications/gentle_reminder_service.dart';
 import 'package:seedling/core/services/providers.dart';
@@ -48,6 +52,7 @@ void main() {
     WidgetTester tester, {
     String initial = AppRoutes.settings,
     Map<String, Object> prefsInit = const {},
+    ThemeData? theme,
   }) async {
     tester.view.physicalSize = const Size(1200, 6000);
     tester.view.devicePixelRatio = 1;
@@ -83,11 +88,31 @@ void main() {
             (ref) async => const StorageUsage(),
           ),
         ],
-        child: MaterialApp.router(routerConfig: router),
+        child: MaterialApp.router(theme: theme, routerConfig: router),
       ),
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('iOS dark: the scrolled nav bar stays a dark palette fill', (
+    tester,
+  ) async {
+    PlatformUtils.debugIsIOSOverride = true;
+    addTearDown(() => PlatformUtils.debugIsIOSOverride = null);
+    await pump(tester, theme: SeedlingTheme.dark);
+    final bar = tester.widget<CupertinoNavigationBar>(
+      find.byType(CupertinoNavigationBar),
+    );
+    final color = bar.backgroundColor!;
+    // Was CupertinoColors.systemGroupedBackground.withValues(alpha: 0.9),
+    // which keeps only the light grey.
+    expect(color.computeLuminance(), lessThan(0.05));
+    expect(color.a, lessThan(1.0), reason: 'translucent');
+    expect(
+      color.withValues(alpha: 1),
+      SeedlingPalette.dark.background.withValues(alpha: 1),
+    );
+  });
 
   testWidgets('settings is five short groups in sentence case', (tester) async {
     await pump(tester);

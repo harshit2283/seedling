@@ -9,6 +9,7 @@ import 'widgets/memories_section.dart';
 import 'widgets/privacy_section.dart';
 import 'widgets/prompts_section.dart';
 import 'widgets/your_tree_section.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// Settings, in five short groups: Your tree, Gentle nudges, Privacy & sync,
 /// Your memories, About. Anything with more than a couple of options (sync,
@@ -31,10 +32,10 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (PlatformUtils.isIOS) {
       return CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.systemGroupedBackground,
+        backgroundColor: context.groupedBackground,
         navigationBar: CupertinoNavigationBar(
-          backgroundColor: CupertinoColors.systemGroupedBackground.withValues(
-            alpha: 0.9,
+          backgroundColor: context.barBackground(
+            under: context.groupedBackground,
           ),
           border: null,
           middle: const Text('Settings'),

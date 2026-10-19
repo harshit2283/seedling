@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
-import '../../../app/theme/colors.dart';
 import '../../../app/theme/palette.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
@@ -11,6 +10,7 @@ import '../../../core/services/providers.dart';
 import '../../../data/models/entry.dart';
 import '../../capture/presentation/quick_capture_sheet.dart';
 import 'widgets/capsule_card.dart';
+import '../../../app/theme/bar_surfaces.dart';
 
 /// Screen for viewing all memory capsules (locked and unlocked)
 class CapsulesScreen extends ConsumerWidget {
@@ -33,16 +33,12 @@ class CapsulesScreen extends ConsumerWidget {
     List<Entry> capsules,
     bool isDark,
   ) {
-    final backgroundColor = isDark
-        ? SeedlingColors.backgroundDark
-        : CupertinoColors.systemGroupedBackground;
+    final backgroundColor = context.groupedBackground;
 
     return CupertinoPageScaffold(
       backgroundColor: backgroundColor,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: isDark
-            ? SeedlingColors.surfaceDark.withValues(alpha: 0.9)
-            : CupertinoColors.systemGroupedBackground.withValues(alpha: 0.9),
+        backgroundColor: context.barBackground(under: backgroundColor),
         border: null,
         middle: Text(
           'Memory Capsules',
