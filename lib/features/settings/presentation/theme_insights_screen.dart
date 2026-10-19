@@ -9,9 +9,6 @@ import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import '../../../core/services/ai/models/analysis_result.dart';
-import '../../../data/models/entry.dart';
-import '../../review/domain/review_generator.dart';
-import '../../review/presentation/widgets/sentiment_arc.dart';
 
 /// Screen showing insights about theme distribution in memories
 class ThemeInsightsScreen extends ConsumerWidget {
@@ -89,17 +86,9 @@ class ThemeInsightsScreen extends ConsumerWidget {
     // Filter out themes with zero entries
     final activeThemes = sortedThemes.where((e) => e.value > 0).toList();
 
-    final moodEnabled = ref.watch(moodVisualizationEnabledProvider);
-    final allEntries = ref.watch(allEntriesProvider);
-
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Mood Arc (flag-gated)
-        if (moodEnabled) ...[
-          _buildMoodArcCard(context, allEntries),
-          const SizedBox(height: 24),
-        ],
         // Summary card
         _buildSummaryCard(context, stats),
         const SizedBox(height: 24),
@@ -135,125 +124,6 @@ class ThemeInsightsScreen extends ConsumerWidget {
         const SizedBox(height: 40),
       ],
     );
-  }
-
-  Widget _buildMoodArcCard(BuildContext context, List<Entry> entries) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final arcData = _computeMonthlyArc(entries);
-    final entriesWithSentiment = entries
-        .where((e) => e.sentimentScore != null)
-        .toList();
-
-    // Compute all-time average sentiment
-    final avgSentiment = entriesWithSentiment.isEmpty
-        ? 0.0
-        : entriesWithSentiment
-                  .map((e) => e.sentimentScore!)
-                  .reduce((a, b) => a + b) /
-              entriesWithSentiment.length;
-    final sentimentLabel = avgSentiment > 0.25
-        ? 'Generally positive'
-        : avgSentiment < -0.25
-        ? 'Reflective'
-        : 'Balanced';
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color:
-            Theme.of(context).cardTheme.color ??
-            Theme.of(context).colorScheme.surface,
-        borderRadius: SeedlingRadius.card,
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: SeedlingColors.accentVoice.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  PlatformUtils.isIOS
-                      ? CupertinoIcons.waveform
-                      : Icons.show_chart,
-                  color: SeedlingColors.accentVoice,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'How your memories feel',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      sentimentLabel,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.palette.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (entriesWithSentiment.length >= 5) ...[
-            const SizedBox(height: 16),
-            SentimentArc(data: arcData, isDark: isDark, height: 140),
-            const SizedBox(height: 8),
-            Text(
-              '${entriesWithSentiment.length} memories analysed',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
-            ),
-          ] else ...[
-            const SizedBox(height: 12),
-            Text(
-              'Capture ${5 - entriesWithSentiment.length} more memories to see your mood arc.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: context.palette.textSecondary,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Compute a 12-item MonthSentiment list from all-time entries.
-  List<MonthSentiment> _computeMonthlyArc(List<Entry> entries) {
-    // Group by month index (0 = Jan)
-    final grouped = <int, List<double>>{};
-    for (final e in entries) {
-      if (e.sentimentScore == null) continue;
-      final monthIdx = e.createdAt.month - 1;
-      grouped.putIfAbsent(monthIdx, () => []).add(e.sentimentScore!);
-    }
-
-    return List.generate(12, (i) {
-      final scores = grouped[i];
-      if (scores == null || scores.isEmpty) {
-        return MonthSentiment(month: i + 1, averageSentiment: 0, entryCount: 0);
-      }
-      final avg = scores.reduce((a, b) => a + b) / scores.length;
-      return MonthSentiment(
-        month: i + 1,
-        averageSentiment: avg,
-        entryCount: scores.length,
-      );
-    });
   }
 
   Widget _buildEmptyState(BuildContext context) {

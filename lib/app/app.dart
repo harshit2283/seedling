@@ -145,6 +145,8 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       _wasBackgrounded = true;
+      // Write any debounced widget update before the OS suspends us.
+      ref.read(widgetDataServiceProvider).flush();
       // Lock on the way out (not on return) so the app-switcher snapshot
       // already shows the lock screen.
       if (lockEnabled && mounted && !_isLocked) {

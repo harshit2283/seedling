@@ -32,13 +32,13 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final service = _MockWidgetService();
       when(
-        () => service.updateWidgetData(
+        () => service.scheduleUpdate(
           tree: any(named: 'tree'),
           recentEntries: any(named: 'recentEntries'),
           showMemoryPreviews: any(named: 'showMemoryPreviews'),
           calmMode: any(named: 'calmMode'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenReturn(null);
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
@@ -52,13 +52,34 @@ void main() {
       container.read(widgetAutoUpdateProvider);
 
       verify(
-        () => service.updateWidgetData(
+        () => service.scheduleUpdate(
           tree: any(named: 'tree'),
           recentEntries: any(named: 'recentEntries'),
           showMemoryPreviews: any(named: 'showMemoryPreviews'),
           calmMode: true,
         ),
       ).called(1);
+    });
+
+    test('the widget payload carries the calm flag', () {
+      final service = WidgetDataService();
+      expect(
+        service.buildPayload(
+          tree: null,
+          recentEntries: const [],
+          showMemoryPreviews: false,
+          calmMode: true,
+        )['calmMode'],
+        isTrue,
+      );
+      expect(
+        service.buildPayload(
+          tree: null,
+          recentEntries: const [],
+          showMemoryPreviews: false,
+        )['calmMode'],
+        isFalse,
+      );
     });
   });
 

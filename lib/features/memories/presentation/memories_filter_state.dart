@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/entry.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
-import '../../../core/services/search/semantic_search_service.dart';
 
 /// Sort order for entries
 enum SortOrder { newestFirst, oldestFirst }
@@ -189,22 +188,4 @@ final filteredEntriesProvider = Provider<List<Entry>>((ref) {
     }
     return false;
   }).toList();
-});
-
-/// Async provider for semantic search results (queries >= 3 chars).
-/// Returns null when not active, or the search results when ready.
-final semanticSearchResultsProvider = FutureProvider<List<SearchResult>?>((
-  ref,
-) async {
-  final filterState = ref.watch(memoriesFilterProvider);
-  final query = filterState.searchQuery;
-
-  // Only use semantic search for meaningful queries
-  if (query.length < 3) return null;
-
-  final entries = ref.watch(entriesProvider);
-  final searchService = ref.watch(semanticSearchServiceProvider);
-  final nonCapsules = entries.where((e) => !e.isCapsule).toList();
-
-  return searchService.search(query, nonCapsules);
 });

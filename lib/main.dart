@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'app/router.dart';
+import 'core/services/ai/theme_backfill_service.dart';
 import 'core/services/diagnostics_log.dart';
 import 'core/services/error_reporter.dart';
 import 'core/services/export/export_cleanup.dart';
@@ -138,12 +139,31 @@ Future<void> _runApp() async {
 
   // Housekeeping that must never delay the first frame.
   unawaited(_sweepTransientFiles());
+  // Persist themes on entries saved before themes were stored at capture.
+  // Runs once, after startup settles, and classifies off the UI isolate.
+  unawaited(
+    Future<void>.delayed(
+      const Duration(seconds: 3),
+      () => _backfillThemes(database, sharedPreferences),
+    ),
+  );
   unawaited(
     Future<void>.delayed(
       const Duration(seconds: 20),
       () => _sweepOrphanMedia(database, fileStorageService),
     ),
   );
+}
+
+Future<void> _backfillThemes(
+  ObjectBoxDatabase database,
+  SharedPreferences prefs,
+) async {
+  try {
+    await ThemeBackfillService(database, prefs).run();
+  } catch (e, stack) {
+    const ErrorReporter().report(e, stack: stack, context: 'ThemeBackfill');
+  }
 }
 
 /// Deletes media files no entry (live or in the 30-day trash) references,

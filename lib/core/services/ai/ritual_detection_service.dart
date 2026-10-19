@@ -4,6 +4,9 @@ import 'stop_words.dart';
 
 /// Detects recurring memory patterns that may represent rituals.
 class RitualDetectionService {
+  static final RegExp _nonWord = RegExp(r'[^\w\s]');
+  static final RegExp _whitespace = RegExp(r'\s+');
+
   static const _minimumOccurrences = 3;
   static const _minimumSpanDays = 14;
 
@@ -67,8 +70,8 @@ class RitualDetectionService {
     final tokens =
         content
             .toLowerCase()
-            .replaceAll(RegExp(r'[^\w\s]'), ' ')
-            .split(RegExp(r'\s+'))
+            .replaceAll(_nonWord, ' ')
+            .split(_whitespace)
             .where((word) => word.length >= 3)
             .where((word) => !_stopWords.contains(word))
             .toSet()

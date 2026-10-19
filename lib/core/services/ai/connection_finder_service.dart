@@ -17,6 +17,34 @@ class ConnectionFinderService {
   /// Days within which temporal proximity bonus applies
   static const int _temporalWindowDays = 7;
 
+  static final RegExp _nonWord = RegExp(r'[^\w\s]');
+  static final RegExp _whitespace = RegExp(r'\s+');
+
+  /// Token sets per entry id, tagged with the content they came from. A
+  /// stale entry (edited text) misses because its content no longer matches,
+  /// so edits invalidate themselves without explicit bookkeeping.
+  final Map<int, _TokenSets> _tokenCache = {};
+
+  /// Drop all cached token sets (tests, memory pressure).
+  void clearTokenCache() => _tokenCache.clear();
+
+  /// Forget one entry's tokens, e.g. after it is deleted.
+  void evictTokens(int entryId) => _tokenCache.remove(entryId);
+
+  _TokenSets _tokensFor(Entry entry) {
+    final content = entry.searchableContent;
+    final cached = _tokenCache[entry.id];
+    if (cached != null &&
+        (identical(cached.content, content) || cached.content == content)) {
+      return cached;
+    }
+    final words = _tokenize(content);
+    final sets = _TokenSets(content, words, _removeStopWords(words));
+    // Unsaved entries (id 0) share a key, so never cache them.
+    if (entry.id != 0) _tokenCache[entry.id] = sets;
+    return sets;
+  }
+
   /// Find connections for a specific entry
   ///
   /// Returns a list of related entries sorted by similarity score.
@@ -26,8 +54,9 @@ class ConnectionFinderService {
     final connections = <MemoryConnection>[];
 
     // Pre-calculate tokens for the source entry to avoid re-tokenizing in the loop
-    final sourceWords = _tokenize(entry.searchableContent);
-    final sourceFiltered = _removeStopWords(sourceWords);
+    final source = _tokensFor(entry);
+    final sourceWords = source.words;
+    final sourceFiltered = source.filtered;
 
     for (final candidate in allEntries) {
       // Skip self and deleted entries
@@ -90,14 +119,15 @@ class ConnectionFinderService {
     Set<String>? precalculatedWordsA,
     Set<String>? precalculatedFilteredA,
   }) {
-    final wordsA = precalculatedWordsA ?? _tokenize(a.searchableContent);
-    final wordsB = _tokenize(b.searchableContent);
+    final tokensB = _tokensFor(b);
+    final wordsA = precalculatedWordsA ?? _tokensFor(a).words;
+    final wordsB = tokensB.words;
 
     if (wordsA.isEmpty || wordsB.isEmpty) return 0.0;
 
     // Remove common stop words for better signal
-    final filteredA = precalculatedFilteredA ?? _removeStopWords(wordsA);
-    final filteredB = _removeStopWords(wordsB);
+    final filteredA = precalculatedFilteredA ?? _tokensFor(a).filtered;
+    final filteredB = tokensB.filtered;
 
     if (filteredA.isEmpty || filteredB.isEmpty) {
       // Fall back to unfiltered if stop word removal empties the sets
@@ -169,8 +199,8 @@ class ConnectionFinderService {
   Set<String> _tokenize(String content) {
     return content
         .toLowerCase()
-        .replaceAll(RegExp(r'[^\w\s]'), ' ')
-        .split(RegExp(r'\s+'))
+        .replaceAll(_nonWord, ' ')
+        .split(_whitespace)
         .where((word) => word.length > 2)
         .toSet();
   }
@@ -190,4 +220,12 @@ class ConnectionFinderService {
     final factors = _calculateConnectionFactors(a, b);
     return factors.total;
   }
+}
+
+class _TokenSets {
+  const _TokenSets(this.content, this.words, this.filtered);
+
+  final String content;
+  final Set<String> words;
+  final Set<String> filtered;
 }

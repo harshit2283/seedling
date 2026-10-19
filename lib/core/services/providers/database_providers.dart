@@ -106,12 +106,6 @@ final hasMorePagedEntriesProvider = Provider<bool>((ref) {
   return loadedCount < totalCount;
 });
 
-/// Provider for recent entries (limited)
-final recentEntriesProvider = Provider<List<Entry>>((ref) {
-  final entries = ref.watch(entriesProvider);
-  return entries.take(5).toList();
-});
-
 /// Scope used for home screen memory previews.
 enum HomeFeedScope { currentYear, allYears }
 
@@ -138,23 +132,6 @@ final homeFeedScopeProvider =
     NotifierProvider<HomeFeedScopeNotifier, HomeFeedScope>(
       HomeFeedScopeNotifier.new,
     );
-
-/// Provider for home screen entries based on selected feed scope.
-final homeEntriesProvider = Provider<List<Entry>>((ref) {
-  final scope = ref.watch(homeFeedScopeProvider);
-  final db = ref.watch(databaseProvider);
-  // Watch the appropriate stream based on scope.
-  if (scope == HomeFeedScope.allYears) {
-    ref.watch(allEntriesStreamProvider);
-  } else {
-    ref.watch(entriesStreamProvider);
-  }
-  return db.getEntriesPage(
-    limit: 200,
-    offset: 0,
-    year: scope == HomeFeedScope.allYears ? null : DateTime.now().year,
-  );
-});
 
 /// Provider for home screen recent entries (limited).
 final homeRecentEntriesProvider = Provider<List<Entry>>((ref) {
@@ -281,32 +258,12 @@ final capsulesProvider = Provider<List<Entry>>((ref) {
   return db.getAllCapsules();
 });
 
-/// Provider for locked capsules only
-final lockedCapsulesProvider = Provider<List<Entry>>((ref) {
-  final capsules = ref.watch(capsulesProvider);
-  return capsules.where((c) => c.isLocked).toList();
-});
-
-/// Provider for unlocked capsules only
-final unlockedCapsulesProvider = Provider<List<Entry>>((ref) {
-  final capsules = ref.watch(capsulesProvider);
-  return capsules.where((c) => c.isUnlocked).toList();
-});
-
 /// Provider for "On This Day" entries from previous years matching today's month/day
 final onThisDayProvider = Provider<List<Entry>>((ref) {
   final db = ref.watch(databaseProvider);
   // Watch all entries so we re-evaluate when data changes
   ref.watch(allEntriesStreamProvider);
   return db.getEntriesOnThisDay();
-});
-
-/// Provider for capsules that unlock today
-final capsulesToUnlockTodayProvider = Provider<List<Entry>>((ref) {
-  final db = ref.watch(databaseProvider);
-  // Cross-year data, so watch all entries
-  ref.watch(allEntriesStreamProvider);
-  return db.getCapsulesToUnlockToday();
 });
 
 /// Notifier for database maintenance operations.
@@ -329,13 +286,20 @@ final databaseMaintenanceProvider =
 
 /// Provider that reactively resolves linked entries for a given entry.
 /// Watches the entries stream so it updates when linked entries change.
-final linkedEntriesProvider = Provider.family<List<Entry>, List<String>>((
+///
+/// Keyed by the entry's raw `manualLinkIds` string: a `List` key compares by
+/// identity, so a fresh list per build would mint a new provider every frame.
+final linkedEntriesProvider = Provider.autoDispose.family<List<Entry>, String>((
   ref,
-  syncUUIDs,
+  manualLinkIds,
 ) {
   final db = ref.watch(databaseProvider);
   // Re-evaluate when entries change (linked entries may span years)
   ref.watch(allEntriesStreamProvider);
+  final syncUUIDs = manualLinkIds
+      .split(',')
+      .where((s) => s.isNotEmpty)
+      .toList();
   if (syncUUIDs.isEmpty) return [];
   return db.getEntriesBySyncUUIDs(syncUUIDs);
 });

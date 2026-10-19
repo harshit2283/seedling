@@ -194,7 +194,11 @@ final widgetDataServiceProvider = Provider<WidgetDataService>((ref) {
   );
 });
 
-/// Provider that automatically updates widgets when tree or entries change
+/// Provider that automatically updates widgets when tree or entries change.
+///
+/// Debounced (~1s) and deduplicated in [WidgetDataService.scheduleUpdate]:
+/// an import or sync merge emits entries many times, and each update is
+/// eight platform-channel writes plus a widget reload.
 final widgetAutoUpdateProvider = Provider<void>((ref) {
   final tree = ref.watch(currentTreeProvider);
   final entries = ref.watch(entriesProvider);
@@ -202,14 +206,11 @@ final widgetAutoUpdateProvider = Provider<void>((ref) {
   final showMemoryPreviews = ref.watch(effectiveWidgetMemoryPreviewsProvider);
   final calmMode = ref.watch(calmModeProvider);
 
-  // Update widget data whenever tree or entries change
-  unawaited(
-    widgetService.updateWidgetData(
-      tree: tree,
-      recentEntries: entries.take(3).toList(),
-      showMemoryPreviews: showMemoryPreviews,
-      calmMode: calmMode,
-    ),
+  widgetService.scheduleUpdate(
+    tree: tree,
+    recentEntries: entries.take(3).toList(),
+    showMemoryPreviews: showMemoryPreviews,
+    calmMode: calmMode,
   );
 });
 
@@ -254,35 +255,10 @@ final storageUsageProvider = FutureProvider<StorageUsage>((ref) async {
 // Feature Flag Providers
 // ============================================================================
 
-final moodVisualizationEnabledProvider =
-    NotifierProvider<_MoodVisualizationFlagNotifier, bool>(
-      _MoodVisualizationFlagNotifier.new,
-    );
-
 final collageViewEnabledProvider =
     NotifierProvider<_CollageViewFlagNotifier, bool>(
       _CollageViewFlagNotifier.new,
     );
-
-class _MoodVisualizationFlagNotifier extends Notifier<bool> {
-  @override
-  bool build() {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    return prefs.getBool(PrefsKeys.flagMoodVisualization) ?? false;
-  }
-
-  Future<void> toggle() async {
-    state = !state;
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setBool(PrefsKeys.flagMoodVisualization, state);
-  }
-
-  Future<void> set(bool value) async {
-    state = value;
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setBool(PrefsKeys.flagMoodVisualization, value);
-  }
-}
 
 class _CollageViewFlagNotifier extends Notifier<bool> {
   @override

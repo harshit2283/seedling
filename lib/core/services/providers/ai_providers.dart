@@ -5,14 +5,10 @@ import '../../../features/tree/domain/tree_personality.dart';
 import '../ai/theme_detector_service.dart';
 import '../ai/connection_finder_service.dart';
 import '../ai/ritual_detection_service.dart';
-import '../ai/suggestion_engine.dart';
-import '../ai/ml_text_analyzer.dart';
 import '../ai/models/memory_connection.dart';
 import '../ai/models/memory_theme.dart';
 import '../ai/models/ritual_candidate.dart';
-import '../ai/models/smart_suggestion.dart';
 import '../ai/models/analysis_result.dart';
-import '../search/semantic_search_service.dart';
 import '../transcription/speech_transcription_service.dart';
 import '../ritual/ritual_service.dart';
 import '../../../features/review/domain/review_generator.dart';
@@ -21,11 +17,6 @@ import 'database_providers.dart';
 // ============================================================================
 // AI Services Providers (Phase 4)
 // ============================================================================
-
-/// Provider for the ML text analyzer (CoreML on iOS, ML Kit on Android)
-final mlTextAnalyzerProvider = Provider<MLTextAnalyzer>((ref) {
-  return HybridMLTextAnalyzer();
-});
 
 /// Provider for the theme detector service
 final themeDetectorProvider = Provider<ThemeDetectorService>((ref) {
@@ -37,12 +28,6 @@ final connectionFinderProvider = Provider<ConnectionFinderService>((ref) {
   return ConnectionFinderService();
 });
 
-/// Provider for the suggestion engine
-final suggestionEngineProvider = Provider<SuggestionEngine>((ref) {
-  final themeDetector = ref.watch(themeDetectorProvider);
-  return SuggestionEngine(themeDetector: themeDetector);
-});
-
 /// Provider for the ritual detection service.
 final ritualDetectionServiceProvider = Provider<RitualDetectionService>((ref) {
   return RitualDetectionService();
@@ -50,22 +35,25 @@ final ritualDetectionServiceProvider = Provider<RitualDetectionService>((ref) {
 
 /// Provider for finding connections for a specific entry.
 ///
+/// Auto-disposed: one instance per visited entry would otherwise live for the
+/// whole session. Token sets survive in the ConnectionFinderService cache
+/// (keyed by entry id, invalidated when the text changes), so revisits and
+/// neighbouring entries skip re-tokenising the collection.
+///
 /// Uses ref.read (not ref.watch) for the entries list intentionally:
 /// connection finding is expensive and should only compute once per entry
 /// detail screen visit, not re-run whenever ANY entry in the list changes.
-final entryConnectionsProvider = Provider.family<List<MemoryConnection>, int>((
-  ref,
-  entryId,
-) {
-  // Read entries once instead of watching — avoids re-computing connections
-  // every time the entries list changes (e.g. when a new entry is created).
-  final entries = ref.read(entriesProvider);
-  final entry = entries.where((e) => e.id == entryId).firstOrNull;
-  if (entry == null) return [];
+final entryConnectionsProvider = Provider.autoDispose
+    .family<List<MemoryConnection>, int>((ref, entryId) {
+      // Read entries once instead of watching — avoids re-computing connections
+      // every time the entries list changes (e.g. when a new entry is created).
+      final entries = ref.read(entriesProvider);
+      final entry = entries.where((e) => e.id == entryId).firstOrNull;
+      if (entry == null) return [];
 
-  final connectionFinder = ref.watch(connectionFinderProvider);
-  return connectionFinder.findConnections(entry, entries);
-});
+      final connectionFinder = ref.watch(connectionFinderProvider);
+      return connectionFinder.findConnections(entry, entries);
+    });
 
 /// Provider for theme distribution across all entries
 final themeDistributionProvider = Provider<Map<MemoryTheme, int>>((ref) {
@@ -87,15 +75,13 @@ final underrepresentedThemesProvider = Provider<List<MemoryTheme>>((ref) {
   return themeDetector.getUnderrepresentedThemes(distribution);
 });
 
-/// Provider for smart suggestion (uses suggestion engine)
-final smartSuggestionProvider = Provider<SmartSuggestion?>((ref) {
-  final entries = ref.watch(entriesProvider);
-  final suggestionEngine = ref.watch(suggestionEngineProvider);
-  return suggestionEngine.getNextSuggestion(entries);
-});
-
-/// Provider for recurring ritual candidates in recent entries.
-final ritualCandidatesProvider = Provider<List<RitualCandidate>>((ref) {
+/// Recurring patterns that *could* become rituals. Suggestions only: nothing
+/// here is persisted or scheduled until the user confirms a candidate
+/// (RitualService.createFromCandidate). Auto-disposed so detection does not
+/// keep re-running over every entry after the patterns sheet closes.
+final ritualCandidatesProvider = Provider.autoDispose<List<RitualCandidate>>((
+  ref,
+) {
   final entries = ref.watch(allEntriesProvider);
   final detector = ref.watch(ritualDetectionServiceProvider);
   return detector.detectCandidates(entries);
@@ -131,21 +117,11 @@ final collectionStatsProvider = Provider<MemoryCollectionStats>((ref) {
     return MemoryCollectionStats(
       totalEntries: 0,
       themeDistribution: {},
-      averageSentiment: 0.0,
       dominantTheme: null,
       underrepresentedThemes: [],
       entriesPerWeek: 0.0,
     );
   }
-
-  // Calculate average sentiment
-  final entriesWithSentiment = entries.where((e) => e.sentimentScore != null);
-  final avgSentiment = entriesWithSentiment.isEmpty
-      ? 0.0
-      : entriesWithSentiment
-                .map((e) => e.sentimentScore!)
-                .reduce((a, b) => a + b) /
-            entriesWithSentiment.length;
 
   // Find dominant theme
   MemoryTheme? dominant;
@@ -169,7 +145,6 @@ final collectionStatsProvider = Provider<MemoryCollectionStats>((ref) {
   return MemoryCollectionStats(
     totalEntries: entries.length,
     themeDistribution: distribution,
-    averageSentiment: avgSentiment,
     dominantTheme: dominant,
     underrepresentedThemes: underrepresented,
     entriesPerWeek: entriesPerWeek,
@@ -188,18 +163,6 @@ final speechTranscriptionServiceProvider = Provider<SpeechTranscriptionService>(
 );
 
 // ============================================================================
-// Semantic Search Providers (Phase 5)
-// ============================================================================
-
-/// Provider for the semantic search service
-final semanticSearchServiceProvider = Provider<SemanticSearchService>((ref) {
-  return SemanticSearchService(
-    mlAnalyzer: ref.watch(mlTextAnalyzerProvider),
-    themeDetector: ref.watch(themeDetectorProvider),
-  );
-});
-
-// ============================================================================
 // Ritual Providers
 // ============================================================================
 
@@ -214,24 +177,16 @@ final ritualsStreamProvider = StreamProvider<List<Ritual>>((ref) {
   return db.watchRituals();
 });
 
-final activeRitualsProvider = Provider<List<Ritual>>((ref) {
-  final rituals = ref.watch(ritualsStreamProvider).value ?? [];
-  return rituals
-      .where((r) => r.statusIndex == RitualStatus.active.index)
-      .toList();
-});
-
-final dueRitualsProvider = Provider<List<Ritual>>((ref) {
-  final active = ref.watch(activeRitualsProvider);
-  return active.where((r) => r.isDue).toList();
-});
-
 // ============================================================================
 // Year-in-Review Providers (Phase 5)
 // ============================================================================
 
-/// Provider for year review data, keyed by year
-final reviewDataProvider = Provider.family<YearReviewData?, int>((ref, year) {
+/// Provider for year review data, keyed by year. Auto-disposed so a year's
+/// entries are released once the review screen closes.
+final reviewDataProvider = Provider.autoDispose.family<YearReviewData?, int>((
+  ref,
+  year,
+) {
   final db = ref.watch(databaseProvider);
   // Watch all-years stream since review can be for any year
   ref.watch(allEntriesStreamProvider);
