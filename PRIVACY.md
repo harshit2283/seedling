@@ -43,19 +43,16 @@ it never has any.
 
 ## On-device processing
 
-- **Themes, connections, and suggestions** use keyword matching and the
-  platform's on-device language tools (Apple NaturalLanguage on iOS, Google
-  ML Kit on Android). Your text is not sent anywhere for analysis.
+- **Themes and related memories** are computed by Seedling's own code on
+  your device (a weighted word list and text similarity over your own
+  memories). No platform ML service or model download is involved, and your
+  text is not sent anywhere for analysis. Seedling does not score how your
+  memories feel.
 - **Voice transcription (iOS only)** uses Apple's speech recognizer with
   on-device recognition required. If your device or language can't
   transcribe on-device, Seedling simply doesn't transcribe; it never falls
   back to a server. Transcription is not offered on Android, because the
   Android system recognizer may send audio to a cloud service.
-
-> **Note for Android:** the first time it runs, Google ML Kit downloads its
-> language model from Google's servers. No memory content is included in
-> that download request, but it is a network connection to Google that
-> happens without a separate prompt. See "Known limitations" below.
 
 ## Optional cloud sync
 
@@ -152,8 +149,6 @@ Being honest about where the code doesn't yet match the ideal:
    id) is not encrypted, and encrypted media sizes are visible to the
    storage provider.
 2. Media files over 50 MB are not synced.
-3. On Android, ML Kit may contact Google to download its language model
-   on first launch, before any opt-in.
 
 These are tracked as open work.
 

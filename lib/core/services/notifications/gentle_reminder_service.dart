@@ -8,7 +8,6 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../constants/prefs_keys.dart';
 
 import '../../../data/models/entry.dart';
-import '../../../data/models/ritual.dart';
 
 enum ReminderCadence { daily, weekly, biweekly, triweekly, fourWeeks }
 
@@ -294,73 +293,6 @@ class GentleReminderService {
       );
     }
     return candidate;
-  }
-
-  /// Lock-screen-safe ritual notification copy. Ritual names are often
-  /// lifted from memory text, so they never appear in a notification.
-  static const String ritualNotificationTitle = 'A ritual moment';
-  static const String ritualNotificationBody =
-      'You usually capture something around now.';
-
-  /// Schedule reminders for rituals the user confirmed and keeps active.
-  /// Detected patterns are only ever suggestions: an unsaved candidate
-  /// (id 0) or a paused/archived ritual never gets a notification.
-  Future<void> scheduleRitualReminders(List<Ritual> dueRituals) async {
-    final confirmed = dueRituals
-        .where((r) => r.id != 0 && r.status == RitualStatus.active)
-        .toList();
-    if (confirmed.isEmpty) return;
-    await init();
-
-    // Global anti-nag: skip if any notification fired in the last 24 hours.
-    final lastMs = _prefs.getInt(PrefsKeys.ritualLastNotificationMs);
-    if (lastMs != null) {
-      final lastSent = DateTime.fromMillisecondsSinceEpoch(lastMs);
-      if (DateTime.now().difference(lastSent).inHours < 24) return;
-    }
-
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'seedling_ritual_reminders',
-        'Ritual reminders',
-        channelDescription: 'Reminders for your recurring ritual moments',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-        // On a secure lock screen Android shows only "Contents hidden".
-        visibility: NotificationVisibility.private,
-      ),
-      iOS: DarwinNotificationDetails(
-        interruptionLevel: InterruptionLevel.passive,
-      ),
-    );
-
-    int scheduled = 0;
-    for (final ritual in confirmed) {
-      final notificationId = 7100 + ritual.id;
-      final scheduledTime = tz.TZDateTime.from(
-        DateTime.now().add(const Duration(seconds: 30)),
-        tz.local,
-      );
-
-      await _plugin.zonedSchedule(
-        notificationId,
-        ritualNotificationTitle,
-        ritualNotificationBody,
-        scheduledTime,
-        details,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
-      scheduled++;
-    }
-
-    if (scheduled > 0) {
-      await _prefs.setInt(
-        PrefsKeys.ritualLastNotificationMs,
-        DateTime.now().millisecondsSinceEpoch,
-      );
-    }
   }
 
   static DateTime? computeNextReminderDate({

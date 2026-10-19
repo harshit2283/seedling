@@ -8,11 +8,15 @@ no prebuilt closed binaries. Seedling's own code is MIT and has no
 analytics, ads, or tracking, which is the hard part done. The blockers are
 third-party dependencies.
 
+ML Kit is no longer a dependency: theme detection and related memories are
+pure Dart (`lib/core/services/ai/`), and the unused `MLTextAnalyzerPlugin`
+(with its `com.google.mlkit` and coroutines Gradle dependencies) was removed.
+The app no longer downloads a Google language model at startup.
+
 ## Dependency audit (Android)
 
 | Dependency | Used for | F-Droid status | Notes |
 | --- | --- | --- | --- |
-| `com.google.mlkit:entity-extraction`, `language-id` (`android/app/build.gradle.kts`) | Theme detection in `MLTextAnalyzerPlugin.kt` | **Blocker**: proprietary, pulls Play services; downloads its model from Google at startup | Dart side already falls back to keyword detection when the channel reports unavailable |
 | `google_sign_in` (pulls `play-services-auth`, `credentials-play-services-auth`) | Google Drive sync sign-in | **Blocker**: proprietary GMS | Only imported by `lib/core/services/sync/google_drive_sync_service.dart` |
 | `googleapis`, `extension_google_sign_in_as_googleapis_auth` | Drive REST calls | Pure Dart and open source, but useless without sign-in | Remove alongside `google_sign_in` |
 | `objectbox` / `objectbox_flutter_libs` | The local database | **Likely blocker**: the Dart bindings are open source, but the native core library ships as a prebuilt binary that, to our knowledge, is not open source | Confirm current licensing with ObjectBox and F-Droid before planning around it |
@@ -40,13 +44,7 @@ of its own.
 
 1. **Gradle flavors.** In `android/app/build.gradle.kts` add
    `flavorDimensions += "distribution"` with `play` and `foss`.
-   Move the ML Kit lines to `"playImplementation"(...)`.
-2. **Split the ML plugin.** Move `MLTextAnalyzerPlugin.kt` to
-   `android/app/src/play/kotlin/...` and add a stub with the same class name in
-   `src/foss/kotlin/...` whose `isAvailable` returns `false`. The Dart
-   `HybridMLTextAnalyzer` already falls back to keyword-based detection, so
-   themes keep working.
-3. **Drop Google Drive from the Dart build.** Flutter flavors don't remove
+2. **Drop Google Drive from the Dart build.** Flutter flavors don't remove
    pub dependencies, so:
    - Put a tiny `SyncBackend` factory in front of `GoogleDriveSyncService`
      and hide the Drive option when
@@ -60,7 +58,7 @@ of its own.
    - Android then has no cloud sync in the `foss` build; local export and
      encrypted backup still work. A future WebDAV or Syncthing-friendly
      folder sync could fill the gap without proprietary code.
-4. **Storage.** Resolve ObjectBox first; it decides whether F-Droid is
+3. **Storage.** Resolve ObjectBox first; it decides whether F-Droid is
    possible at all:
    - If the native core is acceptable to F-Droid (or becomes open source),
      nothing changes.
@@ -69,17 +67,15 @@ of its own.
      `foss`, which is a substantial migration, or publishing the `foss` APK
      through **IzzyOnDroid** or GitHub Releases instead. Check IzzyOnDroid's
      current inclusion policy first.
-5. **CI.** Add a `foss` job to `.github/workflows/quality.yml` that builds
+4. **CI.** Add a `foss` job to `.github/workflows/quality.yml` that builds
    the flavor and fails if `com.google.android.gms`, `com.google.mlkit`, or
    `com.google.firebase` show up in `./gradlew :app:dependencies --configuration fossReleaseRuntimeClasspath`.
-6. **Metadata and recipe.** Add `fastlane/metadata/android/en-US/`, then
+5. **Metadata and recipe.** Add `fastlane/metadata/android/en-US/`, then
    submit an `fdroiddata` merge request with a recipe that runs the
    override step and the flavored build.
 
 ## Order of work
 
 1. Ask about ObjectBox licensing (blocks everything else).
-2. Gradle flavors + ML Kit split (small, also removes the startup network
-   call in the `foss` build).
-3. Drive stubs + `SEEDLING_FOSS` gating.
-4. CI guard, metadata, `fdroiddata` submission.
+2. Gradle flavors, Drive stubs + `SEEDLING_FOSS` gating.
+3. CI guard, metadata, `fdroiddata` submission.
