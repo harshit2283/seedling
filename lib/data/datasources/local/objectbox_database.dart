@@ -95,6 +95,7 @@ class ObjectBoxDatabase {
     db._ritualBox = db._store.box<Ritual>();
     db._encryptionService = encryptionService;
     await db._encryptionService.init();
+    db._encryptPlaintextRituals();
 
     // Ensure current year's tree exists
     await db._ensureCurrentYearTree();
@@ -794,14 +795,29 @@ class ObjectBoxDatabase {
 
   // ============ Ritual Operations ============
 
+  // Ritual names are often copied from memory text, and signatures are
+  // derived from it, so both are encrypted at rest like Entry fields.
+  // Rituals written before this was added are plaintext; decryptField passes
+  // plaintext through unchanged and [_encryptPlaintextRituals] upgrades them.
+
   Future<void> saveRitual(Ritual ritual) async {
-    _ritualBox.put(ritual);
+    _encryptRitualFields(ritual);
+    try {
+      ritual.id = _ritualBox.put(ritual);
+    } finally {
+      _decryptRitualFields(ritual);
+    }
   }
 
-  Ritual? getRitual(int id) => _ritualBox.get(id);
+  Ritual? getRitual(int id) {
+    final ritual = _ritualBox.get(id);
+    if (ritual != null) _decryptRitualFields(ritual);
+    return ritual;
+  }
 
   List<Ritual> getAllRituals() {
-    return _ritualBox.getAll()..sort((a, b) => a.name.compareTo(b.name));
+    return _decryptRituals(_ritualBox.getAll())
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   Future<void> deleteRitual(int id) async {
@@ -812,7 +828,49 @@ class ObjectBoxDatabase {
     return _ritualBox
         .query()
         .watch(triggerImmediately: true)
-        .map((q) => q.find());
+        .map((q) => _decryptRituals(q.find()));
+  }
+
+  /// Raw ritual box (stored, encrypted form) for tests.
+  @visibleForTesting
+  Box<Ritual> get ritualBoxForTesting => _ritualBox;
+
+  void _encryptRitualFields(Ritual ritual) {
+    ritual.name = _encryptionService.encryptField(ritual.name) ?? '';
+    ritual.signature = _encryptionService.encryptField(ritual.signature) ?? '';
+  }
+
+  void _decryptRitualFields(Ritual ritual) {
+    String decryptOrPreserve(String value) =>
+        _encryptionService.decryptField(value) ?? value;
+    ritual.name = decryptOrPreserve(ritual.name);
+    ritual.signature = decryptOrPreserve(ritual.signature);
+  }
+
+  List<Ritual> _decryptRituals(List<Ritual> rituals) {
+    for (final ritual in rituals) {
+      _decryptRitualFields(ritual);
+    }
+    return rituals;
+  }
+
+  /// One-time upgrade of rituals stored before at-rest encryption.
+  void _encryptPlaintextRituals() {
+    final plaintext = _ritualBox
+        .getAll()
+        .where(
+          (r) =>
+              (r.name.isNotEmpty &&
+                  !_encryptionService.isEncryptedValue(r.name)) ||
+              (r.signature.isNotEmpty &&
+                  !_encryptionService.isEncryptedValue(r.signature)),
+        )
+        .toList();
+    if (plaintext.isEmpty) return;
+    for (final ritual in plaintext) {
+      _encryptRitualFields(ritual);
+    }
+    _ritualBox.putMany(plaintext);
   }
 
   // ============ Object Collection Operations ============
