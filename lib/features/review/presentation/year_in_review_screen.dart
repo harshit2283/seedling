@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
@@ -21,6 +20,7 @@ import 'widgets/review_photo.dart';
 import 'widgets/season_card.dart';
 import 'widgets/theme_garden.dart';
 import 'widgets/shareable_card.dart';
+import '../../../core/platform/platform_utils.dart';
 
 const _months = [
   '',
@@ -67,7 +67,7 @@ class YearInReviewScreen extends ConsumerWidget {
     // A finished year rests plain; the current one wears today's
     // personality, exactly like the tree on home.
     final personality = finished ? null : ref.watch(treePersonalityProvider);
-    final isIOS = Platform.isIOS;
+    final isIOS = PlatformUtils.isIOS;
 
     final ctx = _ReviewContext(
       year: year,

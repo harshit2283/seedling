@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +7,7 @@ import '../../../../core/services/sync/sync_backend.dart';
 import '../../../../core/services/sync/sync_models.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
 import 'settings_tiles.dart';
+import '../../../../core/platform/platform_utils.dart';
 
 // ---------------------------------------------------------------------------
 // Providers for Google Drive hardening features
@@ -41,7 +41,7 @@ class SyncStatusTile extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (Platform.isIOS)
+        if (PlatformUtils.isIOS)
           SettingsRow(
             icon: CupertinoIcons.cloud,
             title: 'Sync with',
@@ -58,7 +58,9 @@ class SyncStatusTile extends ConsumerWidget {
         ),
         SettingsSwitchRow(
           switchKey: const ValueKey('sync-device-switch'),
-          icon: Platform.isIOS ? CupertinoIcons.arrow_2_circlepath : Icons.sync,
+          icon: PlatformUtils.isIOS
+              ? CupertinoIcons.arrow_2_circlepath
+              : Icons.sync,
           title: 'Sync this device',
           subtitle: isEnabled
               ? _statusLine(ref, syncState)
@@ -72,7 +74,7 @@ class SyncStatusTile extends ConsumerWidget {
             child: SyncQuarantineNotice(),
           ),
         // Android-only hardening UI
-        if (Platform.isAndroid) ...[
+        if (PlatformUtils.isAndroid) ...[
           _buildLockedAccountRow(context, ref, isDark),
           _buildLastErrorRow(context, ref, isDark),
         ],
@@ -182,14 +184,14 @@ class SyncStatusTile extends ConsumerWidget {
     bool isDark,
   ) {
     final providerName =
-        Platform.isIOS && providerType == SyncProviderType.cloudKit
+        PlatformUtils.isIOS && providerType == SyncProviderType.cloudKit
         ? 'iCloud'
         : 'Google Drive';
     final canToggle =
-        providerType == SyncProviderType.googleDrive || !Platform.isIOS;
+        providerType == SyncProviderType.googleDrive || !PlatformUtils.isIOS;
 
     return SettingsRow(
-      icon: Platform.isIOS
+      icon: PlatformUtils.isIOS
           ? CupertinoIcons.person_crop_circle
           : Icons.person_outline,
       title: providerName,
@@ -501,7 +503,7 @@ class SyncQuarantineNotice extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(
-            Platform.isIOS ? CupertinoIcons.info : Icons.info_outline,
+            PlatformUtils.isIOS ? CupertinoIcons.info : Icons.info_outline,
             size: 14,
             color: palette.textMuted,
           ),

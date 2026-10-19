@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +10,7 @@ import '../../../app/theme/typography.dart';
 import '../../../core/models/season.dart';
 import '../../../core/services/providers.dart';
 import '../../tree/presentation/painting/tree_illustration.dart';
+import '../../../core/platform/platform_utils.dart';
 
 /// Data model for a single onboarding panel.
 class _OnboardingPanel {
@@ -384,7 +384,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     final fill = palette.isDark ? palette.card : palette.surface;
     void submit(String _) => _goToPage(_currentPage + 1);
 
-    if (Platform.isIOS) {
+    if (PlatformUtils.isIOS) {
       return CupertinoTextField(
         key: const ValueKey('onboarding-intention'),
         controller: _intentionController,
@@ -466,7 +466,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         constraints: const BoxConstraints(maxWidth: 360, minHeight: 52),
         child: SizedBox(
           width: double.infinity,
-          child: Platform.isIOS
+          child: PlatformUtils.isIOS
               ? CupertinoButton(
                   color: palette.primaryFill,
                   borderRadius: SeedlingRadius.button,
@@ -512,7 +512,7 @@ class _QuietTextButton extends StatelessWidget {
       label,
       style: TextStyle(color: color, fontSize: 15, fontWeight: FontWeight.w500),
     );
-    if (Platform.isIOS) {
+    if (PlatformUtils.isIOS) {
       return CupertinoButton(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         onPressed: onPressed,

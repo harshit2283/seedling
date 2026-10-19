@@ -1,8 +1,10 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:seedling/app/theme/seedling_theme.dart';
+import 'package:seedling/core/platform/platform_utils.dart';
 import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
@@ -150,5 +152,17 @@ void main() {
       expect(find.textContaining('still taking shape'), findsOneWidget);
       expect(find.textContaining('By December'), findsNothing);
     });
+  });
+
+  testWidgets('uses PlatformUtils.isIOS for the iOS navigation bar', (
+    tester,
+  ) async {
+    PlatformUtils.debugIsIOSOverride = true;
+    addTearDown(() => PlatformUtils.debugIsIOSOverride = null);
+    stubEntries([]);
+    await tester.pumpWidget(host());
+    await tester.pump();
+    expect(find.byType(CupertinoNavigationBar), findsOneWidget);
+    expect(find.byType(AppBar), findsNothing);
   });
 }
