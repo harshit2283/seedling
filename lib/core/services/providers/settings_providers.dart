@@ -169,20 +169,21 @@ final widgetDataServiceProvider = Provider<WidgetDataService>((ref) {
   );
 });
 
-/// Provider that automatically updates widgets when tree or entries change
+/// Provider that automatically updates widgets when tree or entries change.
+///
+/// Debounced (~1s) and deduplicated in [WidgetDataService.scheduleUpdate]:
+/// an import or sync merge emits entries many times, and each update is
+/// eight platform-channel writes plus a widget reload.
 final widgetAutoUpdateProvider = Provider<void>((ref) {
   final tree = ref.watch(currentTreeProvider);
   final entries = ref.watch(entriesProvider);
   final widgetService = ref.watch(widgetDataServiceProvider);
   final showMemoryPreviews = ref.watch(effectiveWidgetMemoryPreviewsProvider);
 
-  // Update widget data whenever tree or entries change
-  unawaited(
-    widgetService.updateWidgetData(
-      tree: tree,
-      recentEntries: entries.take(3).toList(),
-      showMemoryPreviews: showMemoryPreviews,
-    ),
+  widgetService.scheduleUpdate(
+    tree: tree,
+    recentEntries: entries.take(3).toList(),
+    showMemoryPreviews: showMemoryPreviews,
   );
 });
 

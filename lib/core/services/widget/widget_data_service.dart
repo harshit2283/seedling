@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:home_widget/home_widget.dart';
 import '../../../data/models/entry.dart';
@@ -9,7 +10,40 @@ import '../../../data/models/tree.dart';
 /// Data is stored in platform-specific shared storage:
 /// - iOS: App Group UserDefaults
 /// - Android: SharedPreferences
+/// Writes widget keys to the platform's shared storage and asks the OS to
+/// redraw. Injectable so the debounce/dedupe logic is testable.
+abstract class WidgetDataWriter {
+  Future<void> save(String key, Object value);
+  Future<void> refresh();
+}
+
+class _HomeWidgetWriter implements WidgetDataWriter {
+  const _HomeWidgetWriter();
+
+  @override
+  Future<void> save(String key, Object value) =>
+      HomeWidget.saveWidgetData(key, value);
+
+  @override
+  Future<void> refresh() async {
+    try {
+      await HomeWidget.updateWidget(
+        iOSName: WidgetDataService._iOSWidgetName,
+        androidName: WidgetDataService._androidWidgetProvider,
+      );
+    } catch (e) {
+      // Widget update may fail if widget not added to home screen
+      // This is expected behavior, not an error
+    }
+  }
+}
+
 class WidgetDataService {
+  WidgetDataService({
+    WidgetDataWriter? writer,
+    this.debounce = const Duration(seconds: 1),
+  }) : _writer = writer ?? const _HomeWidgetWriter();
+
   // Widget identifiers
   static const String _iOSWidgetName = 'SeedlingWidget';
   static const String _androidWidgetProvider =
@@ -18,31 +52,80 @@ class WidgetDataService {
   // App Group for iOS (must match Xcode configuration)
   static const String _iOSAppGroup = 'group.com.seedling.seedling';
 
+  final WidgetDataWriter _writer;
+
+  /// Quiet period before a scheduled update is written. Imports and sync
+  /// merges emit entries many times in a burst; only the last state matters.
+  final Duration debounce;
+
+  Timer? _debounceTimer;
+  void Function()? _pendingWrite;
+
+  /// Last payload written (without the timestamp), to skip no-op writes.
+  String? _lastWrittenSignature;
+
   /// Initialize the widget service
   Future<void> init() async {
     // Set the App Group for iOS
     await HomeWidget.setAppGroupId(_iOSAppGroup);
   }
 
-  /// Update widget data with current tree and recent entries
-  ///
-  /// Call this whenever entries are added/deleted or tree state changes.
+  /// Debounced [updateWidgetData]: coalesces calls within [debounce] and
+  /// writes only the latest state. Use this from reactive listeners.
+  void scheduleUpdate({
+    required Tree? tree,
+    required List<Entry> recentEntries,
+    required bool showMemoryPreviews,
+  }) {
+    // Snapshot now: the payload must reflect this call, not later mutation.
+    final payload = buildPayload(
+      tree: tree,
+      recentEntries: recentEntries,
+      showMemoryPreviews: showMemoryPreviews,
+    );
+    _pendingWrite = () => unawaited(_writeIfChanged(payload));
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(debounce, flush);
+  }
+
+  /// Write a scheduled update immediately (e.g. app going to background).
+  void flush() {
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    final write = _pendingWrite;
+    _pendingWrite = null;
+    write?.call();
+  }
+
+  /// Cancel any scheduled update without writing it.
+  void dispose() {
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    _pendingWrite = null;
+  }
+
+  /// Update widget data with current tree and recent entries right away.
+  /// Skips the platform writes when nothing visible changed.
   Future<void> updateWidgetData({
     required Tree? tree,
     required List<Entry> recentEntries,
     required bool showMemoryPreviews,
-  }) async {
-    // Tree data
-    final treeState = tree?.state.name ?? 'seed';
-    final entryCount = tree?.entryCount ?? 0;
-    final progress = tree?.progressToNextStage ?? 0.0;
-    final stateName = tree?.stateName ?? 'Seed';
-    final stateDescription =
-        tree?.stateDescription ?? 'Every memory starts as a seed';
+  }) {
+    return _writeIfChanged(
+      buildPayload(
+        tree: tree,
+        recentEntries: recentEntries,
+        showMemoryPreviews: showMemoryPreviews,
+      ),
+    );
+  }
 
-    // Tree emoji based on state
-    final treeEmoji = _getTreeEmoji(tree?.state ?? TreeState.seed);
-
+  /// The widget keys for this state (excluding `lastUpdated`).
+  Map<String, Object> buildPayload({
+    required Tree? tree,
+    required List<Entry> recentEntries,
+    required bool showMemoryPreviews,
+  }) {
     // Recent entries (up to 3 for large widget)
     final recentEntriesJson = jsonEncode(
       showMemoryPreviews
@@ -60,23 +143,31 @@ class WidgetDataService {
           : const <Map<String, dynamic>>[],
     );
 
-    // Save all widget data
+    return {
+      'treeState': tree?.state.name ?? 'seed',
+      'treeEmoji': _getTreeEmoji(tree?.state ?? TreeState.seed),
+      'entryCount': tree?.entryCount ?? 0,
+      'progress': tree?.progressToNextStage ?? 0.0,
+      'stateName': tree?.stateName ?? 'Seed',
+      'stateDescription':
+          tree?.stateDescription ?? 'Every memory starts as a seed',
+      'recentEntries': recentEntriesJson,
+    };
+  }
+
+  Future<void> _writeIfChanged(Map<String, Object> payload) async {
+    final signature = jsonEncode(payload);
+    if (signature == _lastWrittenSignature) return;
+    _lastWrittenSignature = signature;
+
     await Future.wait([
-      HomeWidget.saveWidgetData('treeState', treeState),
-      HomeWidget.saveWidgetData('treeEmoji', treeEmoji),
-      HomeWidget.saveWidgetData('entryCount', entryCount),
-      HomeWidget.saveWidgetData('progress', progress),
-      HomeWidget.saveWidgetData('stateName', stateName),
-      HomeWidget.saveWidgetData('stateDescription', stateDescription),
-      HomeWidget.saveWidgetData('recentEntries', recentEntriesJson),
-      HomeWidget.saveWidgetData(
-        'lastUpdated',
-        DateTime.now().toIso8601String(),
-      ),
+      for (final MapEntry(:key, :value) in payload.entries)
+        _writer.save(key, value),
+      _writer.save('lastUpdated', DateTime.now().toIso8601String()),
     ]);
 
     // Trigger widget refresh on both platforms
-    await _updateWidgets();
+    await _writer.refresh();
   }
 
   /// Get tree emoji for current state
@@ -132,20 +223,6 @@ class WidgetDataService {
   String _truncate(String text, int maxLength) {
     if (text.length <= maxLength) return text;
     return '${text.substring(0, maxLength - 1)}…';
-  }
-
-  /// Trigger widget refresh on both platforms
-  Future<void> _updateWidgets() async {
-    try {
-      // iOS: Update all widget configurations
-      await HomeWidget.updateWidget(
-        iOSName: _iOSWidgetName,
-        androidName: _androidWidgetProvider,
-      );
-    } catch (e) {
-      // Widget update may fail if widget not added to home screen
-      // This is expected behavior, not an error
-    }
   }
 
   /// Handle widget tap - returns the URI if a deep link was triggered
