@@ -437,7 +437,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
                 const SizedBox(width: 8),
               ],
               // Type filter chips
-              ...EntryType.values.map(
+              ...filterableEntryTypes.map(
                 (type) => Padding(
                   padding: const EdgeInsets.only(right: 8, top: 2, bottom: 2),
                   child: Center(
