@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../core/models/season.dart';
 import '../../../../core/presentation/seedling_iconography.dart';
 import '../../domain/review_generator.dart';
@@ -32,7 +33,7 @@ class SeasonCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _backgroundColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: SeedlingRadius.card,
         border: Border.all(color: context.palette.divider),
       ),
       child: Column(

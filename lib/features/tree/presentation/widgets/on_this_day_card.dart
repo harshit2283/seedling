@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../core/constants/prefs_keys.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -79,7 +80,7 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
     int index,
   ) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: SeedlingRadius.card,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
         child: Container(
@@ -89,7 +90,7 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
             color: CupertinoColors.systemBackground
                 .resolveFrom(context)
                 .withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: SeedlingRadius.card,
             border: Border.all(
               color: CupertinoColors.separator
                   .resolveFrom(context)

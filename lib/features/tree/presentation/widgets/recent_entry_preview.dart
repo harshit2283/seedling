@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../data/models/entry.dart';
 
 /// Preview card showing a recent memory entry
@@ -22,7 +23,7 @@ class RecentEntryPreview extends StatelessWidget {
           color:
               Theme.of(context).cardTheme.color ??
               Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: SeedlingRadius.card,
           border: Border.all(
             color: Theme.of(context).dividerColor.withValues(alpha: 0.9),
           ),

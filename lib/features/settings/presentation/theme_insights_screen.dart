@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/colors.dart';
 import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/presentation/seedling_iconography.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
@@ -162,7 +163,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
         color:
             Theme.of(context).cardTheme.color ??
             Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: SeedlingRadius.card,
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
@@ -295,7 +296,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
         color:
             Theme.of(context).cardTheme.color ??
             Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: SeedlingRadius.card,
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
@@ -501,7 +502,7 @@ class ThemeInsightsScreen extends ConsumerWidget {
                 ),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: SeedlingRadius.card,
                   border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Row(

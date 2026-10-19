@@ -46,6 +46,15 @@ void main() {
       });
     }
 
+    test('dividerColor is a soft hairline, not derived black/white', () {
+      for (final theme in [SeedlingTheme.light, SeedlingTheme.dark]) {
+        final palette = theme.extension<SeedlingPalette>()!;
+        expect(theme.dividerColor, palette.border);
+        // A hairline should sit close to the surface, well under text contrast.
+        expect(contrastRatio(theme.dividerColor, palette.card), lessThan(2));
+      }
+    });
+
     test('both themes register the palette extension', () {
       expect(SeedlingTheme.light.extension<SeedlingPalette>()!.isDark, false);
       expect(SeedlingTheme.dark.extension<SeedlingPalette>()!.isDark, true);

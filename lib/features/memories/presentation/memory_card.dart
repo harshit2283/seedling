@@ -466,7 +466,12 @@ class MemoryCard extends ConsumerWidget {
   }
 
   Widget _buildMetadataRow(BuildContext context) {
-    return Row(
+    // Wrap, not Row: with larger text sizes the date and badges flow onto a
+    // second line instead of overflowing.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         // Date
         Text(
@@ -475,7 +480,6 @@ class MemoryCard extends ConsumerWidget {
             context,
           ).textTheme.bodySmall?.copyWith(color: context.palette.textSecondary),
         ),
-        const SizedBox(width: 8),
         // Type label
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -493,10 +497,7 @@ class MemoryCard extends ConsumerWidget {
           ),
         ),
         // Theme badge (if entry has a detected theme)
-        if (entry.hasTheme) ...[
-          const SizedBox(width: 6),
-          _buildThemeBadge(context),
-        ],
+        if (entry.hasTheme) _buildThemeBadge(context),
       ],
     );
   }

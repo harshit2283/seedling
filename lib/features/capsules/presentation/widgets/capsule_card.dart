@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/palette.dart';
+import '../../../../app/theme/radius.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../data/models/entry.dart';
 
@@ -43,7 +44,7 @@ class CapsuleCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: SeedlingRadius.card,
           border: Border.all(color: borderColor),
         ),
         child: Column(
@@ -186,7 +187,7 @@ class CapsuleCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: cardColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: SeedlingRadius.card,
             border: Border.all(
               color: accentColor.withValues(alpha: 0.3),
               width: 2,
