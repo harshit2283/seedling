@@ -19,6 +19,7 @@ import '../../../core/widgets/glass/glass_container.dart';
 import '../../../data/models/entry.dart';
 import '../domain/capture_inference.dart';
 import '../domain/capture_intent.dart';
+import 'widgets/release_ceremony.dart';
 import 'widgets/voice_capture_content.dart';
 
 /// What the draft in the capture sheet currently is, inferred from what was
@@ -1219,8 +1220,15 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
     try {
       final creator = ref.read(entryCreatorProvider.notifier);
       final intent = _buildIntent();
+      Entry? saved;
       if (intent != null) {
-        await creator.create(intent);
+        saved = await creator.create(intent);
+      }
+      if (saved != null &&
+          saved.type == EntryType.release &&
+          !saved.isCapsule &&
+          mounted) {
+        _offerReleaseCeremony(saved, creator);
       }
       // Keep the saved file; drop media captured but not kept.
       unawaited(_draftMedia.commit(_mediaPathOf(intent)));
@@ -1255,6 +1263,29 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
         _isSaving = false;
       }
     }
+  }
+
+  /// Once this sheet has closed, plays the letting-go ceremony for a saved
+  /// Release entry and offers to delete it for good.
+  void _offerReleaseCeremony(Entry saved, EntryCreatorNotifier creator) {
+    final navigator = Navigator.of(context);
+    final route = ModalRoute.of(context);
+    if (route == null) return;
+    final entryId = saved.id;
+    final text = saved.text;
+    unawaited(
+      route.popped.then((_) async {
+        if (!navigator.mounted) return;
+        await showReleaseCeremony(
+          navigator,
+          text: text,
+          onLetGo: () async {
+            final removed = await creator.permanentlyDeleteEntry(entryId);
+            if (!removed) throw StateError('Release entry was not deleted');
+          },
+        );
+      }),
+    );
   }
 
   bool _hasDraftContent() {

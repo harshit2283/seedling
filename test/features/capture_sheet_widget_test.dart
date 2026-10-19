@@ -247,6 +247,79 @@ void main() {
       expect(entry.title, 'Sunday pancakes');
     });
 
+    Widget launcher() => buildTestWidget(
+      child: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => const QuickCaptureSheet(),
+          ),
+          child: const Text('open'),
+        ),
+      ),
+    );
+
+    Future<void> saveRelease(WidgetTester tester) async {
+      await tester.pumpWidget(launcher());
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Let go'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('capture-text')),
+        'The grudge I carried all summer',
+      );
+      await tester.pump();
+      await tester.tap(find.text('SAVE MEMORY'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a saved release offers the ceremony; keeping is default', (
+      tester,
+    ) async {
+      await saveRelease(tester);
+
+      expect(find.byType(QuickCaptureSheet), findsNothing);
+      expect(find.text('Keep it in the tree'), findsOneWidget);
+      expect(find.text('Let it go completely'), findsOneWidget);
+
+      await tester.tap(find.text('Keep it in the tree'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Keep it in the tree'), findsNothing);
+      verifyNever(() => mockDb.deleteEntry(any()));
+    });
+
+    testWidgets('letting go completely hard-deletes the entry', (tester) async {
+      final stored = <int, Entry>{};
+      when(() => mockDb.saveEntry(any())).thenAnswer((invocation) async {
+        final entry = invocation.positionalArguments[0] as Entry;
+        entry.id = 41;
+        stored[entry.id] = entry;
+        return entry;
+      });
+      when(
+        () => mockDb.getEntry(any()),
+      ).thenAnswer((inv) => stored[inv.positionalArguments.first as int]);
+      when(() => mockDb.deleteEntry(any())).thenAnswer((inv) async {
+        return stored.remove(inv.positionalArguments.first as int) != null;
+      });
+
+      await saveRelease(tester);
+      await tester.tap(find.text('Let it go completely'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      verify(() => mockDb.deleteEntry(41)).called(1);
+      verifyNever(() => mockDb.softDeleteEntry(any()));
+      expect(stored, isEmpty);
+      // The ceremony closes on its own after a quiet beat.
+      expect(find.text("It's gone."), findsNothing);
+      expect(find.text('Let it go completely'), findsNothing);
+    });
+
     testWidgets('swipe-down saves the draft exactly once', (tester) async {
       await tester.pumpWidget(
         buildTestWidget(
