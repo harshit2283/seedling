@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
@@ -146,12 +147,12 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
+                color: context.palette.mediaScrim,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
-                color: Colors.white,
+                color: context.palette.onMedia,
                 size: 18,
               ),
             ),
@@ -171,7 +172,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: SeedlingColors.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
           const SizedBox(height: 6),
@@ -184,10 +185,10 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
               color: CupertinoColors.placeholderText,
               fontSize: 16,
             ),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
-              color: SeedlingColors.textPrimary,
+              color: context.palette.textPrimary,
             ),
             decoration: BoxDecoration(
               color: Theme.of(context).dividerColor,
@@ -207,7 +208,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
           'What is this object?',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w600,
-            color: SeedlingColors.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
         const SizedBox(height: 6),
@@ -222,7 +223,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
             hintText: 'e.g., Grandma\'s ring',
             hintStyle: Theme.of(
               context,
-            ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
+            ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
             filled: true,
             fillColor: Theme.of(context).dividerColor,
             border: OutlineInputBorder(
@@ -250,7 +251,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: SeedlingColors.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
           const SizedBox(height: 6),
@@ -264,10 +265,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
               color: CupertinoColors.placeholderText,
               fontSize: 16,
             ),
-            style: const TextStyle(
-              fontSize: 16,
-              color: SeedlingColors.textPrimary,
-            ),
+            style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
             decoration: const BoxDecoration(color: Colors.transparent),
             padding: EdgeInsets.zero,
             onChanged: widget.onStoryChanged,
@@ -283,7 +281,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
           'Its story (optional)',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w600,
-            color: SeedlingColors.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
         const SizedBox(height: 6),
@@ -297,7 +295,7 @@ class _ObjectCaptureContentState extends ConsumerState<ObjectCaptureContent> {
             hintText: 'What makes it meaningful?',
             hintStyle: Theme.of(
               context,
-            ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
+            ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
             border: InputBorder.none,
             filled: false,
           ),

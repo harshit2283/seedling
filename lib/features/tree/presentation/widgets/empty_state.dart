@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 
 /// Empty state shown when no memories have been captured yet
@@ -27,20 +27,20 @@ class EmptyState extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: SeedlingColors.paleGreen.withValues(alpha: 0.28),
+              color: context.palette.primaryContainer.withValues(alpha: 0.28),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.spa_outlined,
               size: 32,
-              color: SeedlingColors.leafGreen,
+              color: context.palette.primary,
             ),
           ),
           const SizedBox(height: 14),
           Text(
             'Plant your first memory',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: SeedlingColors.textPrimary,
+              color: context.palette.textPrimary,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -49,7 +49,7 @@ class EmptyState extends StatelessWidget {
           Text(
             'What stayed with you today?\nA moment, a feeling, or a thought.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: SeedlingColors.textSecondary,
+              color: context.palette.textSecondary,
               height: 1.45,
             ),
             textAlign: TextAlign.center,
@@ -61,7 +61,7 @@ class EmptyState extends StatelessWidget {
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Add Memory'),
               style: TextButton.styleFrom(
-                foregroundColor: SeedlingColors.forestGreen,
+                foregroundColor: context.palette.primary,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 10,

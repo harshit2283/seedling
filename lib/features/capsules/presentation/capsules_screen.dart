@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
@@ -45,16 +46,10 @@ class CapsulesScreen extends ConsumerWidget {
         border: null,
         middle: Text(
           'Memory Capsules',
-          style: TextStyle(
-            color: isDark
-                ? SeedlingColors.textPrimaryDark
-                : SeedlingColors.textPrimary,
-          ),
+          style: TextStyle(color: context.palette.textPrimary),
         ),
         leading: CupertinoNavigationBarBackButton(
-          color: isDark
-              ? SeedlingColors.forestGreenDark
-              : SeedlingColors.forestGreen,
+          color: context.palette.primary,
           onPressed: () => context.pop(),
         ),
         trailing: CupertinoButton(
@@ -100,18 +95,10 @@ class CapsulesScreen extends ConsumerWidget {
   }
 
   Widget _buildEmptyState(BuildContext context, bool isDark) {
-    final textPrimary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final textSecondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final textMuted = isDark
-        ? SeedlingColors.textMutedDark
-        : SeedlingColors.textMuted;
-    final accentColor = isDark
-        ? SeedlingColors.paleGreenDark
-        : SeedlingColors.paleGreen;
+    final textPrimary = context.palette.textPrimary;
+    final textSecondary = context.palette.textSecondary;
+    final textMuted = context.palette.textMuted;
+    final accentColor = context.palette.primaryContainer;
 
     return Center(
       child: Padding(
@@ -132,7 +119,7 @@ class CapsulesScreen extends ConsumerWidget {
                       ? CupertinoIcons.archivebox
                       : Icons.inventory_2_outlined,
                   size: 44,
-                  color: SeedlingColors.forestGreen,
+                  color: context.palette.primary,
                 ),
               ),
             ),
@@ -185,15 +172,9 @@ class CapsulesScreen extends ConsumerWidget {
     final lockedCapsules = capsules.where((c) => c.isLocked).toList();
     final unlockedCapsules = capsules.where((c) => c.isUnlocked).toList();
 
-    final textPrimary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
-    final textSecondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final accentColor = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final textPrimary = context.palette.textPrimary;
+    final textSecondary = context.palette.textSecondary;
+    final accentColor = context.palette.primary;
 
     return CustomScrollView(
       slivers: [
@@ -304,9 +285,7 @@ class CapsulesScreen extends ConsumerWidget {
     int count,
     bool isDark,
   ) {
-    final textSecondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
+    final textSecondary = context.palette.textSecondary;
 
     return SliverToBoxAdapter(
       child: Padding(

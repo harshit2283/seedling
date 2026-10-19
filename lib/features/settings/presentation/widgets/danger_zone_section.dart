@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -31,7 +31,7 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.trash,
-              SeedlingColors.error,
+              context.palette.error,
               isDanger: true,
             ),
             title: const Text('Recently Deleted'),
@@ -43,7 +43,7 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.trash_fill,
-              SeedlingColors.error,
+              context.palette.error,
               isDanger: true,
             ),
             title: const Text('Clear All Data'),
@@ -91,7 +91,8 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
   }
 
   void _confirmClearAllData(BuildContext context) {
-    HapticFeedback.heavyImpact();
+    // A warning, not a jolt: the double confirmation carries the weight.
+    HapticFeedback.mediumImpact();
     if (PlatformUtils.isIOS) {
       showCupertinoDialog(
         context: context,
@@ -131,7 +132,7 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
             ),
             TextButton(
               style: TextButton.styleFrom(
-                foregroundColor: SeedlingColors.error,
+                foregroundColor: context.palette.error,
               ),
               onPressed: () {
                 Navigator.pop(context);
@@ -183,7 +184,7 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
             ),
             TextButton(
               style: TextButton.styleFrom(
-                foregroundColor: SeedlingColors.error,
+                foregroundColor: context.palette.error,
               ),
               onPressed: () {
                 Navigator.pop(context);
@@ -218,7 +219,10 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
       showSettingsSuccess(context, 'All data was permanently deleted');
     } catch (e) {
       if (!mounted) return;
-      showSettingsError(context, 'Failed to clear data: $e');
+      showSettingsError(
+        context,
+        "Your memories weren't cleared. Please try again.",
+      );
     } finally {
       if (mounted) {
         setState(() => _isClearingData = false);

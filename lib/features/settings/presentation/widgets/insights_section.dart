@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/ai/models/memory_theme.dart';
 import '../../../../core/services/providers.dart';
@@ -39,7 +40,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.arrow_2_circlepath,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Ritual Patterns'),
             subtitle: const Text('View recurring memory patterns'),
@@ -50,7 +51,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.repeat,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Manage Rituals'),
             subtitle: const Text('View and manage your confirmed rituals'),
@@ -83,7 +84,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
       leading: buildSettingsIconBox(
         context,
         CupertinoIcons.chart_pie,
-        SeedlingColors.forestGreen,
+        context.palette.primary,
       ),
       title: const Text('Theme Insights'),
       subtitle: const Text('See patterns in your memories'),
@@ -106,7 +107,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
       leading: buildSettingsIconBox(
         context,
         Icons.pie_chart_outline,
-        SeedlingColors.forestGreen,
+        context.palette.primary,
       ),
       title: const Text('Theme Insights'),
       subtitle: const Text('See patterns in your memories'),
@@ -114,7 +115,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         turns: _themePreviewExpanded ? 0.25 : 0,
-        child: const Icon(Icons.chevron_right, color: SeedlingColors.textMuted),
+        child: Icon(Icons.chevron_right, color: context.palette.textMuted),
       ),
       onTap: _toggleThemePreview,
     );
@@ -129,7 +130,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
         'Capture a few memories to see theme patterns.',
         style: Theme.of(
           context,
-        ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+        ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
       );
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -159,7 +160,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                     child: Text(
                       'Open full insights',
                       style: TextStyle(
-                        color: SeedlingColors.forestGreen,
+                        color: context.palette.primary,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -169,7 +170,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                     onPressed: () => context.push(AppRoutes.themeInsights),
                     child: Text(
                       'Open full insights',
-                      style: TextStyle(color: SeedlingColors.forestGreen),
+                      style: TextStyle(color: context.palette.primary),
                     ),
                   ),
           ),
@@ -213,7 +214,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                         child: Text(
                           'Confirm',
                           style: TextStyle(
-                            color: SeedlingColors.forestGreen,
+                            color: context.palette.primary,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -226,7 +227,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                         },
                         child: Text(
                           'Confirm',
-                          style: TextStyle(color: SeedlingColors.forestGreen),
+                          style: TextStyle(color: context.palette.primary),
                         ),
                       ),
               );
@@ -291,7 +292,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                           width: 36,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: SeedlingColors.textMuted.withValues(
+                            color: context.palette.textMuted.withValues(
                               alpha: 0.4,
                             ),
                             borderRadius: BorderRadius.circular(2),
@@ -310,7 +311,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                       Text(
                         'Name',
                         style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: SeedlingColors.textSecondary),
+                            ?.copyWith(color: context.palette.textSecondary),
                       ),
                       const SizedBox(height: 6),
                       PlatformUtils.isIOS
@@ -341,7 +342,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                       Text(
                         'Cadence',
                         style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: SeedlingColors.textSecondary),
+                            ?.copyWith(color: context.palette.textSecondary),
                       ),
                       const SizedBox(height: 6),
                       Wrap(
@@ -351,7 +352,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                           return ChoiceChip(
                             label: Text(opt.label),
                             selected: selected,
-                            selectedColor: SeedlingColors.forestGreen
+                            selectedColor: context.palette.primaryFill
                                 .withValues(alpha: 0.2),
                             onSelected: (_) {
                               setSheetState(() => cadenceDays = opt.days);
@@ -364,7 +365,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                       Text(
                         'Reminder time',
                         style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: SeedlingColors.textSecondary),
+                            ?.copyWith(color: context.palette.textSecondary),
                       ),
                       const SizedBox(height: 6),
                       GestureDetector(
@@ -421,7 +422,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                                     ? CupertinoIcons.clock
                                     : Icons.access_time,
                                 size: 18,
-                                color: SeedlingColors.textSecondary,
+                                color: context.palette.textSecondary,
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -446,7 +447,7 @@ class _InsightsSectionState extends ConsumerState<InsightsSection> {
                                 onPressed: () =>
                                     Navigator.of(sheetContext).pop(true),
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: SeedlingColors.forestGreen,
+                                  backgroundColor: context.palette.primaryFill,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
                                   ),
@@ -516,7 +517,7 @@ class _ThemeBarRow extends StatelessWidget {
                 child: Text(
                   theme.displayName,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -524,7 +525,7 @@ class _ThemeBarRow extends StatelessWidget {
               Text(
                 '$percent%',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
               ),
             ],

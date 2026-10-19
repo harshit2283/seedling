@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'colors.dart';
+import 'palette.dart';
+import 'radius.dart';
 import 'typography.dart';
 
 /// Complete Seedling theme - organic, paper-like feel
@@ -11,6 +13,7 @@ class SeedlingTheme {
   static ThemeData get light => ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    extensions: const [SeedlingPalette.light],
 
     // Colors
     colorScheme: ColorScheme.light(
@@ -27,7 +30,13 @@ class SeedlingTheme {
       surfaceContainerHighest: SeedlingColors.softCream,
       error: SeedlingColors.error,
       onError: SeedlingColors.warmWhite,
+      outline: SeedlingColors.lightBark,
+      outlineVariant: SeedlingPalette.light.border,
     ),
+
+    // Hairlines and quiet fills. Without this Material derives dividerColor
+    // from onSurface, which painted pure black/white borders and wells.
+    dividerColor: SeedlingPalette.light.border,
 
     // Scaffold
     scaffoldBackgroundColor: SeedlingColors.creamPaper,
@@ -51,7 +60,7 @@ class SeedlingTheme {
       color: SeedlingColors.warmWhite,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         side: BorderSide(color: SeedlingColors.softCream, width: 1),
       ),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -64,7 +73,7 @@ class SeedlingTheme {
         foregroundColor: SeedlingColors.warmWhite,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
         textStyle: SeedlingTypography.textTheme.labelLarge,
       ),
     ),
@@ -81,7 +90,7 @@ class SeedlingTheme {
         foregroundColor: SeedlingColors.forestGreen,
         side: const BorderSide(color: SeedlingColors.forestGreen),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
         textStyle: SeedlingTypography.textTheme.labelLarge,
       ),
     ),
@@ -100,15 +109,15 @@ class SeedlingTheme {
       fillColor: SeedlingColors.warmWhite,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         borderSide: BorderSide(color: SeedlingColors.softCream),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         borderSide: BorderSide(color: SeedlingColors.softCream),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         borderSide: const BorderSide(color: SeedlingColors.leafGreen, width: 2),
       ),
       hintStyle: SeedlingTypography.textTheme.bodyLarge?.copyWith(
@@ -117,12 +126,10 @@ class SeedlingTheme {
     ),
 
     // Bottom sheet - capture sheet styling
-    bottomSheetTheme: const BottomSheetThemeData(
+    bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: SeedlingColors.warmWhite,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.sheet),
       showDragHandle: true,
       dragHandleColor: SeedlingColors.lightBark,
     ),
@@ -143,7 +150,7 @@ class SeedlingTheme {
     // List tiles
     listTileTheme: ListTileThemeData(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
     ),
 
     // Snackbar
@@ -152,7 +159,7 @@ class SeedlingTheme {
       contentTextStyle: SeedlingTypography.textTheme.bodyMedium?.copyWith(
         color: SeedlingColors.warmWhite,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
       behavior: SnackBarBehavior.floating,
     ),
 
@@ -170,6 +177,7 @@ class SeedlingTheme {
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
+    extensions: const [SeedlingPalette.dark],
 
     // Colors
     colorScheme: ColorScheme.dark(
@@ -186,7 +194,11 @@ class SeedlingTheme {
       surfaceContainerHighest: SeedlingColors.surfaceContainerDark,
       error: SeedlingColors.errorDark,
       onError: SeedlingColors.textPrimaryDark,
+      outline: SeedlingColors.borderDark,
+      outlineVariant: SeedlingColors.dividerDark,
     ),
+
+    dividerColor: SeedlingPalette.dark.border,
 
     // Scaffold
     scaffoldBackgroundColor: SeedlingColors.backgroundDark,
@@ -210,7 +222,7 @@ class SeedlingTheme {
       color: SeedlingColors.cardDark,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         side: BorderSide(color: SeedlingColors.dividerDark, width: 1),
       ),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -219,17 +231,17 @@ class SeedlingTheme {
     // Buttons
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: SeedlingColors.forestGreenDark,
+        backgroundColor: SeedlingPalette.dark.primaryFill,
         foregroundColor: SeedlingColors.textPrimaryDark,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
         textStyle: SeedlingTypography.textThemeDark.labelLarge,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: SeedlingColors.forestGreenDark,
+        foregroundColor: SeedlingColors.leafGreenDark,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         textStyle: SeedlingTypography.textThemeDark.labelLarge,
@@ -237,17 +249,17 @@ class SeedlingTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: SeedlingColors.forestGreenDark,
-        side: const BorderSide(color: SeedlingColors.forestGreenDark),
+        foregroundColor: SeedlingColors.leafGreenDark,
+        side: const BorderSide(color: SeedlingColors.leafGreenDark),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
         textStyle: SeedlingTypography.textThemeDark.labelLarge,
       ),
     ),
 
     // Floating Action Button
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: SeedlingColors.forestGreenDark,
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: SeedlingPalette.dark.primaryFill,
       foregroundColor: SeedlingColors.textPrimaryDark,
       elevation: 2,
       shape: CircleBorder(),
@@ -259,15 +271,15 @@ class SeedlingTheme {
       fillColor: SeedlingColors.surfaceDark,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         borderSide: BorderSide(color: SeedlingColors.borderDark),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         borderSide: BorderSide(color: SeedlingColors.borderDark),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: SeedlingRadius.card,
         borderSide: const BorderSide(
           color: SeedlingColors.leafGreenDark,
           width: 2,
@@ -279,12 +291,10 @@ class SeedlingTheme {
     ),
 
     // Bottom sheet - dark elevated surface
-    bottomSheetTheme: const BottomSheetThemeData(
+    bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: SeedlingColors.surfaceDark,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.sheet),
       showDragHandle: true,
       dragHandleColor: SeedlingColors.textMutedDark,
     ),
@@ -305,7 +315,7 @@ class SeedlingTheme {
     // List tiles
     listTileTheme: ListTileThemeData(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
     ),
 
     // Snackbar
@@ -314,7 +324,7 @@ class SeedlingTheme {
       contentTextStyle: SeedlingTypography.textThemeDark.bodyMedium?.copyWith(
         color: SeedlingColors.textPrimaryDark,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: SeedlingRadius.card),
       behavior: SnackBarBehavior.floating,
     ),
 

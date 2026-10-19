@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
@@ -37,7 +38,7 @@ class DeletedEntriesScreen extends ConsumerWidget {
         border: null,
         middle: const Text('Recently Deleted'),
         leading: CupertinoNavigationBarBackButton(
-          color: SeedlingColors.forestGreen,
+          color: context.palette.primary,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -80,20 +81,20 @@ class DeletedEntriesScreen extends ConsumerWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: SeedlingColors.paleGreen.withValues(alpha: 0.3),
+                color: context.palette.primaryContainer.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 AdaptiveIcons.trash,
                 size: 36,
-                color: SeedlingColors.textMuted,
+                color: context.palette.textMuted,
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'No deleted memories',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
@@ -101,7 +102,7 @@ class DeletedEntriesScreen extends ConsumerWidget {
               'Deleted memories appear here\nand can be recovered for 30 days.',
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
               textAlign: TextAlign.center,
             ),
           ],
@@ -122,14 +123,14 @@ class DeletedEntriesScreen extends ConsumerWidget {
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: SeedlingColors.paleGreen.withValues(alpha: 0.3),
+            color: context.palette.primaryContainer.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
               Icon(
                 AdaptiveIcons.info,
-                color: SeedlingColors.forestGreen,
+                color: context.palette.primary,
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -137,7 +138,7 @@ class DeletedEntriesScreen extends ConsumerWidget {
                 child: Text(
                   'Memories are permanently deleted after 30 days.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
               ),
@@ -208,7 +209,7 @@ class DeletedEntriesScreen extends ConsumerWidget {
                       Text(
                         entry.displayContent,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: SeedlingColors.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -218,8 +219,8 @@ class DeletedEntriesScreen extends ConsumerWidget {
                         '$daysRemaining days remaining',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: daysRemaining <= 7
-                              ? SeedlingColors.error
-                              : SeedlingColors.textMuted,
+                              ? context.palette.error
+                              : context.palette.textMuted,
                         ),
                       ),
                     ],
@@ -242,7 +243,7 @@ class DeletedEntriesScreen extends ConsumerWidget {
                     context,
                     icon: AdaptiveIcons.restore,
                     label: 'Restore',
-                    color: SeedlingColors.forestGreen,
+                    color: context.palette.primary,
                     onTap: () => _restoreEntry(context, ref, entry),
                   ),
                 ),
@@ -256,7 +257,7 @@ class DeletedEntriesScreen extends ConsumerWidget {
                     context,
                     icon: AdaptiveIcons.deleteForever,
                     label: 'Delete Forever',
-                    color: SeedlingColors.error,
+                    color: context.palette.error,
                     onTap: () => _confirmPermanentDelete(context, ref, entry),
                   ),
                 ),
@@ -336,29 +337,8 @@ class DeletedEntriesScreen extends ConsumerWidget {
     }
     if (!context.mounted) return;
 
-    // Show confirmation
-    if (PlatformUtils.isIOS) {
-      showCupertinoDialog(
-        context: context,
-        builder: (dialogContext) => CupertinoAlertDialog(
-          title: const Text('Memory Restored'),
-          content: const Text('Your memory has been restored to your tree.'),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('OK'),
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-          ],
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Memory restored'),
-          backgroundColor: SeedlingColors.forestGreen,
-        ),
-      );
-    }
+    // Gentle confirmation, no modal to dismiss.
+    showSeedlingMessage(context, 'Restored to your tree');
   }
 
   void _confirmPermanentDelete(
@@ -406,7 +386,7 @@ class DeletedEntriesScreen extends ConsumerWidget {
             ),
             TextButton(
               style: TextButton.styleFrom(
-                foregroundColor: SeedlingColors.error,
+                foregroundColor: context.palette.error,
               ),
               child: const Text('Delete Forever'),
               onPressed: () {

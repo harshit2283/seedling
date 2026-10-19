@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/constants/support_links.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
@@ -53,7 +53,7 @@ class SupportScreen extends StatelessWidget {
           border: null,
           middle: const Text(_title),
           leading: CupertinoNavigationBarBackButton(
-            color: SeedlingColors.forestGreen,
+            color: context.palette.primary,
             onPressed: () => Navigator.of(context).maybePop(),
           ),
         ),
@@ -90,15 +90,10 @@ class _SupportBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isIOS = PlatformUtils.isIOS;
     final textTheme = Theme.of(context).textTheme;
-    final secondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final accent = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final secondary = context.palette.textSecondary;
+    final accent = context.palette.primary;
 
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -272,7 +267,6 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final radius = PlatformUtils.isIOS ? 20.0 : 12.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,9 +279,7 @@ class _Card extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: isDark
-                    ? SeedlingColors.textSecondaryDark
-                    : SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
           ),
@@ -295,11 +287,7 @@ class _Card extends StatelessWidget {
         GlassContainer(
           borderRadius: radius,
           opacity: 0.75,
-          border: Border.all(
-            color: isDark
-                ? SeedlingColors.dividerDark
-                : SeedlingColors.softCream,
-          ),
+          border: Border.all(color: context.palette.divider),
           child: Padding(
             padding: padded
                 ? const EdgeInsets.all(16)
@@ -322,7 +310,6 @@ class _Promise extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -333,9 +320,7 @@ class _Promise extends StatelessWidget {
             child: Icon(
               AdaptiveIcons.leaf,
               size: 16,
-              color: isDark
-                  ? SeedlingColors.leafGreenDark
-                  : SeedlingColors.leafGreen,
+              color: context.palette.primary,
             ),
           ),
           const SizedBox(width: 10),
@@ -407,10 +392,7 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final accent = context.palette.primary;
     return Semantics(
       button: true,
       hint: semanticsHint,
@@ -436,9 +418,7 @@ class _ActionRow extends StatelessWidget {
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? SeedlingColors.textMutedDark
-                            : SeedlingColors.textMuted,
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -447,9 +427,7 @@ class _ActionRow extends StatelessWidget {
               Icon(
                 AdaptiveIcons.chevronRight,
                 size: 18,
-                color: isDark
-                    ? SeedlingColors.textMutedDark
-                    : SeedlingColors.textMuted,
+                color: context.palette.textMuted,
               ),
             ],
           ),

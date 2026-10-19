@@ -6,11 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/media/file_storage_service.dart';
 import '../../../../core/services/ai/models/memory_connection.dart';
-import '../../../../core/widgets/glass/glass_container.dart';
 import '../../../../data/models/entry.dart';
 
 /// Section showing memories similar to the current entry
@@ -42,13 +42,13 @@ class SimilarMemoriesSection extends ConsumerWidget {
               Icon(
                 PlatformUtils.isIOS ? CupertinoIcons.link : Icons.link,
                 size: 18,
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
               const SizedBox(width: 8),
               Text(
                 'Related Memories',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -98,35 +98,38 @@ class _RelatedMemoryCard extends StatelessWidget {
           HapticFeedback.selectionClick();
           context.push(AppRoutes.entryRoute(entry.id));
         },
-        child: GlassContainer(
-          borderRadius: 16,
-          opacity: 0.6,
-          child: Container(
-            width: 160,
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Media thumbnail or type icon
-                _buildLeading(entry),
-                const SizedBox(height: 8),
-                // Content preview
-                Expanded(
-                  child: Text(
-                    entry.displayContent,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: SeedlingColors.textPrimary,
-                      height: 1.3,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+        // Solid translucent fill: a per-card BackdropFilter in a horizontal
+        // list re-blurs on every scroll frame.
+        child: Container(
+          width: 160,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: context.palette.card.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.palette.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Media thumbnail or type icon
+              _buildLeading(entry),
+              const SizedBox(height: 8),
+              // Content preview
+              Expanded(
+                child: Text(
+                  entry.displayContent,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.palette.textPrimary,
+                    height: 1.3,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
-                // Connection info
-                _buildConnectionInfo(context),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              // Connection info
+              _buildConnectionInfo(context),
+            ],
           ),
         ),
       ),
@@ -194,7 +197,7 @@ class _RelatedMemoryCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isActive
-                  ? SeedlingColors.forestGreen
+                  ? context.palette.primary
                   : Theme.of(context).dividerColor,
             ),
           );
@@ -204,7 +207,7 @@ class _RelatedMemoryCard extends StatelessWidget {
         Text(
           connection.factors.primaryReason,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: SeedlingColors.textMuted,
+            color: context.palette.textMuted,
             fontSize: 10,
           ),
         ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/media/audio_playback_service.dart';
 import '../../../../core/services/providers.dart';
@@ -126,10 +127,13 @@ class _VoicePlayerState extends ConsumerState<VoicePlayer> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: SeedlingColors.accentVoice,
+                    color: context.palette.accentVoice,
                     shape: BoxShape.circle,
                   ),
-                  child: _buildPlayPauseIcon(size: 24, color: Colors.white),
+                  child: _buildPlayPauseIcon(
+                    size: 24,
+                    color: context.palette.onMedia,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -161,7 +165,7 @@ class _VoicePlayerState extends ConsumerState<VoicePlayer> {
                           _formatDuration(_position),
                           style: TextStyle(
                             fontSize: 12,
-                            color: SeedlingColors.textSecondary,
+                            color: context.palette.textSecondary,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
@@ -169,7 +173,7 @@ class _VoicePlayerState extends ConsumerState<VoicePlayer> {
                           _formatDuration(_totalDuration),
                           style: TextStyle(
                             fontSize: 12,
-                            color: SeedlingColors.textSecondary,
+                            color: context.palette.textSecondary,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),

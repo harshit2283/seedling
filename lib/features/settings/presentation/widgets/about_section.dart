@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../app/router.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/diagnostics_log.dart';
@@ -52,7 +52,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.info,
-              SeedlingColors.textSecondary,
+              context.palette.textSecondary,
               isLight: true,
             ),
             title: const Text('About Seedling'),
@@ -64,7 +64,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.heart,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Support Seedling'),
             additionalInfo: const Text('Free, always'),
@@ -75,7 +75,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.doc_text,
-              SeedlingColors.textSecondary,
+              context.palette.textSecondary,
               isLight: true,
             ),
             title: const Text(shareDiagnosticsTitle),
@@ -193,7 +193,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             children: [
               Icon(
                 AdaptiveIcons.leaf,
-                color: SeedlingColors.forestGreen,
+                color: context.palette.primary,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -208,7 +208,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
                   'Memory-keeping that feels like breathing, not documenting.',
                   style: TextStyle(
                     fontStyle: FontStyle.italic,
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                     fontSize: 14,
                   ),
                 ),
@@ -228,7 +228,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
                   'Version $_appVersion',
                   style: TextStyle(
                     fontSize: 12,
-                    color: SeedlingColors.textMuted,
+                    color: context.palette.textMuted,
                   ),
                 ),
               ],
@@ -250,7 +250,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             children: [
               Icon(
                 AdaptiveIcons.leaf,
-                color: SeedlingColors.forestGreen,
+                color: context.palette.primary,
                 size: 24,
               ),
               const SizedBox(width: 12),
@@ -265,7 +265,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
                 'Memory-keeping that feels like breathing, not documenting.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontStyle: FontStyle.italic,
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
               const SizedBox(height: 20),
@@ -283,7 +283,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
               Text(
                 'Version $_appVersion',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
               ),
             ],

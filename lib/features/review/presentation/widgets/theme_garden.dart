@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/presentation/seedling_iconography.dart';
 import '../../../../core/services/ai/models/memory_theme.dart';
 
@@ -29,11 +30,9 @@ class ThemeGarden extends StatelessWidget {
     if (sorted.isEmpty) {
       return Text(
         'No themes detected yet.',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: isDark
-              ? SeedlingColors.textMutedDark
-              : SeedlingColors.textMuted,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: context.palette.textMuted),
       );
     }
 
@@ -111,9 +110,7 @@ class _ThemeBar extends StatelessWidget {
                   Container(
                     height: 18,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? SeedlingColors.surfaceContainerDark
-                          : SeedlingColors.softCream,
+                      color: context.palette.surfaceMuted,
                       borderRadius: BorderRadius.circular(9),
                     ),
                   ),

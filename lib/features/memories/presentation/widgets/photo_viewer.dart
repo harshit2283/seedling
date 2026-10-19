@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/media/file_storage_service.dart';
 
@@ -236,7 +236,7 @@ class PhotoThumbnail extends StatelessWidget {
               PlatformUtils.isIOS
                   ? CupertinoIcons.photo
                   : Icons.broken_image_outlined,
-              color: SeedlingColors.textMuted,
+              color: context.palette.textMuted,
               size: size * 0.4,
             ),
           );
