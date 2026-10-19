@@ -9,6 +9,7 @@ import '../core/services/share/share_receiver_service.dart';
 import '../features/capture/presentation/quick_capture_sheet.dart';
 import '../features/capture/presentation/shared_content_sheet.dart';
 import 'app_lock_gate.dart';
+import 'app_unlock.dart';
 import 'router.dart';
 import 'theme/cupertino_theme.dart';
 import 'theme/seedling_theme.dart';
@@ -36,6 +37,9 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
   bool _wasBackgrounded = false;
   bool _isUnlocking = false;
   bool? _lastKnownLockEnabled;
+
+  /// A capture link that arrived while locked; opened once unlocked.
+  final _afterUnlock = UnlockDeferredAction();
 
   @override
   void initState() {
@@ -110,12 +114,12 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
   void _handleWidgetUri(Uri uri) {
     // Handle widget deep links
     if (uri.host == 'capture') {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final navContext = appRouter.routerDelegate.navigatorKey.currentContext;
-        if (navContext == null) return;
-        showQuickCaptureSheet(navContext);
-      });
+      // Never open the sheet behind the lock screen (a cold start from the
+      // home widget): wait until the person has unlocked.
+      _afterUnlock.run(
+        locked: _isLocked && ref.read(appLockEnabledProvider),
+        action: _openCaptureFromLink,
+      );
       return;
     }
     if (uri.host == 'today') {
@@ -123,6 +127,15 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
       return;
     }
     // 'home' uri just opens the app, no special handling needed
+  }
+
+  void _openCaptureFromLink() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final navContext = appRouter.routerDelegate.navigatorKey.currentContext;
+      if (navContext == null) return;
+      showQuickCaptureSheet(navContext);
+    });
   }
 
   @override
@@ -179,26 +192,36 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
   Future<void> _unlockApp() async {
     if (_isUnlocking) return;
     setState(() => _isUnlocking = true);
-    final lockService = ref.read(appLockServiceProvider);
-    final canAuth = await lockService.canAuthenticate();
-    if (!canAuth) {
-      if (mounted) {
-        setState(() => _isUnlocking = false);
-      }
-      return;
-    }
-
-    final didUnlock = await lockService.authenticate();
+    final lockEnabledNotifier = ref.read(appLockEnabledProvider.notifier);
+    final outcome = await unlockWithDeviceSecurity(
+      service: ref.read(appLockServiceProvider),
+      // The lock leans on the device's own security. With none left there
+      // is no way to prove it is them, so lift the lock instead of shutting
+      // them out of their memories for good.
+      turnLockOff: () => lockEnabledNotifier.setEnabled(false),
+    );
     if (!mounted) return;
+    final unlocked = outcome != UnlockOutcome.stillLocked;
     setState(() {
       _isUnlocking = false;
-      if (didUnlock) {
-        _isLocked = false;
-      }
+      if (unlocked) _isLocked = false;
     });
     unawaited(
       _applyScreenProtection(lockEnabled: ref.read(appLockEnabledProvider)),
     );
+    if (outcome == UnlockOutcome.lockTurnedOff) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final navContext = appRouter.routerDelegate.navigatorKey.currentContext;
+        if (navContext == null) return;
+        showSeedlingMessage(
+          navContext,
+          lockTurnedOffMessage,
+          duration: const Duration(seconds: 6),
+        );
+      });
+    }
+    if (unlocked) _afterUnlock.unlocked();
   }
 
   Widget _wrapWithAppLock(Widget child) {
@@ -212,6 +235,7 @@ class _SeedlingAppState extends ConsumerState<SeedlingApp>
         if (mounted) {
           setState(() => _isLocked = false);
           unawaited(_applyScreenProtection(lockEnabled: lockEnabled));
+          _afterUnlock.unlocked();
         }
       });
     }

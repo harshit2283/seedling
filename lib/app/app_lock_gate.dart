@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// The app underneath stays mounted so navigation state survives a lock, but
 /// it is kept [Offstage]: not painted, not hit-testable, and — importantly —
 /// absent from the semantics tree, so a screen reader cannot read or activate
-/// memories behind the lock screen.
+/// memories behind the lock screen. It cannot hold focus while locked.
 class AppLockGate extends StatelessWidget {
   const AppLockGate({
     super.key,
@@ -27,7 +27,13 @@ class AppLockGate extends StatelessWidget {
       children: [
         Offstage(
           offstage: locked,
-          child: TickerMode(enabled: !locked, child: child),
+          // Nothing behind the lock may take focus either: a capture sheet
+          // opened underneath would otherwise raise the keyboard (and type
+          // into a hidden field) on top of the lock screen.
+          child: ExcludeFocus(
+            excluding: locked,
+            child: TickerMode(enabled: !locked, child: child),
+          ),
         ),
         if (locked)
           Positioned.fill(

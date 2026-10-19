@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/app/app_lock_gate.dart';
 import 'package:seedling/core/widgets/feedback/seedling_toast.dart';
@@ -46,6 +47,37 @@ void main() {
     expect(find.bySemanticsLabel('a private memory'), findsOneWidget);
     expect(find.text('Seedling is locked'), findsNothing);
     semantics.dispose();
+  });
+
+  testWidgets('nothing behind the lock can take focus or the keyboard', (
+    tester,
+  ) async {
+    // A capture sheet opened behind the lock (cold start from the home
+    // widget) autofocuses its text field.
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    Widget app({required bool locked}) => MaterialApp(
+      home: AppLockGate(
+        locked: locked,
+        isUnlocking: false,
+        onUnlock: () {},
+        child: Scaffold(body: TextField(focusNode: focusNode, autofocus: true)),
+      ),
+    );
+
+    await tester.pumpWidget(app(locked: true));
+    await tester.pump();
+    expect(focusNode.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+
+    focusNode.requestFocus();
+    await tester.pump();
+    expect(focusNode.hasFocus, isFalse);
+
+    await tester.pumpWidget(app(locked: false));
+    focusNode.requestFocus();
+    await tester.pump();
+    expect(focusNode.hasFocus, isTrue);
   });
 
   testWidgets('messages show without a Scaffold (iOS shell)', (tester) async {
