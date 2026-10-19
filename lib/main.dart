@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'core/services/media/file_storage_service.dart';
 import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
 import 'core/services/security/clock_guard_service.dart';
+import 'core/services/storage/media_orphan_sweeper.dart';
 import 'core/services/share/share_receiver_service.dart';
 import 'core/services/widget/widget_data_service.dart';
 import 'data/datasources/local/objectbox_database.dart';
@@ -109,6 +111,34 @@ Future<void> _runApp() async {
 
   // Housekeeping that must never delay the first frame.
   unawaited(_sweepTransientFiles());
+  unawaited(
+    Future<void>.delayed(
+      const Duration(seconds: 20),
+      () => _sweepOrphanMedia(database, fileStorageService),
+    ),
+  );
+}
+
+/// Deletes media files no entry (live or in the 30-day trash) references,
+/// e.g. photos from drafts discarded by older builds. Delayed so it never
+/// competes with first-frame work.
+Future<void> _sweepOrphanMedia(
+  ObjectBoxDatabase database,
+  FileStorageService fileStorage,
+) async {
+  try {
+    final entries = [
+      ...database.getAllEntries(),
+      ...database.getDeletedEntries(),
+    ];
+    final deleted = await const MediaOrphanSweeper().sweep(
+      mediaDirectory: Directory(fileStorage.basePath),
+      referencedPaths: entries.map((e) => e.mediaPath),
+    );
+    if (deleted > 0) debugPrint('Removed $deleted orphaned media files');
+  } catch (e) {
+    debugPrint('Orphan media sweep failed: $e');
+  }
 }
 
 /// Deletes plaintext export/share leftovers (e.g. from a share sheet that was
