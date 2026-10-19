@@ -69,6 +69,13 @@
                 <data android:scheme="seedling"/>
             </intent-filter>
 
+            <!-- Disable Flutter's built-in deep linking so seedling:// URIs
+                 can't push arbitrary go_router routes. Widget/capture URIs
+                 are handled by the allowlist in lib/app/app.dart. -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false"/>
+
             <!-- Google App Actions -->
             <meta-data
                 android:name="com.google.android.actions"
