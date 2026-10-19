@@ -354,4 +354,110 @@ void main() {
       File(path).deleteSync();
     });
   });
+
+  group('remote media link (pending downloads)', () {
+    Entry pendingPhoto() => Entry.photo(mediaPath: '', text: 'on the way')
+      ..mediaPath = null
+      ..syncUUID = 'u-pending'
+      ..mediaAssetId = 'asset-1'
+      ..mediaKey = 'secret-key';
+
+    test('encrypted backup keeps mediaAssetId and mediaKey', () async {
+      final service = ExportService(kdfIterations: 100000);
+      final result = await service.exportEncryptedBackup(
+        [pendingPhoto()],
+        '',
+        passphrase: 'a strong passphrase',
+      );
+      expect(result.success, isTrue, reason: result.error);
+      final loaded = await service.loadEncryptedBackup(
+        result.filePath!,
+        passphrase: 'a strong passphrase',
+      );
+      expect(loaded.entries.single['mediaAssetId'], 'asset-1');
+      expect(loaded.entries.single['mediaKey'], 'secret-key');
+      File(result.filePath!).deleteSync();
+    });
+
+    test('plaintext exports never carry the media key', () async {
+      final service = ExportService();
+      final json = await service.exportToJson([pendingPhoto()]);
+      expect(
+        File(json.filePath!).readAsStringSync(),
+        isNot(contains('secret-key')),
+      );
+      File(json.filePath!).deleteSync();
+
+      final zip = await service.exportToZip([pendingPhoto()], '');
+      final archive = ZipDecoder().decodeBytes(
+        File(zip.filePath!).readAsBytesSync(),
+      );
+      for (final f in archive.files) {
+        expect(
+          utf8.decode(f.content, allowMalformed: true),
+          isNot(contains('secret-key')),
+          reason: f.name,
+        );
+      }
+      File(zip.filePath!).deleteSync();
+    });
+
+    test('pendingMediaWarning explains what the export will miss', () {
+      expect(ExportService.pendingMediaWarning(0, encrypted: true), isNull);
+      expect(
+        ExportService.pendingMediaWarning(3, encrypted: false),
+        contains('3 photos or voice memos'),
+      );
+      expect(
+        ExportService.pendingMediaWarning(1, encrypted: true),
+        contains('keeps the link'),
+      );
+    });
+  });
+
+  group('exports that restore could not read fail clearly', () {
+    late Directory media;
+
+    setUp(() => media = Directory.systemTemp.createTempSync('big_media'));
+    tearDown(() => media.deleteSync(recursive: true));
+
+    Entry sparsePhoto(String name, int bytes) {
+      final file = File('${media.path}/photos/$name')
+        ..createSync(recursive: true);
+      // Sparse: the size check only reads the length.
+      file.openSync(mode: FileMode.write)
+        ..truncateSync(bytes)
+        ..closeSync();
+      return Entry.photo(mediaPath: file.path);
+    }
+
+    test('encrypted backup over the 300 MB restore cap', () async {
+      final result = await ExportService(kdfIterations: 100000)
+          .exportEncryptedBackup(
+            [sparsePhoto('a.jpg', 240 * 1024 * 1024)],
+            media.path,
+            passphrase: 'a strong passphrase',
+          );
+      expect(result.success, isFalse);
+      expect(result.error, contains('more than an encrypted backup can hold'));
+      expect(result.error, contains('Nothing was lost'));
+    });
+
+    test('ZIP over the 800 MB restore cap', () async {
+      final result = await ExportService().exportToZip([
+        sparsePhoto('a.jpg', 450 * 1024 * 1024),
+        sparsePhoto('b.jpg', 450 * 1024 * 1024),
+      ], media.path);
+      expect(result.success, isFalse);
+      expect(result.error, contains('more than a ZIP backup can hold'));
+    });
+
+    test('Markdown export with a file over the per-file cap', () async {
+      final result = await ExportService().exportToMarkdown([
+        sparsePhoto('a.jpg', 513 * 1024 * 1024),
+      ], media.path);
+      expect(result.success, isFalse);
+      expect(result.error, contains('larger than one Markdown export'));
+    });
+  });
 }

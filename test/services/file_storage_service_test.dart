@@ -115,4 +115,20 @@ void main() {
       expect(await outside.exists(), isTrue);
     });
   });
+
+  test('copies into the media directory get a fresh timestamp', () async {
+    final source = File('${tempDir.path}/library.jpg')
+      ..writeAsStringSync('pixels')
+      ..setLastModifiedSync(DateTime(2020));
+
+    final saved = File(await service.savePhoto(source));
+    final copied = await FileStorageService.copyAsNewFile(
+      source,
+      '${tempDir.path}/copy.jpg',
+    );
+
+    final recent = DateTime.now().subtract(const Duration(minutes: 1));
+    expect(saved.lastModifiedSync().isAfter(recent), isTrue);
+    expect(copied.lastModifiedSync().isAfter(recent), isTrue);
+  });
 }
