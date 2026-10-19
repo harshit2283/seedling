@@ -50,22 +50,25 @@ final ritualDetectionServiceProvider = Provider<RitualDetectionService>((ref) {
 
 /// Provider for finding connections for a specific entry.
 ///
+/// Auto-disposed: one instance per visited entry would otherwise live for the
+/// whole session. Token sets survive in the ConnectionFinderService cache
+/// (keyed by entry id, invalidated when the text changes), so revisits and
+/// neighbouring entries skip re-tokenising the collection.
+///
 /// Uses ref.read (not ref.watch) for the entries list intentionally:
 /// connection finding is expensive and should only compute once per entry
 /// detail screen visit, not re-run whenever ANY entry in the list changes.
-final entryConnectionsProvider = Provider.family<List<MemoryConnection>, int>((
-  ref,
-  entryId,
-) {
-  // Read entries once instead of watching — avoids re-computing connections
-  // every time the entries list changes (e.g. when a new entry is created).
-  final entries = ref.read(entriesProvider);
-  final entry = entries.where((e) => e.id == entryId).firstOrNull;
-  if (entry == null) return [];
+final entryConnectionsProvider = Provider.autoDispose
+    .family<List<MemoryConnection>, int>((ref, entryId) {
+      // Read entries once instead of watching — avoids re-computing connections
+      // every time the entries list changes (e.g. when a new entry is created).
+      final entries = ref.read(entriesProvider);
+      final entry = entries.where((e) => e.id == entryId).firstOrNull;
+      if (entry == null) return [];
 
-  final connectionFinder = ref.watch(connectionFinderProvider);
-  return connectionFinder.findConnections(entry, entries);
-});
+      final connectionFinder = ref.watch(connectionFinderProvider);
+      return connectionFinder.findConnections(entry, entries);
+    });
 
 /// Provider for theme distribution across all entries
 final themeDistributionProvider = Provider<Map<MemoryTheme, int>>((ref) {
@@ -230,8 +233,12 @@ final dueRitualsProvider = Provider<List<Ritual>>((ref) {
 // Year-in-Review Providers (Phase 5)
 // ============================================================================
 
-/// Provider for year review data, keyed by year
-final reviewDataProvider = Provider.family<YearReviewData?, int>((ref, year) {
+/// Provider for year review data, keyed by year. Auto-disposed so a year's
+/// entries are released once the review screen closes.
+final reviewDataProvider = Provider.autoDispose.family<YearReviewData?, int>((
+  ref,
+  year,
+) {
   final db = ref.watch(databaseProvider);
   // Watch all-years stream since review can be for any year
   ref.watch(allEntriesStreamProvider);
