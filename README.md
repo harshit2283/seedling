@@ -27,20 +27,29 @@ are welcome._
 
 ## Features
 
-- **Seven ways to plant a memory:** line, photo, voice, object, fragment,
-  ritual, and release (for things you're letting go).
-- **A tree that grows by count, not frequency:** seed, sprout, sapling, young,
-  mature, and ancient, with seasonal colours. One tree per year; past years
-  become a forest.
-- **Memory capsules** that stay sealed until a date you choose.
-- **Gentle connections:** on-device theme detection, related memories, "On
-  this day", rituals noticed from your own patterns, and a Year in Review.
+- **Two-second capture:** the sheet opens ready to type. Attach a photo, hold
+  to record a voice memo, or add a title, and Seedling works out whether it's
+  a line, photo, voice memo, or object. Swipe down to save.
+- **Let go, rituals, and capsules:** a quiet ceremony for things you're
+  letting go (keep it in the tree, or let it go completely), rituals you
+  confirm from your own patterns, and capsules that stay sealed until a date
+  you choose.
+- **A tree that grows by count, not frequency:** a hand-illustrated tree,
+  unique to each year, from seed to ancient, with seasonal colours. Past
+  years become a forest. **Calm mode** hides every count and stage label.
+- **From your tree:** one past memory a day on the home screen, and an
+  optional weekly nudge (off by default).
+- **Gentle connections, all on-device:** themes, related memories, and a
+  Year in Review. No sentiment scores, ever.
 - **Search, filters, and a reading view** for wandering back through it all.
+- **Your data, in open formats:** export as JSON, ZIP, Markdown (opens in
+  Obsidian), or an encrypted backup; import from a Seedling export or Day One.
 - **Home screen widgets, a share extension, and Siri / Shortcuts actions (iOS).**
-- **Native on both platforms:** Cupertino with glass on iOS, Material on
-  Android, warm light and dark themes.
+- **Native and accessible on both platforms:** Cupertino with glass on iOS,
+  Material on Android, warm light and dark themes, Reduce Motion support, and
+  labelled 44pt controls for screen readers.
 - **Optional, opt-in extras:** gentle reminders (off by default), app lock,
-  encrypted backups, and cloud sync to your own account.
+  and end-to-end encrypted cloud sync to your own account.
 
 ## Privacy model
 
@@ -49,33 +58,38 @@ Seedling is local-first. The full policy is in [PRIVACY.md](PRIVACY.md).
 **On your device, always**
 - All memories and media. Written fields are encrypted at rest with a key
   in the Keychain / Keystore; iOS media files use system file protection.
-- All analysis: themes, connections, sentiment, and suggestions.
+- All analysis: themes and related memories, in Seedling's own code, with no
+  model downloads.
 - Voice transcription (iOS only, on-device recognition required; Android
   doesn't transcribe rather than risk sending audio to a server).
 
 **Only when you opt in**
 - Cloud sync to *your* iCloud (CloudKit private database) or *your* Google
-  Drive (hidden app-data folder). Off by default. Memory text is encrypted
-  with a passphrase you choose before upload.
+  Drive (hidden app-data folder). Off by default. Memory text, photos, and
+  voice memos are encrypted end-to-end with a passphrase you choose before
+  upload.
 - Exports, encrypted backups, and sharing, which always go through the
   system share sheet to wherever you pick.
-- Gentle reminders, app lock, and memory text in widgets.
+- Gentle reminders, the weekly "From your tree" nudge, app lock, and memory
+  text in widgets.
+- Sharing the on-device, redacted diagnostics log (Settings > About).
 
 **Never**
 - Accounts, analytics, ads, crash reporting, or developer-run servers.
+- Your memories in device backups (iCloud/computer backups and Android app
+  backup exclude them; export or sync to keep a copy).
 
 **Threat model, briefly.** Seedling aims to protect your memories from the
-developer (who receives nothing), from cloud providers (synced text is
-passphrase-encrypted), and from casual access to an unlocked phone (optional
-app lock). It does not protect against a compromised or jailbroken device.
-Known gaps, listed openly in [PRIVACY.md](PRIVACY.md#known-limitations):
-synced photos and voice memos and some sync metadata are not
-passphrase-encrypted, and ML Kit on Android may download its model from
-Google on first launch.
+developer (who receives nothing), from cloud providers (synced memories and
+media are passphrase-encrypted and authenticated), and from casual access to
+an unlocked phone (optional app lock). It does not protect against a
+compromised or jailbroken device. Known gaps, listed openly in
+[PRIVACY.md](PRIVACY.md#known-limitations): some sync metadata (dates, type)
+is readable by the storage provider, and media files over 50 MB don't sync.
 
 ## Build and run
 
-Requirements: Flutter stable (Dart 3.10+), Xcode for iOS (iOS 15+), and the
+Requirements: Flutter stable (CI pins 3.47.7; Dart 3.10+), Xcode for iOS (iOS 15+), and the
 Android SDK for Android.
 
 ```bash
@@ -117,22 +131,23 @@ lib/
 │   ├── widgets/         # Glass containers, showSeedlingMessage toasts
 │   └── services/
 │       ├── providers/   # Riverpod providers, split by domain
-│       ├── ai/          # Theme detection, connections, suggestions, ML bridge
-│       ├── sync/        # Sync engine, passphrase crypto, CloudKit + Drive backends
+│       ├── ai/          # Lexicon theme detection, related memories, rituals (pure Dart)
+│       ├── sync/        # Sync engine, crypto, per-device change logs, CloudKit + Drive
 │       ├── security/    # At-rest encryption, app lock, clock guard
 │       ├── backup/      # Backup reminders, BackupRestoreService
-│       ├── export/      # JSON / ZIP / encrypted backup export
+│       ├── export/      # JSON / ZIP / Markdown / encrypted export; Day One + Markdown import
 │       ├── media/       # Capture, compression, storage, playback
-│       ├── transcription/ notifications/ ritual/ search/ share/ widget/ storage/
+│       ├── transcription/ notifications/ ritual/ share/ widget/ storage/
 └── features/            # Screens: tree, capture, memories, capsules, prompts,
                          # review, onboarding, settings, support
 ```
 
 - **State:** Riverpod 3. **Routing:** GoRouter. **Storage:** ObjectBox.
 - **Native code:** `ios/Runner/` has Swift plugins for CloudKit sync, on-device
-  speech, NaturalLanguage analysis, media file protection, and App Intents;
-  `android/app/src/main/kotlin/` has the ML Kit analyzer, widget provider, and
-  a transcription stub.
+  speech, media file protection and backup exclusion, and App Intents;
+  `android/app/src/main/kotlin/` has the widget provider and a transcription
+  stub. None of it is compiled in CI; see
+  [docs/release/device-verification.md](docs/release/device-verification.md).
 - More detail for contributors (and AI assistants) lives in
   [CLAUDE.md](CLAUDE.md) and [docs/engineering/](docs/engineering/).
 
