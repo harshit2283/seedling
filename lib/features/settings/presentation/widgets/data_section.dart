@@ -483,6 +483,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
         journal.backup,
         mode: BackupImportMode.merge,
       );
+      BackupRestoreService.queueForSync(result, ref.read(syncEngineProvider));
       if (!mounted) return;
       if (result.success) {
         HapticFeedback.lightImpact();
@@ -812,12 +813,14 @@ class _DataSectionState extends ConsumerState<DataSection> {
   Future<ImportResult> _restoreLoadedBackup(
     LoadedEncryptedBackup loaded, {
     required BackupImportMode mode,
-  }) {
+  }) async {
     final service = BackupRestoreService(
       database: ref.read(databaseProvider),
       fileStorage: ref.read(fileStorageServiceProvider),
     );
-    return service.restore(loaded, mode: mode);
+    final result = await service.restore(loaded, mode: mode);
+    BackupRestoreService.queueForSync(result, ref.read(syncEngineProvider));
+    return result;
   }
 
   String _formatWarning(String warningCode) {

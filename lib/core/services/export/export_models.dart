@@ -1,6 +1,8 @@
 // Plain data types shared by export, import and restore. Kept free of
 // Flutter imports so they can cross isolate boundaries.
 
+import '../../../data/models/entry.dart';
+
 /// Result of an export operation
 class ExportResult {
   final bool success;
@@ -20,11 +22,20 @@ class ImportResult {
   final int skippedDuplicates;
   final List<String> warnings;
 
+  /// Entries a restore created (to queue as sync creates).
+  final List<Entry> createdEntries;
+
+  /// Entries a replace-restore permanently deleted, captured before deletion
+  /// (to queue as sync deletes so other devices drop them too).
+  final List<Entry> deletedEntries;
+
   const ImportResult.success({
     required this.importedEntries,
     required this.importedMediaFiles,
     this.skippedDuplicates = 0,
     this.warnings = const [],
+    this.createdEntries = const [],
+    this.deletedEntries = const [],
   }) : success = true,
        error = null;
 
@@ -33,7 +44,9 @@ class ImportResult {
       importedEntries = 0,
       importedMediaFiles = 0,
       skippedDuplicates = 0,
-      warnings = const [];
+      warnings = const [],
+      createdEntries = const [],
+      deletedEntries = const [];
 }
 
 /// Preview metadata for an encrypted backup.

@@ -7,10 +7,14 @@ import 'package:seedling/core/services/export/export_service.dart';
 import 'package:seedling/core/services/media/file_storage_service.dart';
 import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
+import 'package:seedling/core/services/sync/sync_engine.dart';
+import 'package:seedling/core/services/sync/sync_models.dart';
 
 class _MockObjectBoxDatabase extends Mock implements ObjectBoxDatabase {}
 
 class _MockFileStorageService extends Mock implements FileStorageService {}
+
+class _MockSyncEngine extends Mock implements SyncEngine {}
 
 void main() {
   setUpAll(() {
@@ -283,6 +287,54 @@ void main() {
       expect(preview.newEntries, 2);
       expect(preview.mediaFiles, 1);
       verifyNever(() => database.saveEntry(any()));
+    });
+  });
+
+  group('restores reach sync', () {
+    setUpAll(() => registerFallbackValue(SyncChangeType.create));
+
+    test(
+      'replace returns created entries and the entries it deleted',
+      () async {
+        final old = Entry.line(text: 'old memory')
+          ..id = 1
+          ..syncUUID = 'old-uuid';
+        when(() => database.getDeletedEntries()).thenReturn([old]);
+        final result = await BackupRestoreService(
+          database: database,
+          fileStorage: fileStorage,
+        ).restore(backupWithPhoto(), mode: BackupImportMode.replace);
+
+        expect(result.createdEntries.map((e) => e.syncUUID), ['uuid-photo']);
+        expect(result.deletedEntries.map((e) => e.syncUUID), ['old-uuid']);
+      },
+    );
+
+    test('queueForSync pushes creates and deletes, never deleting a '
+        're-created entry', () {
+      final sync = _MockSyncEngine();
+      final created = Entry.line(text: 'new')..syncUUID = 'same';
+      final result = ImportResult.success(
+        importedEntries: 1,
+        importedMediaFiles: 0,
+        createdEntries: [created],
+        deletedEntries: [
+          Entry.line(text: 'gone')..syncUUID = 'gone',
+          Entry.line(text: 'old copy')..syncUUID = 'same',
+        ],
+      );
+
+      BackupRestoreService.queueForSync(result, sync);
+
+      final calls = verify(
+        () => sync.queuePush(captureAny(), captureAny()),
+      ).captured;
+      // Pairs of (entry, change type), deletes first.
+      expect(calls, hasLength(4));
+      expect((calls[0] as Entry).syncUUID, 'gone');
+      expect(calls[1], SyncChangeType.delete);
+      expect((calls[2] as Entry).syncUUID, 'same');
+      expect(calls[3], SyncChangeType.create);
     });
   });
 }
