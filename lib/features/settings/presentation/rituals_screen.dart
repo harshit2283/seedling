@@ -30,7 +30,7 @@ class RitualsScreen extends ConsumerWidget {
           child: ritualsAsync.when(
             data: (rituals) => _buildList(context, ref, rituals),
             loading: () => const Center(child: CupertinoActivityIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
+            error: (_, _) => const _RitualsUnavailable(),
           ),
         ),
       );
@@ -41,7 +41,7 @@ class RitualsScreen extends ConsumerWidget {
       body: ritualsAsync.when(
         data: (rituals) => _buildList(context, ref, rituals),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (_, _) => const _RitualsUnavailable(),
       ),
     );
   }
@@ -334,5 +334,28 @@ class RitualsScreen extends ConsumerWidget {
         service.deleteRitual(ritual.id);
         break;
     }
+  }
+}
+
+/// Shown if rituals can't be read. Warm, and never exposes raw errors.
+class _RitualsUnavailable extends StatelessWidget {
+  const _RitualsUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          "Your rituals couldn't be opened just now. "
+          'They are safe. Try again in a moment.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: context.palette.textSecondary,
+            height: 1.5,
+          ),
+        ),
+      ),
+    );
   }
 }

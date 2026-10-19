@@ -337,29 +337,8 @@ class DeletedEntriesScreen extends ConsumerWidget {
     }
     if (!context.mounted) return;
 
-    // Show confirmation
-    if (PlatformUtils.isIOS) {
-      showCupertinoDialog(
-        context: context,
-        builder: (dialogContext) => CupertinoAlertDialog(
-          title: const Text('Memory Restored'),
-          content: const Text('Your memory has been restored to your tree.'),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('OK'),
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-          ],
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Memory restored'),
-          backgroundColor: context.palette.primaryFill,
-        ),
-      );
-    }
+    // Gentle confirmation, no modal to dismiss.
+    showSeedlingMessage(context, 'Restored to your tree');
   }
 
   void _confirmPermanentDelete(

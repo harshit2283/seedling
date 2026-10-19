@@ -12,6 +12,7 @@ import '../../../core/models/season.dart';
 import '../../../core/presentation/seedling_iconography.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/widgets/seedling_symbol.dart';
+import '../../../data/models/entry.dart';
 import '../../support/presentation/support_invitation_card.dart';
 import '../domain/review_generator.dart';
 import 'widgets/season_card.dart';
@@ -29,7 +30,9 @@ import 'widgets/shareable_card.dart';
 /// 5. Memorable Moments - 3-5 highlighted entries
 /// 6. Closing - shareable card
 ///
-/// Gated on 10+ entries. Shows a "keep planting" message otherwise.
+/// The full review needs 10+ entries. Below that the screen shows what the
+/// year already holds (count and a few recent memories) as a gentle
+/// "still taking shape" state, never a locked gate.
 class YearInReviewScreen extends ConsumerWidget {
   final int year;
 
@@ -57,7 +60,7 @@ class YearInReviewScreen extends ConsumerWidget {
             ),
       body: data != null && data.hasEnoughEntries
           ? _ReviewBody(data: data, isDark: isDark)
-          : _NotEnoughEntries(year: year, isDark: isDark),
+          : _YearTakingShape(year: year, isDark: isDark),
     );
   }
 }
@@ -66,53 +69,91 @@ class YearInReviewScreen extends ConsumerWidget {
 // Gate: not enough entries
 // ---------------------------------------------------------------------------
 
-class _NotEnoughEntries extends StatelessWidget {
+class _YearTakingShape extends ConsumerWidget {
   final int year;
   final bool isDark;
 
-  const _NotEnoughEntries({required this.year, required this.isDark});
+  const _YearTakingShape({required this.year, required this.isDark});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Rebuild as memories are added.
+    ref.watch(allEntriesStreamProvider);
+    final db = ref.watch(databaseProvider);
+    final count = db.getEntriesCount(year: year);
+    final recent = count == 0
+        ? const <Entry>[]
+        : db.getEntriesPage(limit: 3, offset: 0, year: year);
     final theme = Theme.of(context);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SeedlingSymbol(
-              icon: SeedlingIconography.seasonIcon(Season.spring),
-              size: 88,
-              gradientColors: isDark
-                  ? [
-                      SeedlingColors.surfaceContainerDark,
-                      SeedlingColors.paleGreenDark,
-                    ]
-                  : [
-                      SeedlingColors.warmWhite,
-                      context.palette.primaryContainer.withValues(alpha: 0.9),
-                    ],
-              iconColor: context.palette.primary,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Keep collecting memories',
-              style: theme.textTheme.headlineMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'You need at least 10 memories in $year to unlock your year in review.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.palette.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+    final String body;
+    if (count == 0) {
+      body =
+          'Nothing planted in $year yet. Whenever you are ready, '
+          'your first memory starts the story.';
+    } else {
+      final noun = count == 1 ? 'memory' : 'memories';
+      body =
+          '$count $noun planted in $year so far. Your full review '
+          'blooms once a few more have taken root.';
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      physics: const BouncingScrollPhysics(),
+      children: [
+        const SizedBox(height: 32),
+        Center(
+          child: SeedlingSymbol(
+            icon: SeedlingIconography.seasonIcon(Season.spring),
+            size: 88,
+            gradientColors: isDark
+                ? [
+                    SeedlingColors.surfaceContainerDark,
+                    SeedlingColors.paleGreenDark,
+                  ]
+                : [
+                    SeedlingColors.warmWhite,
+                    context.palette.primaryContainer.withValues(alpha: 0.9),
+                  ],
+            iconColor: context.palette.primary,
+          ),
         ),
-      ),
+        const SizedBox(height: 24),
+        Text(
+          'Your year is still taking shape',
+          style: theme.textTheme.headlineMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          body,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: context.palette.textSecondary,
+            height: 1.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        if (recent.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          Text(
+            'So far',
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: context.palette.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...recent.map(
+            (entry) => _MomentCard(
+              entryId: entry.id,
+              text: entry.displayContent,
+              typeName: entry.typeName,
+              date: entry.createdAt,
+              isDark: isDark,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

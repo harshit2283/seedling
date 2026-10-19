@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../platform/platform_utils.dart';
 
 OverlayEntry? _activeToast;
@@ -28,7 +28,7 @@ void showSeedlingMessage(
       messenger.showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: isError ? SeedlingColors.error : null,
+          backgroundColor: isError ? _errorFill(context.palette) : null,
           duration: duration,
         ),
       );
@@ -65,10 +65,14 @@ class _SeedlingToast extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final palette = context.palette;
     final background = isError
-        ? SeedlingColors.error
-        : (isDark ? const Color(0xFF3A3D3A) : SeedlingColors.forestGreen);
+        ? _errorFill(palette)
+        : (palette.isDark ? palette.surfaceMuted : palette.primaryFill);
+    final foreground = palette.isDark
+        ? palette.textPrimary
+        : palette.onPrimaryFill;
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     return Positioned(
       left: 24,
       right: 24,
@@ -79,8 +83,10 @@ class _SeedlingToast extends StatelessWidget {
         child: GestureDetector(
           onTap: dismissSeedlingMessage,
           child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 250),
+            tween: Tween(begin: reduceMotion ? 1 : 0, end: 1),
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
             builder: (context, t, child) => Opacity(
               opacity: t,
@@ -102,8 +108,8 @@ class _SeedlingToast extends StatelessWidget {
                 child: Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: CupertinoColors.white,
+                  style: TextStyle(
+                    color: foreground,
                     fontSize: 15,
                     decoration: TextDecoration.none,
                   ),
@@ -116,3 +122,7 @@ class _SeedlingToast extends StatelessWidget {
     );
   }
 }
+
+/// A deeper error tone for filled backgrounds so light text stays AA.
+Color _errorFill(SeedlingPalette palette) =>
+    palette.isDark ? const Color(0xFF6B3434) : const Color(0xFFA94848);

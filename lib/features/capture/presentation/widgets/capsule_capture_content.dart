@@ -122,10 +122,9 @@ class _CapsuleCaptureContentState extends State<CapsuleCaptureContent> {
 
         // Unlock date section
         Text(
-          'UNLOCK DATE',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: textMuted,
-            letterSpacing: 1.2,
+          'Opens on',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: context.palette.textSecondary,
           ),
         ),
         const SizedBox(height: 8),

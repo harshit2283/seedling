@@ -7,6 +7,7 @@ import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/storage/storage_usage_service.dart';
+import '../../../../core/widgets/feedback/seedling_toast.dart';
 import 'storage_breakdown_donut.dart';
 
 /// Shared icon box used across all settings sections (iOS).
@@ -253,42 +254,23 @@ Widget buildMaterialActionTile(
   );
 }
 
-/// Show a success message (iOS dialog / Android snackbar).
+/// Show a gentle, non-blocking success message (toast on iOS, snackbar on
+/// Android) with a light tap. Successes never need a modal "OK".
 void showSettingsSuccess(BuildContext context, String message) {
   HapticFeedback.lightImpact();
-  if (PlatformUtils.isIOS) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Done'),
-        content: Text(message),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: context.palette.primaryFill,
-      ),
-    );
-  }
+  showSeedlingMessage(context, message);
 }
 
-/// Show an error message (iOS dialog / Android snackbar).
+/// Show an error message: a Cupertino alert on iOS (so it isn't missed),
+/// an error snackbar on Android. A medium tap, not a jolt.
 void showSettingsError(BuildContext context, String message) {
   final safeMessage = sanitizeUserMessage(message);
-  HapticFeedback.heavyImpact();
+  HapticFeedback.mediumImpact();
   if (PlatformUtils.isIOS) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Action Failed'),
+        title: const Text("That didn't work"),
         content: Text(safeMessage),
         actions: [
           CupertinoDialogAction(
@@ -299,12 +281,7 @@ void showSettingsError(BuildContext context, String message) {
       ),
     );
   } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(safeMessage),
-        backgroundColor: context.palette.error,
-      ),
-    );
+    showSeedlingMessage(context, safeMessage, isError: true);
   }
 }
 

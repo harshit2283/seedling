@@ -91,7 +91,8 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
   }
 
   void _confirmClearAllData(BuildContext context) {
-    HapticFeedback.heavyImpact();
+    // A warning, not a jolt: the double confirmation carries the weight.
+    HapticFeedback.mediumImpact();
     if (PlatformUtils.isIOS) {
       showCupertinoDialog(
         context: context,
@@ -218,7 +219,10 @@ class _DangerZoneSectionState extends ConsumerState<DangerZoneSection> {
       showSettingsSuccess(context, 'All data was permanently deleted');
     } catch (e) {
       if (!mounted) return;
-      showSettingsError(context, 'Failed to clear data: $e');
+      showSettingsError(
+        context,
+        "Your memories weren't cleared. Please try again.",
+      );
     } finally {
       if (mounted) {
         setState(() => _isClearingData = false);
