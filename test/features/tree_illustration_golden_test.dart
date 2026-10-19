@@ -88,18 +88,14 @@ void main() {
   ];
   for (final (state, season, dark) in cases) {
     final name = '${state.name}_${season.name}_${dark ? 'dark' : 'light'}';
-    testWidgets(
-      'tree illustration: $name',
-      (tester) async {
-        await tester.pumpWidget(_tree(state, season, dark: dark));
-        await tester.pump();
-        await expectLater(
-          find.byKey(_key),
-          matchesGoldenFile('goldens/tree_$name.png'),
-        );
-      },
-      skip: !Platform.isLinux,
-    );
+    testWidgets('tree illustration: $name', (tester) async {
+      await tester.pumpWidget(_tree(state, season, dark: dark));
+      await tester.pump();
+      await expectLater(
+        find.byKey(_key),
+        matchesGoldenFile('goldens/tree_$name.png'),
+      );
+    }, skip: !Platform.isLinux);
   }
 
   test('the same seed always grows the same tree', () {
