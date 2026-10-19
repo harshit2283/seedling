@@ -113,15 +113,29 @@ class GentleReminderService {
     quietEndHour: _prefs.getInt(PrefsKeys.gentleRemindersQuietEnd) ?? 8,
   );
 
+  bool _permissionRequested = false;
+
+  /// Prepares the notification plugin. Cheap to call repeatedly and does not
+  /// prompt the user; the OS permission prompt only appears once reminders
+  /// are actually enabled (see [reschedule]).
   Future<void> init() async {
     if (_initialized) return;
     tz_data.initializeTimeZones();
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const ios = DarwinInitializationSettings();
+    const ios = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
     const settings = InitializationSettings(android: android, iOS: ios);
     await _plugin.initialize(settings);
+    _initialized = true;
+  }
 
+  Future<void> _requestPermissionOnce() async {
+    if (_permissionRequested) return;
+    _permissionRequested = true;
     if (Platform.isAndroid) {
       final androidPlugin = _plugin
           .resolvePlatformSpecificImplementation<
@@ -139,7 +153,6 @@ class GentleReminderService {
         sound: true,
       );
     }
-    _initialized = true;
   }
 
   Future<void> saveSettings(ReminderSettings next) async {
@@ -160,6 +173,7 @@ class GentleReminderService {
 
     final current = settings;
     if (!current.enabled) return;
+    await _requestPermissionOnce();
 
     final now = DateTime.now();
     DateTime? lastActivity;

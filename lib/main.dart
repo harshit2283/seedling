@@ -70,8 +70,9 @@ Future<void> _runApp() async {
 
   // Initialize SharedPreferences for prompts and settings
   final sharedPreferences = await SharedPreferences.getInstance();
+  // Reminders are opt-in and off by default: the plugin initializes lazily on
+  // first reschedule, so startup never waits on a permission prompt.
   final gentleReminderService = GentleReminderService(prefs: sharedPreferences);
-  await gentleReminderService.init();
 
   // Initialize share receiver service (Phase 4.5)
   final shareReceiverService = ShareReceiverService();

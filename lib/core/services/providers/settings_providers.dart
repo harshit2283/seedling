@@ -118,10 +118,14 @@ final reminderSettingsProvider =
     );
 
 /// Provider that keeps reminder schedule updated as entries change.
+///
+/// Checks the (off-by-default) setting before watching entries, so with
+/// reminders off it does not keep the all-entries stream alive and re-run on
+/// every save.
 final reminderAutoRescheduleProvider = Provider<void>((ref) {
-  final entries = ref.watch(allEntriesProvider);
   final reminderSettings = ref.watch(reminderSettingsProvider);
   if (!reminderSettings.enabled) return;
+  final entries = ref.watch(allEntriesProvider);
   final reminderService = ref.watch(gentleReminderServiceProvider);
   unawaited(reminderService.reschedule(entries));
 });
