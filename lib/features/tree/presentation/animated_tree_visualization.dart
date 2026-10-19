@@ -64,6 +64,11 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
   // Ambient seasonal particle layer
   final List<_AmbientParticle> _ambientParticles = [];
 
+  // Honours the system Reduce Motion / Remove Animations setting: the tree
+  // stands still, growth swaps in place and no celebration burst plays.
+  bool? _motionReduced;
+  bool get _reduceMotion => _motionReduced ?? false;
+
   @override
   void initState() {
     super.initState();
@@ -73,13 +78,10 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
     _seedAmbientParticles();
 
     // Idle sway - continuous gentle movement
-    _swayController =
-        AnimationController(
-            vsync: this,
-            duration: const Duration(milliseconds: 3000),
-          )
-          ..repeat(reverse: true)
-          ..addListener(_advanceAmbientParticles);
+    _swayController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..addListener(_advanceAmbientParticles);
 
     _swayAnimation = Tween<double>(begin: -1, end: 1).animate(
       CurvedAnimation(parent: _swayController, curve: Curves.easeInOutSine),
@@ -106,6 +108,23 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
             _particles.clear();
           }
         });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduce == _motionReduced) return;
+    _motionReduced = reduce;
+    if (reduce) {
+      // Rest at the centre of the sway (value 0.5 maps to no lean).
+      _swayController.stop();
+      _swayController.value = 0.5;
+      _celebrationController.stop();
+      _particles.clear();
+    } else {
+      _swayController.repeat(reverse: true);
+    }
   }
 
   @override
@@ -192,6 +211,13 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
 
   void _animateGrowth(TreeState from, TreeState to) {
     _previousState = from;
+    if (_reduceMotion) {
+      _growthController.value = 1;
+      _displayedStateValue = to.index.toDouble();
+      _previousState = to;
+      HapticFeedback.mediumImpact();
+      return;
+    }
     _growthController.forward(from: 0).then((_) {
       _displayedStateValue = to.index.toDouble();
       _previousState = to;
@@ -203,6 +229,10 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
 
   void _triggerCelebration() {
     _particles.clear();
+    if (_reduceMotion) {
+      HapticFeedback.lightImpact();
+      return;
+    }
 
     // Generate celebration particles
     for (int i = 0; i < 30; i++) {

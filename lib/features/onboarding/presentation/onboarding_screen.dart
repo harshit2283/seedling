@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/services/providers.dart';
 import '../../../app/theme/colors.dart';
 import '../../../app/theme/palette.dart';
+import '../../../app/theme/typography.dart';
 
 /// Data model for a single onboarding panel.
 class _OnboardingPanel {
@@ -81,6 +82,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      // Reduce Motion: panels appear without fading.
+      for (final controller in _fadeControllers) {
+        controller.value = 1;
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     for (final controller in _fadeControllers) {
@@ -93,8 +105,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     setState(() {
       _currentPage = page;
     });
-    // Trigger fade-in for the new panel.
-    _fadeControllers[page].forward(from: 0.0);
+    // Trigger fade-in for the new panel (instant under Reduce Motion).
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _fadeControllers[page].value = 1;
+    } else {
+      _fadeControllers[page].forward(from: 0.0);
+    }
   }
 
   Future<void> _completeOnboarding() async {
@@ -153,9 +169,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                                 panel.title,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontFamily: Platform.isIOS
-                                      ? '.AppleSystemUIFont'
-                                      : 'Georgia',
+                                  fontFamily: SeedlingTypography.serifFamily,
                                   fontSize: 28,
                                   fontWeight: FontWeight.w400,
                                   letterSpacing: -0.25,
@@ -177,7 +191,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                               ),
                               if (isLastPanel) ...[
                                 const SizedBox(height: 48),
-                                _buildActionButton(accentColor),
+                                _buildActionButton(context.palette.primaryFill),
                               ],
                             ],
                           ),
@@ -197,7 +211,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 children: List.generate(_panels.length, (index) {
                   final isActive = index == _currentPage;
                   return AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 300),
                     curve: Curves.easeOutCubic,
                     margin: const EdgeInsets.symmetric(horizontal: 5),
                     width: isActive ? 24 : 8,
