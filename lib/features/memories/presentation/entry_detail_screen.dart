@@ -1123,20 +1123,15 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
 
     final transcriptionService = ref.read(speechTranscriptionServiceProvider);
 
-    final isAvailable = await transcriptionService.isAvailable();
-    if (!isAvailable) {
-      // Try requesting permission first
-      final granted = await transcriptionService.requestPermission();
-      if (!granted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('On-device transcription is not available'),
-            ),
-          );
-        }
-        return;
+    final canTranscribe = await transcriptionService.prepareOnDevice();
+    if (!canTranscribe) {
+      if (mounted) {
+        showSeedlingMessage(
+          context,
+          'On-device transcription is not available on this device',
+        );
       }
+      return;
     }
 
     if (!mounted) return;

@@ -74,10 +74,12 @@ public class SpeechTranscriptionPlugin: NSObject, FlutterPlugin {
         let url = URL(fileURLWithPath: filePath)
         let request = SFSpeechURLRecognitionRequest(url: url)
 
-        // Prefer on-device recognition for privacy
-        if #available(iOS 13.0, *) {
-            request.requiresOnDeviceRecognition = speechRecognizer.supportsOnDeviceRecognition
+        // Strictly on-device: never fall back to Apple's servers.
+        guard speechRecognizer.supportsOnDeviceRecognition else {
+            result(FlutterError(code: "UNAVAILABLE", message: "On-device speech recognition unavailable", details: nil))
+            return
         }
+        request.requiresOnDeviceRecognition = true
 
         speechRecognizer.recognitionTask(with: request) { [weak self] taskResult, error in
             guard self != nil else { return }

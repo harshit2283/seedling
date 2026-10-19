@@ -33,8 +33,11 @@ class TranscriptionSegment {
 
 /// Speech transcription service
 ///
-/// Uses Apple Speech framework on iOS and Android SpeechRecognizer.
-/// On-device recognition is preferred where the platform supports it.
+/// Uses the Apple Speech framework on iOS. Transcription is strictly
+/// on-device: if the device cannot recognise speech locally, nothing is sent
+/// anywhere and transcription is reported as unavailable. Android's
+/// SpeechRecognizer only listens to the live microphone (it cannot read a
+/// file), so the Android plugin always reports unavailable.
 class SpeechTranscriptionService {
   static const _channel = MethodChannel('com.seedling.speech_transcription');
 
@@ -70,14 +73,25 @@ class SpeechTranscriptionService {
     }
   }
 
+  /// Asks for speech permission if needed, then reports whether on-device
+  /// transcription can run.
+  Future<bool> prepareOnDevice() async {
+    final granted = await requestPermission();
+    if (!granted) return false;
+    resetCache();
+    return isAvailable();
+  }
+
   /// Transcribe an audio file at the given path
   ///
-  /// Returns null if transcription fails or is unavailable.
+  /// Returns null if transcription fails or is unavailable. Never calls the
+  /// platform recognizer unless on-device recognition is available.
   /// [locale] optionally specifies the language (e.g., 'en-US').
   Future<TranscriptionResult?> transcribe(
     String filePath, {
     String? locale,
   }) async {
+    if (!await isAvailable()) return null;
     try {
       final args = <String, dynamic>{'filePath': filePath};
       if (locale != null) args['locale'] = locale;
