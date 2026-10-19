@@ -15,6 +15,7 @@ import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
 import '../../../data/models/entry.dart';
+import '../../capture/presentation/quick_capture_sheet.dart';
 import 'entry_detail_screen.dart';
 import 'memory_card.dart';
 import 'memories_filter_state.dart';
@@ -701,9 +702,56 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen> {
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 28),
+            _buildPlantMemoryButton(context),
+            const SizedBox(height: 10),
+            Text(
+              'The first one can be tiny.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  /// The empty state's way forward: open capture right here.
+  Widget _buildPlantMemoryButton(BuildContext context) {
+    void plant() {
+      HapticFeedback.selectionClick();
+      showQuickCaptureSheet(context);
+    }
+
+    final label = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(AdaptiveIcons.leaf, size: 18, color: Colors.white),
+        const SizedBox(width: 8),
+        const Text(
+          'Plant a memory',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+    if (PlatformUtils.isIOS) {
+      return CupertinoButton(
+        color: SeedlingColors.forestGreen,
+        borderRadius: BorderRadius.circular(20),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        onPressed: plant,
+        child: label,
+      );
+    }
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: SeedlingColors.forestGreen,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: plant,
+      child: label,
     );
   }
 
