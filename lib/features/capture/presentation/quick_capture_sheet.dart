@@ -363,7 +363,7 @@ class _QuickCaptureSheetState extends ConsumerState<QuickCaptureSheet> {
           child: SizeTransition(
             sizeFactor: animation,
             axis: Axis.vertical,
-            axisAlignment: -1,
+            alignment: AlignmentDirectional.topStart,
             child: child,
           ),
         );

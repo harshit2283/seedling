@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import '../../../core/services/error_reporter.dart';
 import '../../../core/services/media/file_storage_service.dart';
@@ -50,13 +51,33 @@ class ObjectBoxDatabase {
       return _instance!;
     }
 
-    final db = ObjectBoxDatabase._();
     final dir = await getApplicationDocumentsDirectory();
-    db._store = await openStore(directory: '${dir.path}/objectbox');
+    final db = await _open(
+      directory: '${dir.path}/objectbox',
+      encryptionService: AtRestEncryptionService(),
+    );
+    _instance = db;
+    return db;
+  }
+
+  /// Opens a standalone database in [directory] (not the app singleton).
+  /// For tests that need a real store instead of a mock.
+  @visibleForTesting
+  static Future<ObjectBoxDatabase> openForTesting({
+    required String directory,
+    required AtRestEncryptionService encryptionService,
+  }) => _open(directory: directory, encryptionService: encryptionService);
+
+  static Future<ObjectBoxDatabase> _open({
+    required String directory,
+    required AtRestEncryptionService encryptionService,
+  }) async {
+    final db = ObjectBoxDatabase._();
+    db._store = await openStore(directory: directory);
     db._entryBox = db._store.box<Entry>();
     db._treeBox = db._store.box<Tree>();
     db._ritualBox = db._store.box<Ritual>();
-    db._encryptionService = AtRestEncryptionService();
+    db._encryptionService = encryptionService;
     await db._encryptionService.init();
 
     // Ensure current year's tree exists
@@ -65,8 +86,6 @@ class ObjectBoxDatabase {
     // Emit initial values
     db._emitCurrentTree();
     db._emitEntries();
-
-    _instance = db;
     return db;
   }
 
@@ -89,13 +108,16 @@ class ObjectBoxDatabase {
 
   /// Returns the trusted "now" (UTC) for capsule unlock comparisons,
   /// falling back to system clock when no guard is attached.
+  ///
+  /// The guard's value is captured at launch, so it only acts as a floor
+  /// (defending against the clock being rolled back); time still moves
+  /// forward while the app stays open, so capsules that come due mid-session
+  /// unlock.
   DateTime _trustedNowUtc() {
-    final guard = _clockGuard;
-    if (guard != null) {
-      final cached = guard.cachedTrustedNow();
-      if (cached != null) return cached;
-    }
-    return DateTime.now().toUtc();
+    final systemNow = DateTime.now().toUtc();
+    final cached = _clockGuard?.cachedTrustedNow();
+    if (cached != null && cached.isAfter(systemNow)) return cached;
+    return systemNow;
   }
 
   /// Close the database
@@ -313,6 +335,9 @@ class ObjectBoxDatabase {
 
     entry.isDeleted = true;
     entry.deletedAt = DateTime.now().toUtc();
+    // Bump modifiedAt so sync treats the deletion as a newer change and
+    // propagates it to other devices.
+    entry.modifiedAt = DateTime.now();
     _entryBox.put(entry);
 
     // Update tree count
@@ -372,6 +397,7 @@ class ObjectBoxDatabase {
 
     entry.isDeleted = false;
     entry.deletedAt = null;
+    entry.modifiedAt = DateTime.now();
     _entryBox.put(entry);
 
     // Update tree count

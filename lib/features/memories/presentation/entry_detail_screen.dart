@@ -1755,6 +1755,8 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
     final alreadyLinked = widget.current.manualLinkList.toSet();
     final candidates = allEntries.where((e) {
       if (e.id == widget.current.id) return false;
+      // Locked capsules stay sealed: don't show or search their content.
+      if (e.isLocked) return false;
       if (e.syncUUID != null && alreadyLinked.contains(e.syncUUID)) {
         return false;
       }

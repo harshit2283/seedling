@@ -95,12 +95,13 @@ class ReviewGenerator {
 
   /// Build the review for [year] from [allEntries].
   ///
-  /// [allEntries] may contain entries from any year or deleted entries;
-  /// only non-deleted entries matching [year] are used.
+  /// [allEntries] may contain entries from any year, deleted entries or
+  /// locked capsules; only non-deleted entries matching [year] are used, and
+  /// locked capsules stay sealed (their content must not surface early).
   YearReviewData generate(int year, List<Entry> allEntries) {
-    // Filter to only this year's active entries.
+    // Filter to only this year's active, readable entries.
     final entries = allEntries
-        .where((e) => !e.isDeleted && e.createdAt.year == year)
+        .where((e) => !e.isDeleted && !e.isLocked && e.createdAt.year == year)
         .toList();
 
     final seasons = _buildSeasons(entries);

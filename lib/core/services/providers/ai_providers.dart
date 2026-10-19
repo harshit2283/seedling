@@ -241,12 +241,7 @@ final reviewDataProvider = Provider.family<YearReviewData?, int>((ref, year) {
   const pageSize = 500;
   var offset = 0;
   while (true) {
-    final page = db.getEntriesPage(
-      limit: pageSize,
-      offset: offset,
-      year: year,
-      includeLockedCapsules: true,
-    );
+    final page = db.getEntriesPage(limit: pageSize, offset: offset, year: year);
     allEntries.addAll(page);
     if (page.length < pageSize) break;
     offset += pageSize;

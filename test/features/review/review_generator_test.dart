@@ -287,4 +287,24 @@ void main() {
       });
     });
   });
+
+  test('locked capsules stay sealed in the year review', () {
+    final entries = makeEntries(12);
+    final capsule = Entry.capsule(
+      text: 'secret letter to future me',
+      unlockDate: DateTime.now().add(const Duration(days: 365)),
+    )..createdAt = DateTime(2025, 6, 1);
+    entries.add(capsule);
+
+    final review = generator.generate(2025, entries);
+
+    expect(review.totalEntries, 12);
+    expect(
+      review.memorableMoments.map((e) => e.displayContent),
+      isNot(contains(contains('secret letter'))),
+    );
+    for (final season in review.seasons.values) {
+      expect(season.sampleSnippet ?? '', isNot(contains('secret letter')));
+    }
+  });
 }
