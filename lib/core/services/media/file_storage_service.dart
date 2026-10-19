@@ -42,7 +42,16 @@ class FileStorageService {
     return Directory('${appDir.path}/media');
   }
 
-  static Future<String?> resolveMediaPath(String? storedPath) async {
+  /// Maps a stored media path onto the current media directory.
+  ///
+  /// Stored paths are absolute and go stale when iOS moves the app container
+  /// (it does so on every reinstall/update), so a path that no longer exists
+  /// is re-anchored by its `photos|voices|objects/<file>` suffix.
+  /// [baseDir] defaults to the canonical media directory.
+  static Future<String?> resolveMediaPath(
+    String? storedPath, {
+    Directory? baseDir,
+  }) async {
     final rawPath = storedPath?.trim();
     if (rawPath == null || rawPath.isEmpty) return null;
 
@@ -52,7 +61,7 @@ class FileStorageService {
     }
 
     final relativePath = _extractRelativeMediaPath(rawPath);
-    final baseDir = await canonicalMediaDirectory();
+    baseDir ??= await canonicalMediaDirectory();
 
     if (relativePath != null) {
       final candidate = File('${baseDir.path}/$relativePath');
@@ -191,10 +200,17 @@ class FileStorageService {
     return destPath;
   }
 
+  /// Resolves a stored (possibly stale) media path against this service's
+  /// media directory. Returns null when the file cannot be found.
+  Future<String?> resolveStoredPath(String? storedPath) {
+    return resolveMediaPath(storedPath, baseDir: _mediaDirectory);
+  }
+
   /// Delete a media file
-  Future<bool> deleteFile(String path) async {
+  Future<bool> deleteFile(String storedPath) async {
     try {
-      if (!await _isPathAllowed(path)) return false;
+      final path = await resolveStoredPath(storedPath);
+      if (path == null || !await _isPathAllowed(path)) return false;
       final file = File(path);
       if (await file.exists()) {
         await file.delete();
@@ -205,21 +221,23 @@ class FileStorageService {
       _errorReporter.report(
         e,
         stack: st,
-        context: 'FileStorageService.deleteFile path="$path"',
+        context: 'FileStorageService.deleteFile path="$storedPath"',
       );
       return false;
     }
   }
 
   /// Check if a media file exists
-  Future<bool> fileExists(String path) async {
-    if (!await _isPathAllowed(path)) return false;
+  Future<bool> fileExists(String storedPath) async {
+    final path = await resolveStoredPath(storedPath);
+    if (path == null || !await _isPathAllowed(path)) return false;
     return await File(path).exists();
   }
 
   /// Get file size in bytes
-  Future<int> getFileSize(String path) async {
-    if (!await _isPathAllowed(path)) return 0;
+  Future<int> getFileSize(String storedPath) async {
+    final path = await resolveStoredPath(storedPath);
+    if (path == null || !await _isPathAllowed(path)) return 0;
     final file = File(path);
     if (await file.exists()) {
       return await file.length();

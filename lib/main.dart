@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'app/router.dart';
 import 'core/services/diagnostics_log.dart';
 import 'core/services/error_reporter.dart';
+import 'core/services/export/export_cleanup.dart';
 import 'core/services/media/file_storage_service.dart';
 import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
@@ -16,6 +19,7 @@ import 'core/services/security/ios_data_protection.dart';
 import 'core/services/security/secure_storage.dart';
 import 'core/services/sync/sync_backend.dart';
 import 'core/services/sync/sync_metadata.dart';
+import 'core/services/storage/media_orphan_sweeper.dart';
 import 'core/services/share/share_receiver_service.dart';
 import 'core/services/widget/widget_data_service.dart';
 import 'data/datasources/local/objectbox_database.dart';
@@ -131,4 +135,46 @@ Future<void> _runApp() async {
       child: const SeedlingApp(),
     ),
   );
+
+  // Housekeeping that must never delay the first frame.
+  unawaited(_sweepTransientFiles());
+  unawaited(
+    Future<void>.delayed(
+      const Duration(seconds: 20),
+      () => _sweepOrphanMedia(database, fileStorageService),
+    ),
+  );
+}
+
+/// Deletes media files no entry (live or in the 30-day trash) references,
+/// e.g. photos from drafts discarded by older builds. Delayed so it never
+/// competes with first-frame work.
+Future<void> _sweepOrphanMedia(
+  ObjectBoxDatabase database,
+  FileStorageService fileStorage,
+) async {
+  try {
+    final entries = [
+      ...database.getAllEntries(),
+      ...database.getDeletedEntries(),
+    ];
+    final deleted = await const MediaOrphanSweeper().sweep(
+      mediaDirectory: Directory(fileStorage.basePath),
+      referencedPaths: entries.map((e) => e.mediaPath),
+    );
+    if (deleted > 0) debugPrint('Removed $deleted orphaned media files');
+  } catch (e, st) {
+    const ErrorReporter().report(e, stack: st, context: 'Orphan media sweep');
+  }
+}
+
+/// Deletes plaintext export/share leftovers (e.g. from a share sheet that was
+/// open when the app was killed).
+Future<void> _sweepTransientFiles() async {
+  try {
+    final tempDir = await getTemporaryDirectory();
+    await sweepStaleExportArtifacts(tempDir);
+  } catch (e, st) {
+    const ErrorReporter().report(e, stack: st, context: 'Export sweep');
+  }
 }
