@@ -28,9 +28,6 @@ abstract class SyncBackend {
   /// Fetch remote changes since [changeToken].
   Future<SyncFetchResult?> fetchChanges({String? changeToken});
 
-  /// Upload a media asset referenced by [syncUUID].
-  Future<String?> uploadAsset(String localPath, String syncUUID);
-
   /// Download a media asset referenced by [syncUUID].
   Future<String?> downloadAsset(String syncUUID, String targetPath);
 

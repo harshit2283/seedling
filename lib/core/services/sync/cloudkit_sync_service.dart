@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'sync_backend.dart';
+import '../error_reporter.dart';
 
 /// Dart wrapper around the native CloudKit plugin.
 ///
@@ -18,7 +18,10 @@ class CloudKitSyncService implements SyncBackend {
       final result = await _channel.invokeMethod<bool>('isAvailable');
       return result ?? false;
     } on PlatformException catch (e) {
-      debugPrint('CloudKitSyncService.isAvailable failed: ${e.code}');
+      const ErrorReporter().report(
+        e,
+        context: 'CloudKitSyncService.isAvailable',
+      );
       return false;
     }
   }
@@ -78,23 +81,10 @@ class CloudKitSyncService implements SyncBackend {
         newChangeToken: result['changeToken'] as String?,
       );
     } on PlatformException catch (e) {
-      debugPrint('CloudKitSyncService.fetchChanges failed: ${e.code}');
-      return null;
-    }
-  }
-
-  /// Upload a media asset to CloudKit
-  @override
-  Future<String?> uploadAsset(String localPath, String syncUUID) async {
-    try {
-      final result = await _channel.invokeMethod<String>('uploadAsset', {
-        'filePath': localPath,
-        'syncUUID': syncUUID,
-        'fieldName': _assetFieldName,
-      });
-      return result;
-    } on PlatformException catch (e) {
-      debugPrint('CloudKitSyncService.uploadAsset failed: ${e.code}');
+      const ErrorReporter().report(
+        e,
+        context: 'CloudKitSyncService.fetchChanges',
+      );
       return null;
     }
   }
@@ -110,7 +100,10 @@ class CloudKitSyncService implements SyncBackend {
       });
       return result;
     } on PlatformException catch (e) {
-      debugPrint('CloudKitSyncService.downloadAsset failed: ${e.code}');
+      const ErrorReporter().report(
+        e,
+        context: 'CloudKitSyncService.downloadAsset',
+      );
       return null;
     }
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Directory;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import '../../../core/services/error_reporter.dart';
@@ -33,7 +34,21 @@ class ObjectBoxDatabase {
 
   static ObjectBoxDatabase? _instance;
 
+  /// Directory holding the ObjectBox store files.
+  late final String storeDirectory;
+
+  /// True when the store directory did not exist before this open, i.e. a
+  /// fresh install or a device restored from a backup (the store is excluded
+  /// from iOS backups, but SharedPreferences are not).
+  late final bool isFreshStore;
+
   ObjectBoxDatabase._();
+
+  /// Default on-device location of the app's store.
+  static Future<String> defaultStoreDirectory() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return '${dir.path}/objectbox';
+  }
 
   /// Get the singleton instance
   static ObjectBoxDatabase get instance {
@@ -51,9 +66,8 @@ class ObjectBoxDatabase {
       return _instance!;
     }
 
-    final dir = await getApplicationDocumentsDirectory();
     final db = await _open(
-      directory: '${dir.path}/objectbox',
+      directory: await defaultStoreDirectory(),
       encryptionService: AtRestEncryptionService(),
     );
     _instance = db;
@@ -73,12 +87,15 @@ class ObjectBoxDatabase {
     required AtRestEncryptionService encryptionService,
   }) async {
     final db = ObjectBoxDatabase._();
+    db.storeDirectory = directory;
+    db.isFreshStore = !await Directory(directory).exists();
     db._store = await openStore(directory: directory);
     db._entryBox = db._store.box<Entry>();
     db._treeBox = db._store.box<Tree>();
     db._ritualBox = db._store.box<Ritual>();
     db._encryptionService = encryptionService;
     await db._encryptionService.init();
+    db._encryptPlaintextRituals();
 
     // Ensure current year's tree exists
     await db._ensureCurrentYearTree();
@@ -778,14 +795,29 @@ class ObjectBoxDatabase {
 
   // ============ Ritual Operations ============
 
+  // Ritual names are often copied from memory text, and signatures are
+  // derived from it, so both are encrypted at rest like Entry fields.
+  // Rituals written before this was added are plaintext; decryptField passes
+  // plaintext through unchanged and [_encryptPlaintextRituals] upgrades them.
+
   Future<void> saveRitual(Ritual ritual) async {
-    _ritualBox.put(ritual);
+    _encryptRitualFields(ritual);
+    try {
+      ritual.id = _ritualBox.put(ritual);
+    } finally {
+      _decryptRitualFields(ritual);
+    }
   }
 
-  Ritual? getRitual(int id) => _ritualBox.get(id);
+  Ritual? getRitual(int id) {
+    final ritual = _ritualBox.get(id);
+    if (ritual != null) _decryptRitualFields(ritual);
+    return ritual;
+  }
 
   List<Ritual> getAllRituals() {
-    return _ritualBox.getAll()..sort((a, b) => a.name.compareTo(b.name));
+    return _decryptRituals(_ritualBox.getAll())
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   Future<void> deleteRitual(int id) async {
@@ -796,7 +828,49 @@ class ObjectBoxDatabase {
     return _ritualBox
         .query()
         .watch(triggerImmediately: true)
-        .map((q) => q.find());
+        .map((q) => _decryptRituals(q.find()));
+  }
+
+  /// Raw ritual box (stored, encrypted form) for tests.
+  @visibleForTesting
+  Box<Ritual> get ritualBoxForTesting => _ritualBox;
+
+  void _encryptRitualFields(Ritual ritual) {
+    ritual.name = _encryptionService.encryptField(ritual.name) ?? '';
+    ritual.signature = _encryptionService.encryptField(ritual.signature) ?? '';
+  }
+
+  void _decryptRitualFields(Ritual ritual) {
+    String decryptOrPreserve(String value) =>
+        _encryptionService.decryptField(value) ?? value;
+    ritual.name = decryptOrPreserve(ritual.name);
+    ritual.signature = decryptOrPreserve(ritual.signature);
+  }
+
+  List<Ritual> _decryptRituals(List<Ritual> rituals) {
+    for (final ritual in rituals) {
+      _decryptRitualFields(ritual);
+    }
+    return rituals;
+  }
+
+  /// One-time upgrade of rituals stored before at-rest encryption.
+  void _encryptPlaintextRituals() {
+    final plaintext = _ritualBox
+        .getAll()
+        .where(
+          (r) =>
+              (r.name.isNotEmpty &&
+                  !_encryptionService.isEncryptedValue(r.name)) ||
+              (r.signature.isNotEmpty &&
+                  !_encryptionService.isEncryptedValue(r.signature)),
+        )
+        .toList();
+    if (plaintext.isEmpty) return;
+    for (final ritual in plaintext) {
+      _encryptRitualFields(ritual);
+    }
+    _ritualBox.putMany(plaintext);
   }
 
   // ============ Object Collection Operations ============

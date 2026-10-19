@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../../../data/models/entry.dart';
+import '../error_reporter.dart';
 
 /// Represents content shared from another app to Seedling
 class SharedContent {
@@ -196,8 +196,12 @@ class SharedContent {
       if (file.lengthSync() > maxSharedImageBytes) return false;
       final extension = _extensionOf(imagePath);
       return _allowedImageExtensions.contains(extension);
-    } catch (e) {
-      debugPrint('ShareReceiver: image validation failed for $imagePath: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'ShareReceiver.validateImage',
+      );
       return false;
     }
   }
@@ -264,8 +268,9 @@ class ShareReceiverService {
       }
     }
     if (!handledAny && files.isNotEmpty) {
-      debugPrint(
-        'ShareReceiver: dropped ${files.length} unsupported share item(s)',
+      const ErrorReporter().report(
+        'Dropped ${files.length} unsupported share item(s)',
+        context: 'ShareReceiver',
       );
     }
     // Clear the shared content after processing

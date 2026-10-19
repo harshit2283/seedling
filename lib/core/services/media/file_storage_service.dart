@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -323,9 +322,11 @@ class FileStorageService {
       await _fileProtectionChannel.invokeMethod<void>('protectPath', {
         'path': path,
       });
-    } catch (e) {
-      debugPrint(
-        'FileStorageService._protectPath best-effort protection failed for "$path": $e',
+    } catch (e, st) {
+      _errorReporter.report(
+        e,
+        stack: st,
+        context: 'FileStorageService._protectPath',
       );
       // File protection is best-effort when the platform channel is unavailable.
     }

@@ -74,20 +74,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
             let changeTokenBase64 = args?["changeToken"] as? String
             fetchChanges(changeTokenBase64: changeTokenBase64, result: result)
 
-        case "uploadAsset":
-            guard let args = call.arguments as? [String: Any],
-                  let syncUUID = args["syncUUID"] as? String,
-                  let filePath = args["filePath"] as? String,
-                  let fieldName = args["fieldName"] as? String else {
-                result(FlutterError(
-                    code: "INVALID_ARGS",
-                    message: "uploadAsset requires syncUUID, filePath, and fieldName",
-                    details: nil
-                ))
-                return
-            }
-            uploadAsset(syncUUID: syncUUID, filePath: filePath, fieldName: fieldName, result: result)
-
         case "downloadAsset":
             guard let args = call.arguments as? [String: Any],
                   let syncUUID = args["syncUUID"] as? String,
@@ -484,73 +470,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         }
 
         privateDB.add(zoneChangesOp)
-    }
-
-    // MARK: - uploadAsset
-
-    /// Attach a CKAsset from a local file to an existing record
-    private func uploadAsset(
-        syncUUID: String,
-        filePath: String,
-        fieldName: String,
-        result: @escaping FlutterResult
-    ) {
-        guard Self.assetFieldAllowlist.contains(fieldName) else {
-            result(FlutterError(
-                code: "INVALID_FIELD",
-                message: "Field '\(fieldName)' is not allowed for asset upload",
-                details: nil
-            ))
-            return
-        }
-
-        let fileURL = URL(fileURLWithPath: filePath)
-
-        guard FileManager.default.fileExists(atPath: filePath) else {
-            result(FlutterError(
-                code: "FILE_NOT_FOUND",
-                message: "File does not exist at path: \(filePath)",
-                details: nil
-            ))
-            return
-        }
-
-        let recordID = CKRecord.ID(recordName: syncUUID)
-
-        privateDB.fetch(withRecordID: recordID) { [weak self] existingRecord, fetchError in
-            guard let self = self else { return }
-
-            if let fetchError = fetchError {
-                DispatchQueue.main.async {
-                    self.handleCKError(fetchError, result: result)
-                }
-                return
-            }
-
-            guard let record = existingRecord else {
-                DispatchQueue.main.async {
-                    result(FlutterError(
-                        code: "RECORD_NOT_FOUND",
-                        message: "No record found with syncUUID: \(syncUUID)",
-                        details: nil
-                    ))
-                }
-                return
-            }
-
-            let asset = CKAsset(fileURL: fileURL)
-            record[fieldName] = asset
-
-            self.privateDB.save(record) { savedRecord, saveError in
-                DispatchQueue.main.async {
-                    if let saveError = saveError {
-                        self.handleCKError(saveError, result: result)
-                        return
-                    }
-                    result(true)
-                }
-            }
-        }
     }
 
     // MARK: - downloadAsset

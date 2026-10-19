@@ -1154,8 +1154,12 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
           showSeedlingMessage(context, 'No speech detected');
         }
       }
-    } catch (e) {
-      debugPrint('Entry detail operation failed: $e');
+    } catch (e, st) {
+      const ErrorReporter().report(
+        e,
+        stack: st,
+        context: 'EntryDetail.transcribe',
+      );
       if (mounted) {
         showSeedlingMessage(context, 'Transcription failed');
       }

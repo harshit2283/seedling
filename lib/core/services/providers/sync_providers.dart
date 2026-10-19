@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../security/secure_storage.dart';
 import '../sync/cloudkit_sync_service.dart';
 import '../sync/google_drive_sync_service.dart';
 import '../sync/sync_backend.dart';
@@ -51,7 +52,7 @@ final cloudKitSyncServiceProvider = Provider<CloudKitSyncService>((ref) {
 
 /// Provider for secure storage used by sync cryptography.
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
-  return const FlutterSecureStorage();
+  return createSeedlingSecureStorage();
 });
 
 /// Provider for sync payload encryption/decryption.
@@ -87,14 +88,24 @@ final syncMetadataProvider = Provider<SyncMetadata>((ref) {
   return SyncMetadata(prefs, namespace: providerType.name);
 });
 
+/// Account status text shown before the user has opted in to cloud sync.
+const String syncAccountStatusOptedOut = 'Cloud sync is off';
+
 /// Provider for current sync backend account status text.
+///
+/// Gated on [cloudSyncEnabledProvider]: until the user opts in, this never
+/// touches Google Sign-In / CloudKit account APIs (which may hit the network).
 final syncAccountStatusProvider = FutureProvider<String>((ref) async {
+  if (!ref.watch(cloudSyncEnabledProvider)) return syncAccountStatusOptedOut;
   final backend = ref.watch(syncBackendProvider);
   return backend.getAccountStatus();
 });
 
 /// Provider for whether backend account/session is currently available.
+///
+/// Gated on [cloudSyncEnabledProvider]; always false until opt-in.
 final syncAccountConnectedProvider = FutureProvider<bool>((ref) async {
+  if (!ref.watch(cloudSyncEnabledProvider)) return false;
   final backend = ref.watch(syncBackendProvider);
   return backend.isAvailable();
 });
