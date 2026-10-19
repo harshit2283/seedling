@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/models/season.dart';
 import '../../../data/models/tree.dart';
 import '../domain/tree_personality.dart';
@@ -226,7 +227,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
     final personality = widget.personality;
     final colors = [
       SeedlingColors.freshSprout,
-      SeedlingColors.leafGreen,
+      context.palette.primary,
       SeedlingColors.paleGreen,
       Colors.amber.shade300,
       Colors.white,
@@ -313,7 +314,7 @@ class _AnimatedTreeVisualizationState extends State<AnimatedTreeVisualization>
       return Text(
         'Flourishing',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: SeedlingColors.textMuted,
+          color: context.palette.textMuted,
           fontStyle: FontStyle.italic,
         ),
       );

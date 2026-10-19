@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/widgets/feedback/seedling_toast.dart';
@@ -64,7 +65,7 @@ class _PhotoCaptureContentState extends ConsumerState<PhotoCaptureContent> {
           'Add a photo memory',
           style: Theme.of(
             context,
-          ).textTheme.titleMedium?.copyWith(color: SeedlingColors.textPrimary),
+          ).textTheme.titleMedium?.copyWith(color: context.palette.textPrimary),
         ),
         const SizedBox(height: 24),
         Row(
@@ -163,12 +164,12 @@ class _PhotoCaptureContentState extends ConsumerState<PhotoCaptureContent> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: context.palette.mediaScrim,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     PlatformUtils.isIOS ? CupertinoIcons.xmark : Icons.close,
-                    color: Colors.white,
+                    color: context.palette.onMedia,
                     size: 18,
                   ),
                 ),
@@ -195,7 +196,7 @@ class _PhotoCaptureContentState extends ConsumerState<PhotoCaptureContent> {
           color: CupertinoColors.placeholderText,
           fontSize: 16,
         ),
-        style: const TextStyle(fontSize: 16, color: SeedlingColors.textPrimary),
+        style: TextStyle(fontSize: 16, color: context.palette.textPrimary),
         decoration: const BoxDecoration(color: Colors.transparent),
         padding: EdgeInsets.zero,
         onChanged: widget.onTextChanged,
@@ -212,7 +213,7 @@ class _PhotoCaptureContentState extends ConsumerState<PhotoCaptureContent> {
         hintText: 'Add a note (optional)',
         hintStyle: Theme.of(
           context,
-        ).textTheme.bodyLarge?.copyWith(color: SeedlingColors.textMuted),
+        ).textTheme.bodyLarge?.copyWith(color: context.palette.textMuted),
         border: InputBorder.none,
         filled: false,
       ),

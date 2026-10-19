@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../app/router.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
+import '../../../app/theme/radius.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/providers/media_providers.dart';
 import '../../../core/services/ai/models/memory_theme.dart';
@@ -58,10 +59,8 @@ class MemoryCard extends ConsumerWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color:
-                Theme.of(context).cardTheme.color ??
-                Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
+            color: context.palette.card,
+            borderRadius: SeedlingRadius.card,
             border: Border.all(color: Theme.of(context).dividerColor),
           ),
           child: Row(
@@ -105,13 +104,11 @@ class MemoryCard extends ConsumerWidget {
         hint: 'Double tap to open memory',
         child: Container(
           decoration: BoxDecoration(
-            color:
-                Theme.of(context).cardTheme.color ??
-                Theme.of(context).colorScheme.surface,
+            color: context.palette.card,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: SeedlingColors.barkBrown.withValues(alpha: 0.08),
+                color: context.palette.shadow,
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -146,7 +143,7 @@ class MemoryCard extends ConsumerWidget {
   }
 
   Widget _buildGridTopBlock(BuildContext context, WidgetRef ref) {
-    final typeColor = _getTypeColor();
+    final typeColor = _getTypeColor(context);
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth = (_gridImageDisplayWidth * dpr).round();
     final cacheHeight = (_gridImageDisplayHeight * dpr).round();
@@ -161,10 +158,10 @@ class MemoryCard extends ConsumerWidget {
           width: double.infinity,
           color: typeColor.withValues(alpha: 0.08),
         ),
-        error: (_, _) => _buildGridColorBlock(typeColor),
+        error: (_, _) => _buildGridColorBlock(context, typeColor),
         data: (resolvedFile) {
           if (resolvedFile == null) {
-            return _buildGridColorBlock(typeColor);
+            return _buildGridColorBlock(context, typeColor);
           }
           return Hero(
             tag: 'entry-${entry.id}',
@@ -182,7 +179,7 @@ class MemoryCard extends ConsumerWidget {
                 cacheWidth: cacheWidth,
                 cacheHeight: cacheHeight,
                 errorBuilder: (context, error, stackTrace) =>
-                    _buildGridColorBlock(typeColor),
+                    _buildGridColorBlock(context, typeColor),
               ),
             ),
           );
@@ -197,10 +194,11 @@ class MemoryCard extends ConsumerWidget {
         transitionOnUserGestures: true,
         flightShuttleBuilder: _heroShuttle,
         child: _buildGridColorBlock(
-          SeedlingColors.accentVoice,
+          context,
+          context.palette.accentVoice,
           child: Icon(
             PlatformUtils.isIOS ? CupertinoIcons.waveform : Icons.graphic_eq,
-            color: SeedlingColors.accentVoice,
+            color: context.palette.accentVoice,
             size: 32,
           ),
         ),
@@ -213,6 +211,7 @@ class MemoryCard extends ConsumerWidget {
       transitionOnUserGestures: true,
       flightShuttleBuilder: _heroShuttle,
       child: _buildGridColorBlock(
+        context,
         typeColor,
         child: Icon(_getTypeIcon(), color: typeColor, size: 28),
       ),
@@ -230,7 +229,11 @@ class MemoryCard extends ConsumerWidget {
     return Material(color: Colors.transparent, child: toHero.child);
   }
 
-  Widget _buildGridColorBlock(Color typeColor, {Widget? child}) {
+  Widget _buildGridColorBlock(
+    BuildContext context,
+    Color typeColor, {
+    Widget? child,
+  }) {
     return Container(
       height: 80,
       width: double.infinity,
@@ -240,7 +243,7 @@ class MemoryCard extends ConsumerWidget {
   }
 
   Widget _buildGridBadgeRow(BuildContext context) {
-    final typeColor = _getTypeColor();
+    final typeColor = _getTypeColor(context);
     return Row(
       children: [
         // Type badge
@@ -253,8 +256,8 @@ class MemoryCard extends ConsumerWidget {
           child: Text(
             entry.typeName,
             style: TextStyle(
-              color: typeColor,
-              fontSize: 10,
+              color: context.palette.inkFor(typeColor),
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -264,7 +267,10 @@ class MemoryCard extends ConsumerWidget {
         Expanded(
           child: Text(
             _formatDateShort(entry.createdAt),
-            style: TextStyle(color: SeedlingColors.textMuted, fontSize: 10),
+            style: TextStyle(
+              color: context.palette.textSecondary,
+              fontSize: 12,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -278,10 +284,10 @@ class MemoryCard extends ConsumerWidget {
 
     return Text(
       displayText,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 14,
         height: 1.4,
-        color: SeedlingColors.textPrimary,
+        color: context.palette.textPrimary,
       ),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
@@ -303,7 +309,7 @@ class MemoryCard extends ConsumerWidget {
   Widget _buildLeading(BuildContext context, WidgetRef ref) {
     final inner = entry.hasMedia
         ? _buildMediaThumbnail(context, ref)
-        : _buildTypeIndicator();
+        : _buildTypeIndicator(context);
     return Hero(
       tag: 'entry-${entry.id}',
       transitionOnUserGestures: true,
@@ -331,10 +337,10 @@ class MemoryCard extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            error: (_, _) => _buildTypeIndicator(),
+            error: (_, _) => _buildTypeIndicator(context),
             data: (resolvedFile) {
               if (resolvedFile == null) {
-                return _buildTypeIndicator();
+                return _buildTypeIndicator(context);
               }
               return ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -346,7 +352,7 @@ class MemoryCard extends ConsumerWidget {
                   cacheWidth: cacheSize,
                   cacheHeight: cacheSize,
                   errorBuilder: (context, error, stackTrace) =>
-                      _buildTypeIndicator(),
+                      _buildTypeIndicator(context),
                 ),
               );
             },
@@ -358,7 +364,7 @@ class MemoryCard extends ConsumerWidget {
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            color: SeedlingColors.accentVoice.withValues(alpha: 0.15),
+            color: context.palette.accentVoice.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -368,7 +374,7 @@ class MemoryCard extends ConsumerWidget {
                 PlatformUtils.isIOS
                     ? CupertinoIcons.waveform
                     : Icons.graphic_eq,
-                color: SeedlingColors.accentVoice,
+                color: context.palette.accentVoice,
                 size: 24,
               ),
               const SizedBox(height: 2),
@@ -376,7 +382,7 @@ class MemoryCard extends ConsumerWidget {
                 PlatformUtils.isIOS
                     ? CupertinoIcons.play_fill
                     : Icons.play_arrow,
-                color: SeedlingColors.accentVoice,
+                color: context.palette.accentVoice,
                 size: 14,
               ),
             ],
@@ -385,18 +391,18 @@ class MemoryCard extends ConsumerWidget {
       default:
         break;
     }
-    return _buildTypeIndicator();
+    return _buildTypeIndicator(context);
   }
 
-  Widget _buildTypeIndicator() {
+  Widget _buildTypeIndicator(BuildContext context) {
     return Container(
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: _getTypeColor().withValues(alpha: 0.1),
+        color: _getTypeColor(context).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(_getTypeIcon(), color: _getTypeColor(), size: 18),
+      child: Icon(_getTypeIcon(), color: _getTypeColor(context), size: 18),
     );
   }
 
@@ -411,7 +417,7 @@ class MemoryCard extends ConsumerWidget {
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               height: 1.4,
               fontWeight: FontWeight.w600,
-              color: SeedlingColors.textPrimary,
+              color: context.palette.textPrimary,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -421,7 +427,7 @@ class MemoryCard extends ConsumerWidget {
             Text(
               entry.text!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -438,8 +444,8 @@ class MemoryCard extends ConsumerWidget {
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           height: 1.5,
           color: entry.type == EntryType.release
-              ? SeedlingColors.textSecondary
-              : SeedlingColors.textPrimary,
+              ? context.palette.textSecondary
+              : context.palette.textPrimary,
           fontStyle: entry.type == EntryType.release
               ? FontStyle.italic
               : FontStyle.normal,
@@ -453,7 +459,7 @@ class MemoryCard extends ConsumerWidget {
     return Text(
       _getEmptyContentText(),
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        color: SeedlingColors.textMuted,
+        color: context.palette.textMuted,
         fontStyle: FontStyle.italic,
       ),
     );
@@ -467,21 +473,22 @@ class MemoryCard extends ConsumerWidget {
           _formatDate(entry.createdAt),
           style: Theme.of(
             context,
-          ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+          ).textTheme.bodySmall?.copyWith(color: context.palette.textSecondary),
         ),
         const SizedBox(width: 8),
         // Type label
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: _getTypeColor().withValues(alpha: 0.1),
+            color: _getTypeColor(context).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
             entry.typeName,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: _getTypeColor(),
-              fontWeight: FontWeight.w500,
+              color: context.palette.inkFor(_getTypeColor(context)),
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
             ),
           ),
         ),
@@ -503,45 +510,18 @@ class MemoryCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: _getThemeColor(theme).withValues(alpha: 0.1),
+        color: context.palette.themeColor(theme.name).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         theme.displayName,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: _getThemeColor(theme),
-          fontWeight: FontWeight.w500,
-          fontSize: 10,
+          color: context.palette.inkFor(context.palette.themeColor(theme.name)),
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
       ),
     );
-  }
-
-  Color _getThemeColor(MemoryTheme theme) {
-    switch (theme) {
-      case MemoryTheme.family:
-        return SeedlingColors.themeFamily;
-      case MemoryTheme.friends:
-        return SeedlingColors.themeFriends;
-      case MemoryTheme.work:
-        return SeedlingColors.themeWork;
-      case MemoryTheme.nature:
-        return SeedlingColors.themeNature;
-      case MemoryTheme.gratitude:
-        return SeedlingColors.themeGratitude;
-      case MemoryTheme.reflection:
-        return SeedlingColors.themeReflection;
-      case MemoryTheme.travel:
-        return SeedlingColors.themeTravel;
-      case MemoryTheme.creativity:
-        return SeedlingColors.themeCreativity;
-      case MemoryTheme.health:
-        return SeedlingColors.themeHealth;
-      case MemoryTheme.food:
-        return SeedlingColors.themeFood;
-      case MemoryTheme.moments:
-        return SeedlingColors.themeMoments;
-    }
   }
 
   void _navigateToDetail(BuildContext context) {
@@ -587,22 +567,23 @@ class MemoryCard extends ConsumerWidget {
     }
   }
 
-  Color _getTypeColor() {
+  Color _getTypeColor(BuildContext context) {
+    final palette = context.palette;
     switch (entry.type) {
       case EntryType.line:
-        return SeedlingColors.accentLine;
+        return palette.accentLine;
       case EntryType.photo:
-        return SeedlingColors.accentPhoto;
+        return palette.accentPhoto;
       case EntryType.voice:
-        return SeedlingColors.accentVoice;
+        return palette.accentVoice;
       case EntryType.object:
-        return SeedlingColors.accentObject;
+        return palette.accentObject;
       case EntryType.fragment:
-        return SeedlingColors.accentFragment;
+        return palette.accentFragment;
       case EntryType.ritual:
-        return SeedlingColors.accentRitual;
+        return palette.accentRitual;
       case EntryType.release:
-        return SeedlingColors.accentRelease;
+        return palette.accentRelease;
     }
   }
 

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/models/season.dart';
 import '../../../core/presentation/seedling_iconography.dart';
 import '../../../core/services/providers.dart';
@@ -41,9 +42,7 @@ class YearInReviewScreen extends ConsumerWidget {
     final isIOS = Platform.isIOS;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? SeedlingColors.backgroundDark
-          : SeedlingColors.creamPaper,
+      backgroundColor: context.palette.background,
       appBar: isIOS
           ? CupertinoNavigationBar(
                   middle: Text('$year in Review'),
@@ -93,11 +92,9 @@ class _NotEnoughEntries extends StatelessWidget {
                     ]
                   : [
                       SeedlingColors.warmWhite,
-                      SeedlingColors.paleGreen.withValues(alpha: 0.9),
+                      context.palette.primaryContainer.withValues(alpha: 0.9),
                     ],
-              iconColor: isDark
-                  ? SeedlingColors.forestGreenDark
-                  : SeedlingColors.forestGreen,
+              iconColor: context.palette.primary,
             ),
             const SizedBox(height: 24),
             Text(
@@ -109,9 +106,7 @@ class _NotEnoughEntries extends StatelessWidget {
             Text(
               'You need at least 10 memories in $year to unlock your year in review.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? SeedlingColors.textSecondaryDark
-                    : SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -146,9 +141,7 @@ class _ReviewBody extends StatelessWidget {
           child: Text(
             '${data.year}',
             style: theme.textTheme.displayLarge?.copyWith(
-              color: isDark
-                  ? SeedlingColors.forestGreenDark
-                  : SeedlingColors.forestGreen,
+              color: context.palette.primary,
             ),
           ),
         ),
@@ -161,11 +154,9 @@ class _ReviewBody extends StatelessWidget {
                 ? [SeedlingColors.surfaceContainerDark, const Color(0xFF28452D)]
                 : [
                     SeedlingColors.warmWhite,
-                    SeedlingColors.paleGreen.withValues(alpha: 0.9),
+                    context.palette.primaryContainer.withValues(alpha: 0.9),
                   ],
-            iconColor: isDark
-                ? SeedlingColors.forestGreenDark
-                : SeedlingColors.forestGreen,
+            iconColor: context.palette.primary,
           ),
         ),
         const SizedBox(height: 12),
@@ -181,9 +172,7 @@ class _ReviewBody extends StatelessWidget {
           child: Text(
             'Your tree grew into a ${data.treeStateLabel}',
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: isDark
-                  ? SeedlingColors.textSecondaryDark
-                  : SeedlingColors.textSecondary,
+              color: context.palette.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -194,9 +183,7 @@ class _ReviewBody extends StatelessWidget {
             child: Text(
               '${data.connectionCount} connected memories',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? SeedlingColors.textMutedDark
-                    : SeedlingColors.textMuted,
+                color: context.palette.textMuted,
               ),
               textAlign: TextAlign.center,
             ),
@@ -262,9 +249,7 @@ class _ReviewBody extends StatelessWidget {
     return Text(
       text,
       style: theme.textTheme.headlineMedium?.copyWith(
-        color: isDark
-            ? SeedlingColors.textPrimaryDark
-            : SeedlingColors.textPrimary,
+        color: theme.palette.textPrimary,
       ),
     );
   }
@@ -353,13 +338,9 @@ class _MomentCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? SeedlingColors.cardDark : SeedlingColors.warmWhite,
+            color: context.palette.card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isDark
-                  ? SeedlingColors.dividerDark
-                  : SeedlingColors.softCream,
-            ),
+            border: Border.all(color: context.palette.divider),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,9 +350,7 @@ class _MomentCard extends StatelessWidget {
                   Text(
                     typeName,
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: isDark
-                          ? SeedlingColors.forestGreenDark
-                          : SeedlingColors.forestGreen,
+                      color: context.palette.primary,
                     ),
                   ),
                   const Spacer(),

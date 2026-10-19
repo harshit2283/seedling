@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/constants/prefs_keys.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -128,16 +128,9 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
     int total,
     int index,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final brown = isDark
-        ? SeedlingColors.warmBrownDark
-        : SeedlingColors.warmBrown;
-    final secondary = isDark
-        ? SeedlingColors.textSecondaryDark
-        : SeedlingColors.textSecondary;
-    final primary = isDark
-        ? SeedlingColors.textPrimaryDark
-        : SeedlingColors.textPrimary;
+    final brown = context.palette.secondary;
+    final secondary = context.palette.textSecondary;
+    final primary = context.palette.textPrimary;
     final yearsAgo = DateTime.now().year - current.createdAt.year;
     final headerText = yearsAgo == 1
         ? 'A year ago today'
@@ -212,7 +205,7 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
                   child: Text(
                     'View',
                     style: TextStyle(
-                      color: SeedlingColors.forestGreen,
+                      color: context.palette.primary,
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
@@ -225,7 +218,7 @@ class _OnThisDayCardState extends ConsumerState<OnThisDayCard> {
                   },
                   child: Text(
                     'View',
-                    style: TextStyle(color: SeedlingColors.forestGreen),
+                    style: TextStyle(color: context.palette.primary),
                   ),
                 ),
         ),

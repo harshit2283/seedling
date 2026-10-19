@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -19,11 +19,11 @@ Widget buildSettingsIconBox(
 }) {
   Color bgColor;
   if (isDanger) {
-    bgColor = SeedlingColors.error.withValues(alpha: 0.15);
+    bgColor = context.palette.error.withValues(alpha: 0.15);
   } else if (isLight) {
     bgColor = Theme.of(context).dividerColor;
   } else {
-    bgColor = SeedlingColors.paleGreen.withValues(alpha: 0.5);
+    bgColor = context.palette.primaryContainer.withValues(alpha: 0.5);
   }
 
   return Container(
@@ -93,10 +93,10 @@ Widget buildMaterialInfoTile(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: SeedlingColors.paleGreen.withValues(alpha: 0.5),
+            color: context.palette.primaryContainer.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: SeedlingColors.forestGreen, size: 20),
+          child: Icon(icon, color: context.palette.primary, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -113,7 +113,7 @@ Widget buildMaterialInfoTile(
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
               ),
             ],
@@ -141,10 +141,10 @@ Widget buildMaterialSwitchTile(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: SeedlingColors.paleGreen.withValues(alpha: 0.5),
+            color: context.palette.primaryContainer.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: SeedlingColors.forestGreen, size: 20),
+          child: Icon(icon, color: context.palette.primary, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -161,7 +161,7 @@ Widget buildMaterialSwitchTile(
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: SeedlingColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
               ),
             ],
@@ -169,7 +169,7 @@ Widget buildMaterialSwitchTile(
         ),
         Switch(
           value: value,
-          activeTrackColor: SeedlingColors.forestGreen,
+          activeTrackColor: context.palette.primaryFill,
           onChanged: onChanged,
         ),
       ],
@@ -189,10 +189,10 @@ Widget buildMaterialActionTile(
   bool isLoading = false,
 }) {
   final iconColor = isDanger
-      ? SeedlingColors.error
-      : SeedlingColors.textSecondary;
+      ? context.palette.error
+      : context.palette.textSecondary;
   final bgColor = isDanger
-      ? SeedlingColors.error.withValues(alpha: 0.15)
+      ? context.palette.error.withValues(alpha: 0.15)
       : Theme.of(context).dividerColor;
 
   return Opacity(
@@ -228,7 +228,7 @@ Widget buildMaterialActionTile(
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: SeedlingColors.textMuted,
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ],
@@ -243,7 +243,7 @@ Widget buildMaterialActionTile(
             else if (enabled)
               Icon(
                 AdaptiveIcons.chevronRight,
-                color: SeedlingColors.textMuted,
+                color: context.palette.textMuted,
                 size: 20,
               ),
           ],
@@ -274,7 +274,7 @@ void showSettingsSuccess(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: SeedlingColors.forestGreen,
+        backgroundColor: context.palette.primaryFill,
       ),
     );
   }
@@ -302,7 +302,7 @@ void showSettingsError(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(safeMessage),
-        backgroundColor: SeedlingColors.error,
+        backgroundColor: context.palette.error,
       ),
     );
   }
@@ -364,23 +364,25 @@ Future<bool> authorizeSensitiveAction(
 
 /// Storage breakdown row used in the storage details dialog.
 Widget buildStorageRow(String label, String value, {bool isBold = false}) {
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-      Text(
-        label,
-        style: TextStyle(
-          fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+  return Builder(
+    builder: (context) => Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+          ),
         ),
-      ),
-      Text(
-        value,
-        style: TextStyle(
-          fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
-          color: SeedlingColors.forestGreen,
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+            color: context.palette.primary,
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -405,7 +407,7 @@ void showStorageDetails(BuildContext context, StorageUsage storage) {
         Text(
           'Total: ${storage.totalFormatted}',
           style: TextStyle(
-            color: SeedlingColors.forestGreen,
+            color: context.palette.primary,
             fontWeight: FontWeight.w600,
           ),
         ),

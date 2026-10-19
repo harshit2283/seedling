@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
 import '../../../../core/services/media/file_storage_service.dart';
@@ -42,13 +43,13 @@ class SimilarMemoriesSection extends ConsumerWidget {
               Icon(
                 PlatformUtils.isIOS ? CupertinoIcons.link : Icons.link,
                 size: 18,
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
               const SizedBox(width: 8),
               Text(
                 'Related Memories',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -115,7 +116,7 @@ class _RelatedMemoryCard extends StatelessWidget {
                   child: Text(
                     entry.displayContent,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: SeedlingColors.textPrimary,
+                      color: context.palette.textPrimary,
                       height: 1.3,
                     ),
                     maxLines: 2,
@@ -194,7 +195,7 @@ class _RelatedMemoryCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isActive
-                  ? SeedlingColors.forestGreen
+                  ? context.palette.primary
                   : Theme.of(context).dividerColor,
             ),
           );
@@ -204,7 +205,7 @@ class _RelatedMemoryCard extends StatelessWidget {
         Text(
           connection.factors.primaryReason,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: SeedlingColors.textMuted,
+            color: context.palette.textMuted,
             fontSize: 10,
           ),
         ),

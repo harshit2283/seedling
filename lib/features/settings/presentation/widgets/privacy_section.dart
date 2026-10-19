@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/platform/adaptive_icons.dart';
 import '../../../../core/platform/platform_utils.dart';
 import '../../../../core/services/providers.dart';
@@ -42,7 +42,7 @@ class PrivacySection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.smartphone,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('On your device'),
             subtitle: const Text(
@@ -53,7 +53,7 @@ class PrivacySection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.download,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text(deviceBackupNoteTitle),
             subtitle: const Text(deviceBackupNoteSubtitle, maxLines: 3),
@@ -63,7 +63,7 @@ class PrivacySection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               CupertinoIcons.square_grid_2x2,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Widget previews'),
             subtitle: Text(
@@ -73,7 +73,7 @@ class PrivacySection extends ConsumerWidget {
             ),
             trailing: CupertinoSwitch(
               value: widgetMemoryPreviewsEnabled,
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primaryFill,
               onChanged: (enabled) =>
                   _toggleWidgetMemoryPreviews(context, ref, enabled),
             ),
@@ -82,7 +82,7 @@ class PrivacySection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.lock,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('Sync passphrase'),
             subtitle: Text(
@@ -97,7 +97,7 @@ class PrivacySection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.lock,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('App Lock'),
             subtitle: Text(
@@ -105,7 +105,7 @@ class PrivacySection extends ConsumerWidget {
             ),
             trailing: CupertinoSwitch(
               value: appLockEnabled,
-              activeTrackColor: SeedlingColors.forestGreen,
+              activeTrackColor: context.palette.primaryFill,
               onChanged: (enabled) => _toggleAppLock(context, ref, enabled),
             ),
           ),
@@ -113,7 +113,7 @@ class PrivacySection extends ConsumerWidget {
             leading: buildSettingsIconBox(
               context,
               AdaptiveIcons.lock,
-              SeedlingColors.forestGreen,
+              context.palette.primary,
             ),
             title: const Text('No tracking'),
             subtitle: const Text('No analytics or data collection'),

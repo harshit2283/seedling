@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/adaptive_icons.dart';
 import '../../../core/platform/platform_utils.dart';
 import 'widgets/your_tree_section.dart';
@@ -41,7 +41,7 @@ class SettingsScreen extends ConsumerWidget {
         border: null,
         middle: const Text('Settings'),
         leading: CupertinoNavigationBarBackButton(
-          color: SeedlingColors.forestGreen,
+          color: context.palette.primary,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),

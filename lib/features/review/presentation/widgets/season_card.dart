@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/models/season.dart';
 import '../../../../core/presentation/seedling_iconography.dart';
 import '../../domain/review_generator.dart';
@@ -33,9 +33,7 @@ class SeasonCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _backgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? SeedlingColors.dividerDark : SeedlingColors.softCream,
-        ),
+        border: Border.all(color: context.palette.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,15 +45,15 @@ class SeasonCard extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: isDark ? 0.06 : 0.5),
+                  color: context.palette.onMedia.withValues(
+                    alpha: isDark ? 0.06 : 0.5,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   SeedlingIconography.seasonIcon(season),
                   size: 18,
-                  color: isDark
-                      ? SeedlingColors.textPrimaryDark
-                      : SeedlingColors.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(width: 8),
@@ -68,9 +66,7 @@ class SeasonCard extends StatelessWidget {
           Text(
             data.entryCount == 1 ? '1 memory' : '${data.entryCount} memories',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: isDark
-                  ? SeedlingColors.textSecondaryDark
-                  : SeedlingColors.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
 
@@ -81,9 +77,7 @@ class SeasonCard extends StatelessWidget {
               '"${data.sampleSnippet}"',
               style: theme.textTheme.bodySmall?.copyWith(
                 fontStyle: FontStyle.italic,
-                color: isDark
-                    ? SeedlingColors.textMutedDark
-                    : SeedlingColors.textMuted,
+                color: context.palette.textMuted,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

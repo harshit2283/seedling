@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme/colors.dart';
+import '../../../app/theme/palette.dart';
 import '../../../core/platform/platform_utils.dart';
 import '../../../core/services/media/file_storage_service.dart';
 import '../../../core/services/providers.dart';
@@ -181,13 +182,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                   ? CupertinoIcons.doc_text_search
                   : Icons.search_off,
               size: 64,
-              color: SeedlingColors.textMuted,
+              color: context.palette.textMuted,
             ),
             const SizedBox(height: 16),
             Text(
               'Memory not found',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
           ],
@@ -293,13 +294,15 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                       vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: SeedlingColors.textPrimary.withValues(alpha: 0.55),
+                      color: context.palette.textPrimary.withValues(
+                        alpha: 0.55,
+                      ),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Text(
+                    child: Text(
                       '← swipe →',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: context.palette.onMedia,
                         fontSize: 12,
                         letterSpacing: 0.4,
                       ),
@@ -369,7 +372,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         child: Text(
           'Save',
           style: TextStyle(
-            color: SeedlingColors.forestGreen,
+            color: context.palette.primary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -385,9 +388,9 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
           child: CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: () => showMemoryShareSheet(context, entry),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.share,
-              color: SeedlingColors.forestGreen,
+              color: context.palette.primary,
               size: 22,
             ),
           ),
@@ -399,9 +402,9 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
             child: CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: () => _enterEditMode(entry),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.pencil,
-                color: SeedlingColors.forestGreen,
+                color: context.palette.primary,
                 size: 22,
               ),
             ),
@@ -412,9 +415,9 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
           child: CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: () => _confirmDelete(context, entry),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.trash,
-              color: SeedlingColors.error,
+              color: context.palette.error,
               size: 22,
             ),
           ),
@@ -428,7 +431,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       return [
         IconButton(
           icon: const Icon(Icons.check),
-          color: SeedlingColors.forestGreen,
+          color: context.palette.primary,
           onPressed: () => _saveChanges(entry),
         ),
       ];
@@ -437,19 +440,19 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
     return [
       IconButton(
         icon: const Icon(Icons.share_outlined),
-        color: SeedlingColors.forestGreen,
+        color: context.palette.primary,
         tooltip: 'Share',
         onPressed: () => showMemoryShareSheet(context, entry),
       ),
       if (_canEdit(entry))
         IconButton(
           icon: const Icon(Icons.edit_outlined),
-          color: SeedlingColors.forestGreen,
+          color: context.palette.primary,
           onPressed: () => _enterEditMode(entry),
         ),
       IconButton(
         icon: const Icon(Icons.delete_outline),
-        color: SeedlingColors.error,
+        color: context.palette.error,
         onPressed: () => _confirmDelete(context, entry),
       ),
     ];
@@ -482,7 +485,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
               entry.title!,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: SeedlingColors.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
           ],
@@ -535,13 +538,13 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
               Icon(
                 PlatformUtils.isIOS ? CupertinoIcons.link : Icons.link,
                 size: 18,
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
               const SizedBox(width: 8),
               Text(
                 'Linked',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: SeedlingColors.textSecondary,
+                  color: context.palette.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -580,14 +583,14 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                       Icon(
                         CupertinoIcons.plus_circle,
                         size: 16,
-                        color: SeedlingColors.forestGreen,
+                        color: context.palette.primary,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         'Link a memory',
                         style: TextStyle(
                           fontSize: 14,
-                          color: SeedlingColors.forestGreen,
+                          color: context.palette.primary,
                         ),
                       ),
                     ],
@@ -598,11 +601,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                   icon: Icon(
                     Icons.add_link,
                     size: 16,
-                    color: SeedlingColors.forestGreen,
+                    color: context.palette.primary,
                   ),
                   label: Text(
                     'Link a memory',
-                    style: TextStyle(color: SeedlingColors.forestGreen),
+                    style: TextStyle(color: context.palette.primary),
                   ),
                 ),
         ),
@@ -677,7 +680,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
             TextButton(
               child: Text(
                 'Remove',
-                style: TextStyle(color: SeedlingColors.error),
+                style: TextStyle(color: context.palette.error),
               ),
               onPressed: () {
                 Navigator.of(context).pop();
@@ -785,7 +788,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         placeholder: 'Title',
         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
           fontWeight: FontWeight.w600,
-          color: SeedlingColors.textPrimary,
+          color: context.palette.textPrimary,
         ),
         decoration: BoxDecoration(
           color: Theme.of(context).dividerColor,
@@ -799,7 +802,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       controller: _titleController,
       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
         fontWeight: FontWeight.w600,
-        color: SeedlingColors.textPrimary,
+        color: context.palette.textPrimary,
       ),
       decoration: InputDecoration(
         hintText: 'Title',
@@ -829,8 +832,8 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           height: 1.6,
           color: isRelease
-              ? SeedlingColors.textSecondary
-              : SeedlingColors.textPrimary,
+              ? context.palette.textSecondary
+              : context.palette.textPrimary,
           fontStyle: isRelease ? FontStyle.italic : FontStyle.normal,
         ),
         decoration: BoxDecoration(
@@ -848,8 +851,8 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
         height: 1.6,
         color: isRelease
-            ? SeedlingColors.textSecondary
-            : SeedlingColors.textPrimary,
+            ? context.palette.textSecondary
+            : context.palette.textPrimary,
         fontStyle: isRelease ? FontStyle.italic : FontStyle.normal,
       ),
       decoration: InputDecoration(
@@ -993,10 +996,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
         borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
-        child: Text(
-          label,
-          style: const TextStyle(color: SeedlingColors.textMuted),
-        ),
+        child: Text(label, style: TextStyle(color: context.palette.textMuted)),
       ),
     );
   }
@@ -1024,7 +1024,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: SeedlingColors.textMuted,
+                        color: context.palette.textMuted,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1033,7 +1033,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.5,
-                        color: SeedlingColors.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ],
@@ -1052,14 +1052,14 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                           Icon(
                             CupertinoIcons.text_bubble,
                             size: 16,
-                            color: SeedlingColors.forestGreen,
+                            color: context.palette.primary,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             'Transcribe',
                             style: TextStyle(
                               fontSize: 14,
-                              color: SeedlingColors.forestGreen,
+                              color: context.palette.primary,
                             ),
                           ),
                         ],
@@ -1070,11 +1070,11 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                       icon: Icon(
                         Icons.text_fields,
                         size: 16,
-                        color: SeedlingColors.forestGreen,
+                        color: context.palette.primary,
                       ),
                       label: Text(
                         'Transcribe',
-                        style: TextStyle(color: SeedlingColors.forestGreen),
+                        style: TextStyle(color: context.palette.primary),
                       ),
                     ),
             if (_isTranscribing)
@@ -1089,7 +1089,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                           ? const CupertinoActivityIndicator(radius: 8)
                           : CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: SeedlingColors.forestGreen,
+                              color: context.palette.primary,
                             ),
                     ),
                     const SizedBox(width: 8),
@@ -1097,7 +1097,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                       'Transcribing...',
                       style: TextStyle(
                         fontSize: 14,
-                        color: SeedlingColors.textMuted,
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -1183,8 +1183,8 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             height: 1.6,
             color: isRelease
-                ? SeedlingColors.textSecondary
-                : SeedlingColors.textPrimary,
+                ? context.palette.textSecondary
+                : context.palette.textPrimary,
             fontStyle: isRelease ? FontStyle.italic : FontStyle.normal,
           ),
         ),
@@ -1216,7 +1216,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
             Text(
               'A wordless fragment',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -1261,7 +1261,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
               _formatDate(entry.createdAt),
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
             ),
           ],
         ),
@@ -1298,7 +1298,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
             Text(
               'More details',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1312,7 +1312,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                     ? CupertinoIcons.chevron_down
                     : Icons.expand_more,
                 size: 14,
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
           ],
@@ -1339,7 +1339,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                 Text(
                   'Details',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1353,7 +1353,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
                         ? CupertinoIcons.chevron_down
                         : Icons.expand_more,
                     size: 16,
-                    color: SeedlingColors.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
               ],
@@ -1415,14 +1415,14 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
               label,
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: SeedlingColors.textMuted),
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: SeedlingColors.textSecondary,
+                color: context.palette.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1476,7 +1476,7 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen>
             TextButton(
               child: Text(
                 'Delete',
-                style: TextStyle(color: SeedlingColors.error),
+                style: TextStyle(color: context.palette.error),
               ),
               onPressed: () {
                 Navigator.of(context).pop();
@@ -1598,7 +1598,7 @@ class _LinkedMemoryCardContent extends StatelessWidget {
               child: Text(
                 entry.displayContent,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: SeedlingColors.textPrimary,
+                  color: context.palette.textPrimary,
                   height: 1.3,
                 ),
                 maxLines: 2,
@@ -1609,7 +1609,7 @@ class _LinkedMemoryCardContent extends StatelessWidget {
             Text(
               'Hold to unlink',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: SeedlingColors.textMuted,
+                color: context.palette.textMuted,
                 fontSize: 10,
               ),
             ),
@@ -1850,7 +1850,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: SeedlingColors.textMuted.withValues(alpha: 0.4),
+                color: context.palette.textMuted.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1902,7 +1902,7 @@ class _LinkPickerSheetState extends ConsumerState<_LinkPickerSheet> {
                 : 'No memories match your search',
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: SeedlingColors.textMuted),
+            ).textTheme.bodyMedium?.copyWith(color: context.palette.textMuted),
             textAlign: TextAlign.center,
           ),
         ),

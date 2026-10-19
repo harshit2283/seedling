@@ -26,6 +26,7 @@ class SeedlingPalette extends ThemeExtension<SeedlingPalette> {
     required this.primaryContainer,
     required this.onPrimaryContainer,
     required this.secondary,
+    required this.bark,
     required this.background,
     required this.backgroundGradientStart,
     required this.backgroundGradientEnd,
@@ -79,6 +80,9 @@ class SeedlingPalette extends ThemeExtension<SeedlingPalette> {
   /// Warm bark brown accent.
   final Color secondary;
 
+  /// Deep bark brown for small labels on warm chips (AA on [surfaceMuted]).
+  final Color bark;
+
   final Color background;
   final Color backgroundGradientStart;
   final Color backgroundGradientEnd;
@@ -127,6 +131,51 @@ class SeedlingPalette extends ThemeExtension<SeedlingPalette> {
 
   bool get isDark => brightness == Brightness.dark;
 
+  /// A readable text color derived from an [accent] (type or theme color).
+  ///
+  /// Accents are tuned for icons and tints; as small text they can fall
+  /// below AA. This pulls the accent toward [textPrimary] so badge labels
+  /// keep their hue but reach 4.5:1 on cards and tinted badges.
+  Color inkFor(Color accent) =>
+      Color.lerp(accent, textPrimary, isDark ? 0.25 : 0.5)!;
+
+  /// The accent color for a memory theme, adjusted for brightness.
+  Color themeColor(String themeName) {
+    final c = isDark ? _themeDark[themeName] : _themeLight[themeName];
+    return c ??
+        (isDark
+            ? SeedlingColors.themeMomentsDark
+            : SeedlingColors.themeMoments);
+  }
+
+  static const Map<String, Color> _themeLight = {
+    'family': SeedlingColors.themeFamily,
+    'friends': SeedlingColors.themeFriends,
+    'work': SeedlingColors.themeWork,
+    'nature': SeedlingColors.themeNature,
+    'gratitude': SeedlingColors.themeGratitude,
+    'reflection': SeedlingColors.themeReflection,
+    'travel': SeedlingColors.themeTravel,
+    'creativity': SeedlingColors.themeCreativity,
+    'health': SeedlingColors.themeHealth,
+    'food': SeedlingColors.themeFood,
+    'moments': SeedlingColors.themeMoments,
+  };
+
+  static const Map<String, Color> _themeDark = {
+    'family': SeedlingColors.themeFamilyDark,
+    'friends': SeedlingColors.themeFriendsDark,
+    'work': SeedlingColors.themeWorkDark,
+    'nature': SeedlingColors.themeNatureDark,
+    'gratitude': SeedlingColors.themeGratitudeDark,
+    'reflection': SeedlingColors.themeReflectionDark,
+    'travel': SeedlingColors.themeTravelDark,
+    'creativity': SeedlingColors.themeCreativityDark,
+    'health': SeedlingColors.themeHealthDark,
+    'food': SeedlingColors.themeFoodDark,
+    'moments': SeedlingColors.themeMomentsDark,
+  };
+
   static const SeedlingPalette light = SeedlingPalette(
     brightness: Brightness.light,
     textPrimary: SeedlingColors.textPrimary,
@@ -138,6 +187,7 @@ class SeedlingPalette extends ThemeExtension<SeedlingPalette> {
     primaryContainer: SeedlingColors.paleGreen,
     onPrimaryContainer: SeedlingColors.forestGreen,
     secondary: SeedlingColors.warmBrown,
+    bark: SeedlingColors.barkBrown,
     background: SeedlingColors.creamPaper,
     backgroundGradientStart: SeedlingColors.backgroundGradientStart,
     backgroundGradientEnd: SeedlingColors.backgroundGradientEnd,
@@ -175,6 +225,7 @@ class SeedlingPalette extends ThemeExtension<SeedlingPalette> {
     primaryContainer: SeedlingColors.paleGreenDark,
     onPrimaryContainer: Color(0xFFCFE6D5),
     secondary: SeedlingColors.warmBrownDark,
+    bark: Color(0xFFC9B79A),
     background: SeedlingColors.backgroundDark,
     backgroundGradientStart: Color(0xFF1C1F1C),
     backgroundGradientEnd: Color(0xFF151715),
@@ -224,6 +275,7 @@ class SeedlingPalette extends ThemeExtension<SeedlingPalette> {
       primaryContainer: l(primaryContainer, other.primaryContainer),
       onPrimaryContainer: l(onPrimaryContainer, other.onPrimaryContainer),
       secondary: l(secondary, other.secondary),
+      bark: l(bark, other.bark),
       background: l(background, other.background),
       backgroundGradientStart: l(
         backgroundGradientStart,
@@ -256,6 +308,12 @@ class SeedlingPalette extends ThemeExtension<SeedlingPalette> {
       accentGold: l(accentGold, other.accentGold),
     );
   }
+}
+
+/// `theme.palette` - the [SeedlingPalette] registered on this [ThemeData].
+extension SeedlingPaletteTheme on ThemeData {
+  SeedlingPalette get palette =>
+      extension<SeedlingPalette>() ?? SeedlingPalette.of(brightness);
 }
 
 /// `context.palette` - the [SeedlingPalette] for the current theme.

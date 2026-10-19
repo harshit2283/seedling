@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../../../core/services/haptic_service.dart';
 
 /// Animated celebration when a capsule unlocks
@@ -132,10 +133,7 @@ class _CapsuleUnlockAnimationState extends State<CapsuleUnlockAnimation>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor = isDark
-        ? SeedlingColors.themeGratitudeDark
-        : SeedlingColors.themeGratitude;
+    final accentColor = context.palette.accentGold;
 
     return Stack(
       alignment: Alignment.center,

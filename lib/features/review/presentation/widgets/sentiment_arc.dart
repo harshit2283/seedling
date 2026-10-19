@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import '../../../../app/theme/colors.dart';
+import '../../../../app/theme/palette.dart';
 import '../../domain/review_generator.dart';
 
 /// Monthly sentiment line chart drawn with [CustomPainter].
@@ -37,11 +37,9 @@ class SentimentArc extends StatelessWidget {
         child: Center(
           child: Text(
             'Not enough sentiment data yet.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: isDark
-                  ? SeedlingColors.textMutedDark
-                  : SeedlingColors.textMuted,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: context.palette.textMuted),
           ),
         ),
       );
@@ -101,13 +99,14 @@ class _SentimentArcPainter extends CustomPainter {
 
   _SentimentArcPainter({required this.data, required this.isDark});
 
+  SeedlingPalette get _palette =>
+      isDark ? SeedlingPalette.dark : SeedlingPalette.light;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
 
-    final lineColor = isDark
-        ? SeedlingColors.forestGreenDark
-        : SeedlingColors.forestGreen;
+    final lineColor = _palette.primary;
 
     // Chart region padding.
     const leftPad = 0.0;
@@ -122,7 +121,7 @@ class _SentimentArcPainter extends CustomPainter {
 
     // Draw zero-line.
     final zeroLinePaint = Paint()
-      ..color = (isDark ? SeedlingColors.dividerDark : SeedlingColors.softCream)
+      ..color = _palette.divider
       ..strokeWidth = 1;
     final zeroY = yFor(0);
     canvas.drawLine(
