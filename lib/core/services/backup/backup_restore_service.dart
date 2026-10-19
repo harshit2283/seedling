@@ -106,7 +106,11 @@ class BackupRestoreService {
         entryMap: entryMap,
         loaded: loaded,
       );
-      if (restoredMediaPath == null && entryMap['mediaPath'] != null) {
+      final pendingDownload =
+          restoredMediaPath == null && _hasRemoteMedia(entryMap);
+      if (pendingDownload) {
+        warnings.add('media_pending_download');
+      } else if (restoredMediaPath == null && entryMap['mediaPath'] != null) {
         warnings.add('missing_media');
       } else if (restoredMediaPath != null) {
         importedMediaFiles++;
@@ -168,6 +172,12 @@ class BackupRestoreService {
     for (final entry in result.createdEntries) {
       sync.queuePush(entry, SyncChangeType.create);
     }
+  }
+
+  static bool _hasRemoteMedia(Map<String, dynamic> entryMap) {
+    final id = entryMap['mediaAssetId'];
+    final key = entryMap['mediaKey'];
+    return id is String && id.isNotEmpty && key is String && key.isNotEmpty;
   }
 
   /// Builds an [Entry] from one exported entry map.
@@ -242,6 +252,13 @@ class BackupRestoreService {
     if (modifiedAt != null) entry.modifiedAt = modifiedAt;
     // Rehydrate sync identity
     entry.syncUUID = entryMap['syncUUID'] as String?;
+    // Remote media link (encrypted backups only). Without local media the
+    // entry is left with no mediaPath so sync downloads it again.
+    if (_hasRemoteMedia(entryMap)) {
+      entry.mediaAssetId = entryMap['mediaAssetId'] as String;
+      entry.mediaKey = entryMap['mediaKey'] as String;
+      if (restoredMediaPath == null) entry.mediaPath = null;
+    }
     entry.deviceId = entryMap['deviceId'] as String?;
     return entry;
   }

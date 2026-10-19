@@ -168,4 +168,31 @@ void main() {
       );
     });
   });
+
+  test('caps JSON and Markdown entries at 64 MB declared size', () {
+    final zip = patchDeclaredSize(
+      buildZip({'Journal.json': utf8.encode('{}')}),
+      'Journal.json',
+      65 * 1024 * 1024,
+    );
+    expect(
+      () => SafeZipReader.fromBytes(zip),
+      throwsA(
+        isA<UnsafeArchiveException>().having(
+          (e) => e.message,
+          'message',
+          contains('text file'),
+        ),
+      ),
+    );
+    // Media may still be large.
+    final media = patchDeclaredSize(
+      buildZip({
+        'photos/a.jpg': const [1],
+      }),
+      'photos/a.jpg',
+      65 * 1024 * 1024,
+    );
+    expect(() => SafeZipReader.fromBytes(media), returnsNormally);
+  });
 }

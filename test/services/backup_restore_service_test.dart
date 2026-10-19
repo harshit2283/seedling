@@ -337,4 +337,41 @@ void main() {
       expect(calls[3], SyncChangeType.create);
     });
   });
+
+  test('an entry whose media is still remote is restored as a pending '
+      'download', () async {
+    when(() => database.getAllEntries()).thenReturn([]);
+    final result =
+        await BackupRestoreService(
+          database: database,
+          fileStorage: fileStorage,
+        ).restore(
+          const LoadedEncryptedBackup(
+            preview: EncryptedBackupPreview(
+              entryCount: 1,
+              mediaCount: 0,
+              version: 1,
+            ),
+            entries: [
+              {
+                'type': 'photo',
+                'createdAt': '2025-05-01T10:00:00.000Z',
+                'text': 'still downloading',
+                'mediaPath': null,
+                'mediaAssetId': 'asset-1',
+                'mediaKey': 'key-1',
+              },
+            ],
+            mediaFiles: {},
+          ),
+          mode: BackupImportMode.merge,
+        );
+
+    final entry = saved.single;
+    expect(entry.mediaAssetId, 'asset-1');
+    expect(entry.mediaKey, 'key-1');
+    expect(entry.mediaPath, isNull);
+    expect(result.warnings, contains('media_pending_download'));
+    expect(result.warnings, isNot(contains('missing_media')));
+  });
 }
