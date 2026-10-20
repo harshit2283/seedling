@@ -6,6 +6,9 @@ import 'package:seedling/app/theme/seedling_theme.dart';
 import 'package:seedling/core/constants/support_links.dart';
 import 'package:seedling/core/platform/platform_utils.dart';
 import 'package:seedling/features/support/presentation/support_screen.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
+import 'package:url_launcher_platform_interface/link.dart';
 
 Future<void> _pump(
   WidgetTester tester,
@@ -63,7 +66,12 @@ void main() {
     expect(find.text(donationLinksPendingNote), findsNothing);
   });
 
-  testWidgets('each help row copies its own link', (tester) async {
+  testWidgets('each help row copies its own link without a browser', (
+    tester,
+  ) async {
+    final previous = UrlLauncherPlatform.instance;
+    UrlLauncherPlatform.instance = _FakeLauncher(canOpen: false);
+    addTearDown(() => UrlLauncherPlatform.instance = previous);
     final copied = <String?>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -115,7 +123,12 @@ void main() {
     expect(find.textContaining('Nothing to report yet.'), findsNothing);
   });
 
-  testWidgets('tapping a link copies it and says so', (tester) async {
+  testWidgets('tapping a link copies it when no browser can open it', (
+    tester,
+  ) async {
+    final previous = UrlLauncherPlatform.instance;
+    UrlLauncherPlatform.instance = _FakeLauncher(canOpen: false);
+    addTearDown(() => UrlLauncherPlatform.instance = previous);
     String? copied;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -151,4 +164,35 @@ void main() {
     );
     expect(bar.backgroundColor!.computeLuminance(), lessThan(0.05));
   });
+
+  testWidgets('a link opens in the browser when it can', (tester) async {
+    final previous = UrlLauncherPlatform.instance;
+    final fake = _FakeLauncher();
+    UrlLauncherPlatform.instance = fake;
+    addTearDown(() => UrlLauncherPlatform.instance = previous);
+
+    await _pump(tester, const SupportScreen());
+    await tester.tap(find.text('Star on GitHub'));
+    await tester.pump();
+
+    expect(fake.launched, [SupportLinks.repositoryUrl]);
+    expect(find.text('Link copied. Paste it in your browser.'), findsNothing);
+  });
+}
+
+class _FakeLauncher extends UrlLauncherPlatform
+    with MockPlatformInterfaceMixin {
+  _FakeLauncher({this.canOpen = true});
+
+  final bool canOpen;
+  final launched = <String>[];
+
+  @override
+  LinkDelegate? get linkDelegate => null;
+
+  @override
+  Future<bool> launchUrl(String url, LaunchOptions options) async {
+    launched.add(url);
+    return canOpen;
+  }
 }

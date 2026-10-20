@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/palette.dart';
 import '../../../core/constants/support_links.dart';
@@ -279,9 +280,20 @@ class _SupportBody extends StatelessWidget {
   }
 }
 
-/// Copies [url] and says so. Seedling has no browser-launching dependency.
+/// Opens [url] in the browser the person chose. If that isn't possible,
+/// copies it and says so.
 Future<void> _openLink(BuildContext context, String url) async {
   HapticFeedback.selectionClick();
+  var opened = false;
+  try {
+    opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+  } catch (_) {
+    opened = false;
+  }
+  if (opened) return;
   await Clipboard.setData(ClipboardData(text: url));
   if (!context.mounted) return;
   showSeedlingMessage(context, 'Link copied. Paste it in your browser.');
