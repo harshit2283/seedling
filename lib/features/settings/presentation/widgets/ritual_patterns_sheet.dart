@@ -43,7 +43,7 @@ Future<void> showRitualPatterns(BuildContext context, WidgetRef ref) async {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       onPressed: () {
                         Navigator.of(sheetContext).pop();
-                        _confirmRitual(context, ref, candidate);
+                        confirmRitualCandidate(context, ref, candidate);
                       },
                       child: Text(
                         'Confirm',
@@ -57,7 +57,7 @@ Future<void> showRitualPatterns(BuildContext context, WidgetRef ref) async {
                   : TextButton(
                       onPressed: () {
                         Navigator.of(sheetContext).pop();
-                        _confirmRitual(context, ref, candidate);
+                        confirmRitualCandidate(context, ref, candidate);
                       },
                       child: Text(
                         'Confirm',
@@ -72,7 +72,7 @@ Future<void> showRitualPatterns(BuildContext context, WidgetRef ref) async {
   );
 }
 
-Future<void> _confirmRitual(
+Future<void> confirmRitualCandidate(
   BuildContext context,
   WidgetRef ref,
   RitualCandidate candidate,

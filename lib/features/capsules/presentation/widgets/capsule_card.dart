@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/palette.dart';
 import '../../../../app/theme/radius.dart';
@@ -39,8 +40,8 @@ class CapsuleCard extends StatelessWidget {
 
     return Semantics(
       label:
-          'Locked time capsule. ${entry.unlockTimeDescription}. '
-          'Unlocks on ${_formatUnlockDate(entry.capsuleUnlockDate!)}.',
+          '${capsuleHeading(entry)}. Waiting to open. '
+          '${entry.unlockTimeDescription}.',
       child: Container(
         decoration: BoxDecoration(
           color: cardColor,
@@ -63,7 +64,9 @@ class CapsuleCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Time Capsule',
+                          capsuleHeading(entry),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(
                                 color: textPrimary,
@@ -77,13 +80,15 @@ class CapsuleCard extends StatelessWidget {
                             context,
                           ).textTheme.bodySmall?.copyWith(color: textSecondary),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatUnlockDate(entry.capsuleUnlockDate!),
-                          style: Theme.of(
-                            context,
-                          ).textTheme.labelSmall?.copyWith(color: textMuted),
-                        ),
+                        if (_hasOwnTitle(entry)) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Opens ${_formatUnlockDate(entry.capsuleUnlockDate!)}',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.labelSmall?.copyWith(color: textMuted),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -107,7 +112,7 @@ class CapsuleCard extends StatelessWidget {
                   child: Text(
                     entry.displayContent.isNotEmpty
                         ? entry.displayContent
-                        : 'A message awaits...',
+                        : 'A few words, waiting.',
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(color: textMuted),
@@ -178,7 +183,8 @@ class CapsuleCard extends StatelessWidget {
 
     return Semantics(
       button: onTap != null,
-      label: 'Unlocked capsule. ${entry.displayContent}. Tap to open.',
+      label:
+          'Opened capsule, ${capsuleHeading(entry)}. ${entry.displayContent}.',
       child: GestureDetector(
         onTap: () {
           HapticFeedback.selectionClick();
@@ -220,7 +226,7 @@ class CapsuleCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Unlocked ${_formatDate(entry.capsuleUnlockDate!)}',
+                      'Opened ${_formatDate(entry.capsuleUnlockDate!)}',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: accentColor,
                         fontWeight: FontWeight.w600,
@@ -295,7 +301,7 @@ class CapsuleCard extends StatelessWidget {
       'November',
       'December',
     ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   String _formatDate(DateTime date) {
@@ -313,6 +319,19 @@ class CapsuleCard extends StatelessWidget {
       'Nov',
       'Dec',
     ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
+}
+
+bool _hasOwnTitle(Entry entry) => (entry.title ?? '').trim().isNotEmpty;
+
+/// What a capsule is called: the person's own title, or "A letter to
+/// 4 October 2027". Never the generic "Time Capsule", and never the sealed
+/// words themselves before the capsule opens.
+String capsuleHeading(Entry entry) {
+  final title = entry.title?.trim();
+  if (title != null && title.isNotEmpty) return title;
+  final date = entry.capsuleUnlockDate;
+  if (date == null) return 'A letter to the future';
+  return 'A letter to ${DateFormat('d MMMM y').format(date)}';
 }

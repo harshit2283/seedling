@@ -26,6 +26,13 @@ class ConnectionFinderService {
   /// Minimum similarity score to consider a connection meaningful
   static const double _minimumThreshold = 0.3;
 
+  /// A short line ("Morning coffee on the balcony") has only a handful of
+  /// words, so one shared rare word is all the evidence it can give. For
+  /// these the cut-off is lower, but only for a real shared word.
+  static const double _shortLineThreshold = 0.15;
+  static const double _shortLineMinimumText = 0.12;
+  static const int _shortLineMaxTerms = 5;
+
   /// Content evidence (text or shared people/places) a pair needs before
   /// theme and time are allowed to count.
   static const double _minimumContent = 0.05;
@@ -100,6 +107,7 @@ class ConnectionFinderService {
     final source = _tokensFor(entry);
     final sourceNorm = corpus.norm(source);
     final sourceEntities = corpus.entities(source);
+    final shortLine = source.terms.length <= _shortLineMaxTerms;
     final connections = <MemoryConnection>[];
 
     for (final candidate in allEntries) {
@@ -121,7 +129,12 @@ class ConnectionFinderService {
         entityBonus: people,
       );
       final score = factors.total;
-      if (score >= _minimumThreshold) {
+      final meaningful =
+          score >= _minimumThreshold ||
+          (shortLine &&
+              text >= _shortLineMinimumText &&
+              score >= _shortLineThreshold);
+      if (meaningful) {
         connections.add(
           MemoryConnection(
             relatedEntry: candidate,

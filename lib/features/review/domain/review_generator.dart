@@ -34,6 +34,10 @@ class YearReviewData {
   /// Number of entries that have at least one connection.
   final int connectionCount;
 
+  /// Memories kept in each month, January first (12 values once generated).
+  /// Counts only: nothing about what the memories say.
+  final List<int> monthCounts;
+
   const YearReviewData({
     required this.year,
     required this.totalEntries,
@@ -43,6 +47,7 @@ class YearReviewData {
     required this.memorableMoments,
     required this.treeStateLabel,
     required this.connectionCount,
+    this.monthCounts = const [],
   });
 
   /// Whether the user has enough entries (10+) to show a full review.
@@ -156,6 +161,10 @@ class ReviewGenerator {
       memorableMoments: memorableMoments,
       treeStateLabel: treeStateLabel,
       connectionCount: connectionCount,
+      monthCounts: [
+        for (var m = 1; m <= 12; m++)
+          entries.where((e) => e.createdAt.month == m).length,
+      ],
     );
   }
 
