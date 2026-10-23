@@ -56,9 +56,17 @@ class AtRestEncryptionService {
     return value.startsWith(_payloadPrefix);
   }
 
+  /// Decrypts a value written by [encryptField]. Returns null when it
+  /// can't be decrypted (wrong key, damaged, or not an encrypted value).
   String? decryptField(String? value) {
     if (value == null || value.isEmpty) return value;
-    if (!isEncryptedValue(value)) return value;
+    if (!isEncryptedValue(value)) {
+      developer.log(
+        'Decrypt failed: value is not encrypted',
+        name: 'AtRestEncryptionService',
+      );
+      return null;
+    }
     _decryptCount++;
 
     try {

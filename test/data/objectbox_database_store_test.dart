@@ -180,35 +180,6 @@ void main() {
     expect(store.getEntry(saved.id)!.syncUUID, saved.syncUUID);
   });
 
-  test('legacy base36 link ids are migrated without breaking links', () async {
-    final store = db;
-    if (store == null) {
-      markTestSkipped('ObjectBox native library not available');
-      return;
-    }
-    // What the old link editor wrote: a base36 timestamp id.
-    const legacyId = 'lq3x9k2abc';
-    final target = await store.saveEntry(
-      Entry.line(text: 'the old bench')..syncUUID = legacyId,
-    );
-    final source = await store.saveEntry(
-      Entry.line(text: 'walked past it')..manualLinkIds = legacyId,
-    );
-    store.close();
-
-    final reopened = await ObjectBoxDatabase.openForTesting(
-      directory: dir.path,
-      encryptionService: AtRestEncryptionService(),
-    );
-    db = reopened;
-
-    final migratedId = reopened.getEntry(target.id)!.syncUUID;
-    expect(SyncId.isValid(migratedId), isTrue);
-    final links = reopened.getEntry(source.id)!.manualLinkList;
-    expect(links, [migratedId]);
-    expect(reopened.getEntriesBySyncUUIDs(links).single.text, 'the old bench');
-  });
-
   group('cache integrity', () {
     test('UTC timestamps are cached as local time and counted in the local '
         'year', () async {

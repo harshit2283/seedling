@@ -112,9 +112,6 @@ class ObjectBoxDatabase {
     db._ritualBox = db._store.box<Ritual>();
     db._encryptionService = encryptionService;
     await db._encryptionService.init();
-    db._encryptPlaintextRituals();
-
-    db._migrateLegacySyncUUIDs();
 
     // Ensure current year's tree exists
     await db._ensureCurrentYearTree();
@@ -852,60 +849,6 @@ class ObjectBoxDatabase {
     }
   }
 
-  /// One-time repair for stores written by older builds:
-  /// - entries without a syncUUID get one, so links and sync can find them;
-  /// - legacy non-UUID ids (base36 timestamps minted by the old link editor)
-  ///   are replaced by v4 UUIDs, and every manualLinkIds list that referenced
-  ///   them is rewritten, so the links survive. Previously sync replaced those
-  ///   ids on push and the links silently broke.
-  ///
-  /// Cheap when there is nothing to do: only the syncUUID column is read.
-  void _migrateLegacySyncUUIDs() {
-    final probe = _entryBox.query().build();
-    final ids = probe.property(Entry_.syncUUID).find();
-    final total = probe.count();
-    probe.close();
-    final needsWork =
-        ids.length < total || ids.any((id) => !SyncId.isValid(id));
-    if (!needsWork) return;
-
-    _store.runInTransaction(TxMode.write, () {
-      final renamed = <String, String>{};
-      final changed = <Entry>[];
-      for (final entry in _entryBox.getAll()) {
-        final current = entry.syncUUID;
-        if (SyncId.isValid(current)) continue;
-        final replacement = SyncId.generate();
-        if (current != null && current.isNotEmpty) {
-          renamed[current] = replacement;
-        }
-        entry.syncUUID = replacement;
-        changed.add(entry);
-      }
-      if (changed.isNotEmpty) _entryBox.putMany(changed);
-      if (renamed.isEmpty) return;
-
-      final linkQuery = _entryBox.query(Entry_.manualLinkIds.notNull()).build();
-      final linking = linkQuery.find();
-      linkQuery.close();
-      final relinked = <Entry>[];
-      for (final entry in linking) {
-        final raw = _encryptionService.decryptField(entry.manualLinkIds);
-        if (raw == null || raw.isEmpty) continue;
-        final parts = raw.split(',');
-        if (!parts.any((part) => renamed.containsKey(part.trim()))) continue;
-        final rewritten = [
-          for (final part in parts) renamed[part.trim()] ?? part,
-        ];
-        entry.manualLinkIds = _encryptionService.encryptField(
-          rewritten.join(','),
-        );
-        relinked.add(entry);
-      }
-      if (relinked.isNotEmpty) _entryBox.putMany(relinked);
-    });
-  }
-
   /// Find an entry by its sync UUID (for cloud sync merge)
   Entry? getEntryBySyncUUID(String syncUUID) {
     final query = _entryBox.query(Entry_.syncUUID.equals(syncUUID)).build();
@@ -984,9 +927,12 @@ class ObjectBoxDatabase {
     entry.decryptionFailed = false;
     entry.invalidateSearchCache();
 
+    // A value that can't be decrypted keeps its stored form (so a later
+    // save doesn't destroy it) and marks the entry.
     String? decryptOrPreserve(String? value) {
+      if (value == null || value.isEmpty) return value;
       final decrypted = _encryptionService.decryptField(value);
-      if (decrypted == null && _encryptionService.isEncryptedValue(value)) {
+      if (decrypted == null) {
         entry.decryptionFailed = true;
         return value;
       }
@@ -1009,8 +955,6 @@ class ObjectBoxDatabase {
 
   // Ritual names are often copied from memory text, and signatures are
   // derived from it, so both are encrypted at rest like Entry fields.
-  // Rituals written before this was added are plaintext; decryptField passes
-  // plaintext through unchanged and [_encryptPlaintextRituals] upgrades them.
 
   Future<void> saveRitual(Ritual ritual) async {
     _encryptRitualFields(ritual);
@@ -1053,10 +997,8 @@ class ObjectBoxDatabase {
   }
 
   void _decryptRitualFields(Ritual ritual) {
-    String decryptOrPreserve(String value) =>
-        _encryptionService.decryptField(value) ?? value;
-    ritual.name = decryptOrPreserve(ritual.name);
-    ritual.signature = decryptOrPreserve(ritual.signature);
+    ritual.name = _encryptionService.decryptField(ritual.name) ?? '';
+    ritual.signature = _encryptionService.decryptField(ritual.signature) ?? '';
   }
 
   List<Ritual> _decryptRituals(List<Ritual> rituals) {
@@ -1064,25 +1006,6 @@ class ObjectBoxDatabase {
       _decryptRitualFields(ritual);
     }
     return rituals;
-  }
-
-  /// One-time upgrade of rituals stored before at-rest encryption.
-  void _encryptPlaintextRituals() {
-    final plaintext = _ritualBox
-        .getAll()
-        .where(
-          (r) =>
-              (r.name.isNotEmpty &&
-                  !_encryptionService.isEncryptedValue(r.name)) ||
-              (r.signature.isNotEmpty &&
-                  !_encryptionService.isEncryptedValue(r.signature)),
-        )
-        .toList();
-    if (plaintext.isEmpty) return;
-    for (final ritual in plaintext) {
-      _encryptRitualFields(ritual);
-    }
-    _ritualBox.putMany(plaintext);
   }
 
   // ============ Object Collection Operations ============

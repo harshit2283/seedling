@@ -89,8 +89,6 @@ class SyncCryptoService {
   static const _versionField = 'syncEncryptionVersion';
   static const _macField = 'syncMac';
 
-  /// Every secure-storage key this service reads or writes.
-  static const secureStorageKeys = <String>[_keyMaterialStorageId];
   static const _fieldPrefix = 'syncenc:v1:';
   static const _kdfIterations = 210000;
   static const _recordKeyInfo = 'seedling.sync.record-key.v1';

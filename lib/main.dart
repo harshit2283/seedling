@@ -18,7 +18,6 @@ import 'core/services/notifications/gentle_reminder_service.dart';
 import 'core/services/providers.dart';
 import 'core/services/security/clock_guard_service.dart';
 import 'core/services/security/ios_data_protection.dart';
-import 'core/services/security/secure_storage.dart';
 import 'core/services/sync/sync_metadata.dart';
 import 'core/services/storage/media_orphan_sweeper.dart';
 import 'core/services/share/share_receiver_service.dart';
@@ -63,10 +62,6 @@ Future<void> _runApp() async {
   // Setting edgeToEdge mode allows the app to draw behind system bars
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  // Move pre-existing keychain secrets to device-only accessibility before
-  // anything reads them.
-  await SecureStorageAccessibilityMigration().run();
-
   // Initialize database
   final database = await ObjectBoxDatabase.create();
   database.attachErrorReporter(const ErrorReporter());
@@ -95,8 +90,8 @@ Future<void> _runApp() async {
   if (database.isFreshStore) {
     // Preferences survive a backup restore but the store does not: give this
     // install its own sync device id (sharing one would make two devices
-    // write the same change log) and drop the old queue, tokens and upload
-    // state so the next sync pulls everything and re-uploads cleanly.
+    // write the same change log) and drop the old queue and tokens so the
+    // next sync pulls everything.
     await SyncMetadata.resetForRestoredInstall(sharedPreferences);
   }
   // Persist remote deletes for anything just purged from the trash now, not

@@ -63,31 +63,4 @@ void main() {
     expect(raw.signature, startsWith('enc:v1:'));
     expect(raw.name.contains('Dad'), isFalse);
   });
-
-  test(
-    'legacy plaintext rituals still read and are encrypted on open',
-    () async {
-      final store = db;
-      if (store == null) {
-        markTestSkipped('ObjectBox native library not available');
-        return;
-      }
-      // Simulate a ritual written by a build without ritual encryption.
-      final id = store.ritualBoxForTesting.put(
-        Ritual(name: 'Sunday pancakes', signature: 'pancakes@sunday'),
-      );
-      expect(store.getRitual(id)!.name, 'Sunday pancakes');
-
-      store.close();
-      final reopened = (await _tryOpen(dir))!;
-      db = reopened;
-
-      final raw = reopened.ritualBoxForTesting.get(id)!;
-      expect(raw.name, startsWith('enc:v1:'));
-      expect(raw.signature, startsWith('enc:v1:'));
-      final read = reopened.getRitual(id)!;
-      expect(read.name, 'Sunday pancakes');
-      expect(read.signature, 'pancakes@sunday');
-    },
-  );
 }

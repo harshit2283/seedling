@@ -67,7 +67,7 @@ void main() {
       expect(decrypted, 'hello memory');
     });
 
-    test('returns plaintext as-is when not encrypted', () async {
+    test('never passes an unencrypted value through', () async {
       when(
         () => secureStorage.read(key: any(named: 'key')),
       ).thenAnswer((_) async => null);
@@ -86,7 +86,7 @@ void main() {
       final service = AtRestEncryptionService(secureStorage: secureStorage);
       await service.init();
 
-      expect(service.decryptField('plain text'), 'plain text');
+      expect(service.decryptField('plain text'), isNull);
     });
 
     test('returns null for malformed encrypted payload', () async {
