@@ -343,18 +343,6 @@ class _ReviewBody extends StatelessWidget {
             ),
           ),
         ],
-        if (!calm && data.connectionCount > 0) ...[
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              '${data.connectionCount} connected memories',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: palette.textMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
 
         // ---- 2. Seasons ----
         const SizedBox(height: 40),

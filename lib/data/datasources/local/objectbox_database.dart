@@ -243,7 +243,6 @@ class ObjectBoxDatabase {
     entry.deletedAt = entry.deletedAt?.toLocal();
     entry.capsuleUnlockDate = entry.capsuleUnlockDate?.toLocal();
     entry.modifiedAt = entry.modifiedAt?.toLocal();
-    entry.lastAnalyzedAt = entry.lastAnalyzedAt?.toLocal();
   }
 
   /// Decrypts [raw] in place (it is a fresh object from the box) and returns it.
@@ -917,7 +916,6 @@ class ObjectBoxDatabase {
     entry.mood = _encryptionService.encryptField(entry.mood);
     entry.tags = _encryptionService.encryptField(entry.tags);
     entry.detectedTheme = _encryptionService.encryptField(entry.detectedTheme);
-    entry.connectionIds = _encryptionService.encryptField(entry.connectionIds);
     entry.manualLinkIds = _encryptionService.encryptField(entry.manualLinkIds);
     entry.transcription = _encryptionService.encryptField(entry.transcription);
     entry.mediaKey = _encryptionService.encryptField(entry.mediaKey);
@@ -945,7 +943,6 @@ class ObjectBoxDatabase {
     entry.mood = decryptOrPreserve(entry.mood);
     entry.tags = decryptOrPreserve(entry.tags);
     entry.detectedTheme = decryptOrPreserve(entry.detectedTheme);
-    entry.connectionIds = decryptOrPreserve(entry.connectionIds);
     entry.manualLinkIds = decryptOrPreserve(entry.manualLinkIds);
     entry.transcription = decryptOrPreserve(entry.transcription);
     entry.mediaKey = decryptOrPreserve(entry.mediaKey);

@@ -22,156 +22,138 @@ export 'package:objectbox/objectbox.dart'; // so that callers only have to impor
 
 final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
-    id: const obx_int.IdUid(1, 980722598120104709),
+    id: const obx_int.IdUid(1, 3618366322419244472),
     name: 'Entry',
-    lastPropertyId: const obx_int.IdUid(25, 3378884658581427632),
+    lastPropertyId: const obx_int.IdUid(21, 1400695550693810686),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(1, 269502239998818654),
+        id: const obx_int.IdUid(1, 406130142320575330),
         name: 'id',
         type: 6,
         flags: 1,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(2, 4422281124207185487),
+        id: const obx_int.IdUid(2, 2886353860816706564),
         name: 'createdAt',
         type: 10,
         flags: 8,
-        indexId: const obx_int.IdUid(1, 3928695469656222066),
+        indexId: const obx_int.IdUid(1, 7606553402515341198),
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(3, 353915068729339971),
+        id: const obx_int.IdUid(3, 4923407087346694980),
         name: 'typeIndex',
         type: 6,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(4, 3708880826332420230),
+        id: const obx_int.IdUid(4, 4790424559354352967),
         name: 'text',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(5, 7375884822086644768),
+        id: const obx_int.IdUid(5, 4066254968282276592),
         name: 'mediaPath',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(6, 6053545043161884039),
+        id: const obx_int.IdUid(6, 63196364186343087),
         name: 'title',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(7, 226156736396886711),
+        id: const obx_int.IdUid(7, 4047628768710355812),
         name: 'context',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(8, 5791614792974334851),
+        id: const obx_int.IdUid(8, 4681366994527769339),
         name: 'mood',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(9, 3041290548098779867),
+        id: const obx_int.IdUid(9, 1359429898610252622),
         name: 'tags',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(10, 5610169781178833264),
+        id: const obx_int.IdUid(10, 2060729363784964661),
         name: 'isReleased',
         type: 1,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(11, 1952791767777103688),
+        id: const obx_int.IdUid(11, 2975550618083427626),
         name: 'isDeleted',
         type: 1,
         flags: 8,
-        indexId: const obx_int.IdUid(2, 5746525490482150823),
+        indexId: const obx_int.IdUid(2, 3432419964119549587),
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(12, 95477390163426456),
+        id: const obx_int.IdUid(12, 6283940069123802328),
         name: 'deletedAt',
         type: 10,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(13, 4412152896935047327),
+        id: const obx_int.IdUid(13, 692027902920354898),
         name: 'detectedTheme',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(14, 4459816486174533736),
-        name: 'connectionIds',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(15, 4010109162980093924),
-        name: 'sentimentScore',
-        type: 8,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(16, 6242043607225809772),
-        name: 'lastAnalyzedAt',
-        type: 10,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(18, 7049565280661572356),
-        name: 'capsuleUnlockDate',
-        type: 10,
-        flags: 8,
-        indexId: const obx_int.IdUid(3, 5594065671377155778),
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(19, 6989500767525477215),
-        name: 'transcription',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(20, 5287589025787022643),
-        name: 'syncUUID',
-        type: 9,
-        flags: 2048,
-        indexId: const obx_int.IdUid(4, 8635589592904350413),
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(21, 2626856446788976910),
-        name: 'modifiedAt',
-        type: 10,
-        flags: 8,
-        indexId: const obx_int.IdUid(5, 6316197321341892688),
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(22, 3618374170569244160),
-        name: 'deviceId',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(23, 8840600702752248780),
+        id: const obx_int.IdUid(14, 3230361980251597813),
         name: 'manualLinkIds',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(24, 8754591307827403872),
+        id: const obx_int.IdUid(15, 4301971513570504427),
+        name: 'capsuleUnlockDate',
+        type: 10,
+        flags: 8,
+        indexId: const obx_int.IdUid(3, 1526916650741619663),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(16, 6812119822163831696),
+        name: 'transcription',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(17, 3278737256794072064),
+        name: 'syncUUID',
+        type: 9,
+        flags: 2048,
+        indexId: const obx_int.IdUid(4, 8701015515298304205),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(18, 2611601102458304555),
+        name: 'modifiedAt',
+        type: 10,
+        flags: 8,
+        indexId: const obx_int.IdUid(5, 357963911592062427),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(19, 984717244466426111),
+        name: 'deviceId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(20, 1377268995175487111),
         name: 'mediaAssetId',
         type: 9,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(25, 3378884658581427632),
+        id: const obx_int.IdUid(21, 1400695550693810686),
         name: 'mediaKey',
         type: 9,
         flags: 0,
@@ -181,38 +163,74 @@ final _entities = <obx_int.ModelEntity>[
     backlinks: <obx_int.ModelBacklink>[],
   ),
   obx_int.ModelEntity(
-    id: const obx_int.IdUid(2, 3362048758403623883),
-    name: 'Tree',
-    lastPropertyId: const obx_int.IdUid(5, 5939974100987378786),
+    id: const obx_int.IdUid(2, 929029253589606499),
+    name: 'Ritual',
+    lastPropertyId: const obx_int.IdUid(11, 3179669496430230501),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(1, 5290125901850262022),
+        id: const obx_int.IdUid(1, 2948842012323530703),
         name: 'id',
         type: 6,
         flags: 1,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(2, 1715661857793943423),
-        name: 'year',
+        id: const obx_int.IdUid(2, 198934114414855514),
+        name: 'uuid',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 4892638503563410179),
+        name: 'name',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 4610942577838418784),
+        name: 'signature',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 1975520019877686329),
+        name: 'statusIndex',
         type: 6,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(3, 4617615204353589173),
-        name: 'entryCount',
+        id: const obx_int.IdUid(6, 7307686898035670626),
+        name: 'cadenceDays',
         type: 6,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(4, 404156755750246248),
+        id: const obx_int.IdUid(7, 4699107760880497485),
+        name: 'preferredHour',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 1319435743609266341),
         name: 'createdAt',
         type: 10,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(5, 5939974100987378786),
-        name: 'stateIndex',
+        id: const obx_int.IdUid(9, 546414607058361796),
+        name: 'lastObservedAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 2595069963940650700),
+        name: 'nextDueAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(11, 3179669496430230501),
+        name: 'occurrenceCount',
         type: 6,
         flags: 0,
       ),
@@ -221,74 +239,38 @@ final _entities = <obx_int.ModelEntity>[
     backlinks: <obx_int.ModelBacklink>[],
   ),
   obx_int.ModelEntity(
-    id: const obx_int.IdUid(3, 8814026308694728405),
-    name: 'Ritual',
-    lastPropertyId: const obx_int.IdUid(11, 786135456654185868),
+    id: const obx_int.IdUid(3, 4972555767924737386),
+    name: 'Tree',
+    lastPropertyId: const obx_int.IdUid(5, 4714275685865031153),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(1, 9126252907033325446),
+        id: const obx_int.IdUid(1, 4946810791190189475),
         name: 'id',
         type: 6,
         flags: 1,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(2, 1024230205657674547),
-        name: 'uuid',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(3, 5723073435690232525),
-        name: 'name',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(4, 496945034011078349),
-        name: 'signature',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(5, 3643181829478333684),
-        name: 'statusIndex',
+        id: const obx_int.IdUid(2, 8450043600132268417),
+        name: 'year',
         type: 6,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(6, 7552542947224669242),
-        name: 'cadenceDays',
+        id: const obx_int.IdUid(3, 3287681904092632330),
+        name: 'entryCount',
         type: 6,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(7, 7014604637639458632),
-        name: 'preferredHour',
-        type: 6,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(8, 6648556305350325062),
+        id: const obx_int.IdUid(4, 6358466087805765311),
         name: 'createdAt',
         type: 10,
         flags: 0,
       ),
       obx_int.ModelProperty(
-        id: const obx_int.IdUid(9, 6459583029169323667),
-        name: 'lastObservedAt',
-        type: 10,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(10, 6610698839710776274),
-        name: 'nextDueAt',
-        type: 10,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(11, 786135456654185868),
-        name: 'occurrenceCount',
+        id: const obx_int.IdUid(5, 4714275685865031153),
+        name: 'stateIndex',
         type: 6,
         flags: 0,
       ),
@@ -341,13 +323,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(3, 8814026308694728405),
-    lastIndexId: const obx_int.IdUid(5, 6316197321341892688),
+    lastEntityId: const obx_int.IdUid(3, 4972555767924737386),
+    lastIndexId: const obx_int.IdUid(5, 357963911592062427),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
     retiredIndexUids: const [],
-    retiredPropertyUids: const [4822441182230169529],
+    retiredPropertyUids: const [],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -385,9 +367,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final detectedThemeOffset = object.detectedTheme == null
             ? null
             : fbb.writeString(object.detectedTheme!);
-        final connectionIdsOffset = object.connectionIds == null
+        final manualLinkIdsOffset = object.manualLinkIds == null
             ? null
-            : fbb.writeString(object.connectionIds!);
+            : fbb.writeString(object.manualLinkIds!);
         final transcriptionOffset = object.transcription == null
             ? null
             : fbb.writeString(object.transcription!);
@@ -397,16 +379,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final deviceIdOffset = object.deviceId == null
             ? null
             : fbb.writeString(object.deviceId!);
-        final manualLinkIdsOffset = object.manualLinkIds == null
-            ? null
-            : fbb.writeString(object.manualLinkIds!);
         final mediaAssetIdOffset = object.mediaAssetId == null
             ? null
             : fbb.writeString(object.mediaAssetId!);
         final mediaKeyOffset = object.mediaKey == null
             ? null
             : fbb.writeString(object.mediaKey!);
-        fbb.startTable(26);
+        fbb.startTable(22);
         fbb.addInt64(0, object.id);
         fbb.addInt64(1, object.createdAt.millisecondsSinceEpoch);
         fbb.addInt64(2, object.typeIndex);
@@ -420,17 +399,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addBool(10, object.isDeleted);
         fbb.addInt64(11, object.deletedAt?.millisecondsSinceEpoch);
         fbb.addOffset(12, detectedThemeOffset);
-        fbb.addOffset(13, connectionIdsOffset);
-        fbb.addFloat64(14, object.sentimentScore);
-        fbb.addInt64(15, object.lastAnalyzedAt?.millisecondsSinceEpoch);
-        fbb.addInt64(17, object.capsuleUnlockDate?.millisecondsSinceEpoch);
-        fbb.addOffset(18, transcriptionOffset);
-        fbb.addOffset(19, syncUUIDOffset);
-        fbb.addInt64(20, object.modifiedAt?.millisecondsSinceEpoch);
-        fbb.addOffset(21, deviceIdOffset);
-        fbb.addOffset(22, manualLinkIdsOffset);
-        fbb.addOffset(23, mediaAssetIdOffset);
-        fbb.addOffset(24, mediaKeyOffset);
+        fbb.addOffset(13, manualLinkIdsOffset);
+        fbb.addInt64(14, object.capsuleUnlockDate?.millisecondsSinceEpoch);
+        fbb.addOffset(15, transcriptionOffset);
+        fbb.addOffset(16, syncUUIDOffset);
+        fbb.addInt64(17, object.modifiedAt?.millisecondsSinceEpoch);
+        fbb.addOffset(18, deviceIdOffset);
+        fbb.addOffset(19, mediaAssetIdOffset);
+        fbb.addOffset(20, mediaKeyOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -442,20 +418,15 @@ obx_int.ModelDefinition getObjectBoxModel() {
           rootOffset,
           26,
         );
-        final lastAnalyzedAtValue = const fb.Int64Reader().vTableGetNullable(
-          buffer,
-          rootOffset,
-          34,
-        );
         final capsuleUnlockDateValue = const fb.Int64Reader().vTableGetNullable(
           buffer,
           rootOffset,
-          38,
+          32,
         );
         final modifiedAtValue = const fb.Int64Reader().vTableGetNullable(
           buffer,
           rootOffset,
-          44,
+          38,
         );
         final idParam = const fb.Int64Reader().vTableGet(
           buffer,
@@ -508,41 +479,30 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final detectedThemeParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 28);
-        final connectionIdsParam = const fb.StringReader(
-          asciiOptimization: true,
-        ).vTableGetNullable(buffer, rootOffset, 30);
         final manualLinkIdsParam = const fb.StringReader(
           asciiOptimization: true,
-        ).vTableGetNullable(buffer, rootOffset, 48);
-        final sentimentScoreParam = const fb.Float64Reader().vTableGetNullable(
-          buffer,
-          rootOffset,
-          32,
-        );
-        final lastAnalyzedAtParam = lastAnalyzedAtValue == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(lastAnalyzedAtValue);
+        ).vTableGetNullable(buffer, rootOffset, 30);
         final capsuleUnlockDateParam = capsuleUnlockDateValue == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(capsuleUnlockDateValue);
         final transcriptionParam = const fb.StringReader(
           asciiOptimization: true,
-        ).vTableGetNullable(buffer, rootOffset, 40);
+        ).vTableGetNullable(buffer, rootOffset, 34);
         final syncUUIDParam = const fb.StringReader(
           asciiOptimization: true,
-        ).vTableGetNullable(buffer, rootOffset, 42);
+        ).vTableGetNullable(buffer, rootOffset, 36);
         final modifiedAtParam = modifiedAtValue == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(modifiedAtValue);
         final deviceIdParam = const fb.StringReader(
           asciiOptimization: true,
-        ).vTableGetNullable(buffer, rootOffset, 46);
+        ).vTableGetNullable(buffer, rootOffset, 40);
         final mediaAssetIdParam = const fb.StringReader(
           asciiOptimization: true,
-        ).vTableGetNullable(buffer, rootOffset, 50);
+        ).vTableGetNullable(buffer, rootOffset, 42);
         final mediaKeyParam = const fb.StringReader(
           asciiOptimization: true,
-        ).vTableGetNullable(buffer, rootOffset, 52);
+        ).vTableGetNullable(buffer, rootOffset, 44);
         final object = Entry(
           id: idParam,
           createdAt: createdAtParam,
@@ -557,10 +517,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           isDeleted: isDeletedParam,
           deletedAt: deletedAtParam,
           detectedTheme: detectedThemeParam,
-          connectionIds: connectionIdsParam,
           manualLinkIds: manualLinkIdsParam,
-          sentimentScore: sentimentScoreParam,
-          lastAnalyzedAt: lastAnalyzedAtParam,
           capsuleUnlockDate: capsuleUnlockDateParam,
           transcription: transcriptionParam,
           syncUUID: syncUUIDParam,
@@ -573,67 +530,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
-    Tree: obx_int.EntityDefinition<Tree>(
-      model: _entities[1],
-      toOneRelations: (Tree object) => [],
-      toManyRelations: (Tree object) => {},
-      getId: (Tree object) => object.id,
-      setId: (Tree object, int id) {
-        object.id = id;
-      },
-      objectToFB: (Tree object, fb.Builder fbb) {
-        fbb.startTable(6);
-        fbb.addInt64(0, object.id);
-        fbb.addInt64(1, object.year);
-        fbb.addInt64(2, object.entryCount);
-        fbb.addInt64(3, object.createdAt.millisecondsSinceEpoch);
-        fbb.addInt64(4, object.stateIndex);
-        fbb.finish(fbb.endTable());
-        return object.id;
-      },
-      objectFromFB: (obx.Store store, ByteData fbData) {
-        final buffer = fb.BufferContext(fbData);
-        final rootOffset = buffer.derefObject(0);
-        final idParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          4,
-          0,
-        );
-        final yearParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          6,
-          0,
-        );
-        final entryCountParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          8,
-          0,
-        );
-        final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
-          const fb.Int64Reader().vTableGet(buffer, rootOffset, 10, 0),
-        );
-        final stateIndexParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          12,
-          0,
-        );
-        final object = Tree(
-          id: idParam,
-          year: yearParam,
-          entryCount: entryCountParam,
-          createdAt: createdAtParam,
-          stateIndex: stateIndexParam,
-        );
-
-        return object;
-      },
-    ),
     Ritual: obx_int.EntityDefinition<Ritual>(
-      model: _entities[2],
+      model: _entities[1],
       toOneRelations: (Ritual object) => [],
       toManyRelations: (Ritual object) => {},
       getId: (Ritual object) => object.id,
@@ -736,6 +634,65 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    Tree: obx_int.EntityDefinition<Tree>(
+      model: _entities[2],
+      toOneRelations: (Tree object) => [],
+      toManyRelations: (Tree object) => {},
+      getId: (Tree object) => object.id,
+      setId: (Tree object, int id) {
+        object.id = id;
+      },
+      objectToFB: (Tree object, fb.Builder fbb) {
+        fbb.startTable(6);
+        fbb.addInt64(0, object.id);
+        fbb.addInt64(1, object.year);
+        fbb.addInt64(2, object.entryCount);
+        fbb.addInt64(3, object.createdAt.millisecondsSinceEpoch);
+        fbb.addInt64(4, object.stateIndex);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final yearParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          6,
+          0,
+        );
+        final entryCountParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          8,
+          0,
+        );
+        final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 10, 0),
+        );
+        final stateIndexParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          12,
+          0,
+        );
+        final object = Tree(
+          id: idParam,
+          year: yearParam,
+          entryCount: entryCountParam,
+          createdAt: createdAtParam,
+          stateIndex: stateIndexParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -806,85 +763,44 @@ class Entry_ {
     _entities[0].properties[12],
   );
 
-  /// See [Entry.connectionIds].
-  static final connectionIds = obx.QueryStringProperty<Entry>(
+  /// See [Entry.manualLinkIds].
+  static final manualLinkIds = obx.QueryStringProperty<Entry>(
     _entities[0].properties[13],
-  );
-
-  /// See [Entry.sentimentScore].
-  static final sentimentScore = obx.QueryDoubleProperty<Entry>(
-    _entities[0].properties[14],
-  );
-
-  /// See [Entry.lastAnalyzedAt].
-  static final lastAnalyzedAt = obx.QueryDateProperty<Entry>(
-    _entities[0].properties[15],
   );
 
   /// See [Entry.capsuleUnlockDate].
   static final capsuleUnlockDate = obx.QueryDateProperty<Entry>(
-    _entities[0].properties[16],
+    _entities[0].properties[14],
   );
 
   /// See [Entry.transcription].
   static final transcription = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[17],
+    _entities[0].properties[15],
   );
 
   /// See [Entry.syncUUID].
   static final syncUUID = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[18],
+    _entities[0].properties[16],
   );
 
   /// See [Entry.modifiedAt].
   static final modifiedAt = obx.QueryDateProperty<Entry>(
-    _entities[0].properties[19],
+    _entities[0].properties[17],
   );
 
   /// See [Entry.deviceId].
   static final deviceId = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[20],
-  );
-
-  /// See [Entry.manualLinkIds].
-  static final manualLinkIds = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[21],
+    _entities[0].properties[18],
   );
 
   /// See [Entry.mediaAssetId].
   static final mediaAssetId = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[22],
+    _entities[0].properties[19],
   );
 
   /// See [Entry.mediaKey].
   static final mediaKey = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[23],
-  );
-}
-
-/// [Tree] entity fields to define ObjectBox queries.
-class Tree_ {
-  /// See [Tree.id].
-  static final id = obx.QueryIntegerProperty<Tree>(_entities[1].properties[0]);
-
-  /// See [Tree.year].
-  static final year = obx.QueryIntegerProperty<Tree>(
-    _entities[1].properties[1],
-  );
-
-  /// See [Tree.entryCount].
-  static final entryCount = obx.QueryIntegerProperty<Tree>(
-    _entities[1].properties[2],
-  );
-
-  /// See [Tree.createdAt].
-  static final createdAt = obx.QueryDateProperty<Tree>(
-    _entities[1].properties[3],
-  );
-
-  /// See [Tree.stateIndex].
-  static final stateIndex = obx.QueryIntegerProperty<Tree>(
-    _entities[1].properties[4],
+    _entities[0].properties[20],
   );
 }
 
@@ -892,56 +808,82 @@ class Tree_ {
 class Ritual_ {
   /// See [Ritual.id].
   static final id = obx.QueryIntegerProperty<Ritual>(
-    _entities[2].properties[0],
+    _entities[1].properties[0],
   );
 
   /// See [Ritual.uuid].
   static final uuid = obx.QueryStringProperty<Ritual>(
-    _entities[2].properties[1],
+    _entities[1].properties[1],
   );
 
   /// See [Ritual.name].
   static final name = obx.QueryStringProperty<Ritual>(
-    _entities[2].properties[2],
+    _entities[1].properties[2],
   );
 
   /// See [Ritual.signature].
   static final signature = obx.QueryStringProperty<Ritual>(
-    _entities[2].properties[3],
+    _entities[1].properties[3],
   );
 
   /// See [Ritual.statusIndex].
   static final statusIndex = obx.QueryIntegerProperty<Ritual>(
-    _entities[2].properties[4],
+    _entities[1].properties[4],
   );
 
   /// See [Ritual.cadenceDays].
   static final cadenceDays = obx.QueryIntegerProperty<Ritual>(
-    _entities[2].properties[5],
+    _entities[1].properties[5],
   );
 
   /// See [Ritual.preferredHour].
   static final preferredHour = obx.QueryIntegerProperty<Ritual>(
-    _entities[2].properties[6],
+    _entities[1].properties[6],
   );
 
   /// See [Ritual.createdAt].
   static final createdAt = obx.QueryDateProperty<Ritual>(
-    _entities[2].properties[7],
+    _entities[1].properties[7],
   );
 
   /// See [Ritual.lastObservedAt].
   static final lastObservedAt = obx.QueryDateProperty<Ritual>(
-    _entities[2].properties[8],
+    _entities[1].properties[8],
   );
 
   /// See [Ritual.nextDueAt].
   static final nextDueAt = obx.QueryDateProperty<Ritual>(
-    _entities[2].properties[9],
+    _entities[1].properties[9],
   );
 
   /// See [Ritual.occurrenceCount].
   static final occurrenceCount = obx.QueryIntegerProperty<Ritual>(
-    _entities[2].properties[10],
+    _entities[1].properties[10],
+  );
+}
+
+/// [Tree] entity fields to define ObjectBox queries.
+class Tree_ {
+  /// See [Tree.id].
+  static final id = obx.QueryIntegerProperty<Tree>(_entities[2].properties[0]);
+
+  /// See [Tree.year].
+  static final year = obx.QueryIntegerProperty<Tree>(
+    _entities[2].properties[1],
+  );
+
+  /// See [Tree.entryCount].
+  static final entryCount = obx.QueryIntegerProperty<Tree>(
+    _entities[2].properties[2],
+  );
+
+  /// See [Tree.createdAt].
+  static final createdAt = obx.QueryDateProperty<Tree>(
+    _entities[2].properties[3],
+  );
+
+  /// See [Tree.stateIndex].
+  static final stateIndex = obx.QueryIntegerProperty<Tree>(
+    _entities[2].properties[4],
   );
 }

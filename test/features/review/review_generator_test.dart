@@ -22,14 +22,10 @@ void main() {
     int month = 6,
     int day = 15,
     String? text,
-    double? sentimentScore,
-    String? connectionIds,
     String? detectedTheme,
   }) {
     final entry = Entry.line(text: text ?? 'Memory at $month/$day/$year');
     entry.createdAt = DateTime(year, month, day);
-    entry.sentimentScore = sentimentScore;
-    entry.connectionIds = connectionIds;
     entry.detectedTheme = detectedTheme;
     return entry;
   }
@@ -54,7 +50,6 @@ void main() {
       expect(data.year, 2025);
       expect(data.totalEntries, 0);
       expect(data.memorableMoments, isEmpty);
-      expect(data.connectionCount, 0);
       expect(data.treeStateLabel, 'Seed');
       expect(data.dominantTheme, isNull);
     });
@@ -184,29 +179,6 @@ void main() {
       }
     });
 
-    // -- Sentiment (removed: the review never judges feelings) --
-
-    test('stored sentiment scores do not change the review', () {
-      final scored = [
-        makeEntry(month: 3, day: 1, sentimentScore: 0.8),
-        makeEntry(month: 3, day: 10, sentimentScore: -0.9),
-      ];
-      final unscored = [
-        makeEntry(month: 3, day: 1, sentimentScore: null),
-        makeEntry(month: 3, day: 10, sentimentScore: null),
-      ];
-      final a = generator.generate(2025, scored);
-      final b = generator.generate(2025, unscored);
-
-      expect(a.totalEntries, b.totalEntries);
-      expect(a.themeDistribution, b.themeDistribution);
-      expect(a.dominantTheme, b.dominantTheme);
-      expect(
-        a.seasons.map((k, v) => MapEntry(k, v.entryCount)),
-        b.seasons.map((k, v) => MapEntry(k, v.entryCount)),
-      );
-    });
-
     // -- Memorable moments --
 
     test('memorable moments returns 0 for empty year', () {
@@ -226,19 +198,6 @@ void main() {
       final data = generator.generate(2025, entries);
 
       expect(data.memorableMoments.length, 3);
-    });
-
-    // -- Connection count --
-
-    test('connection count reflects entries with connectionIds', () {
-      final entries = [
-        makeEntry(month: 1, connectionIds: '2,3'),
-        makeEntry(month: 2, connectionIds: '1'),
-        makeEntry(month: 3),
-      ];
-      final data = generator.generate(2025, entries);
-
-      expect(data.connectionCount, 2);
     });
 
     // -- Tree state label --

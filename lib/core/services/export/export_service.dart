@@ -606,10 +606,7 @@ class ExportService {
       'mood': entry.mood,
       'tags': entry.tags,
       'detectedTheme': entry.detectedTheme,
-      'connectionIds': entry.connectionIds,
       'manualLinkIds': entry.manualLinkIds,
-      'sentimentScore': entry.sentimentScore,
-      'lastAnalyzedAt': entry.lastAnalyzedAt?.toIso8601String(),
       'mediaPath': entry.mediaPath != null
           ? 'media/${_getMediaFolder(entry.type)}/${_fileNameFromPath(entry.mediaPath!)}'
           : null,

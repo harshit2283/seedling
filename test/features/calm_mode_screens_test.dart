@@ -120,7 +120,6 @@ void main() {
       dominantTheme: MemoryTheme.nature,
       memorableMoments: const [],
       treeStateLabel: 'Sapling',
-      connectionCount: 5,
     );
 
     Future<void> pumpReview(
@@ -156,7 +155,6 @@ void main() {
 
       expect(find.textContaining('42'), findsNothing);
       expect(find.textContaining('Sapling'), findsNothing);
-      expect(find.textContaining('connected memories'), findsNothing);
       expect(find.textContaining(RegExp(r'\d+ memor')), findsNothing);
       expect(find.text('17'), findsNothing);
       // The year itself is still told.

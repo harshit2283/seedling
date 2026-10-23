@@ -71,20 +71,9 @@ class Entry {
   /// Primary detected theme (family, work, nature, etc.)
   String? detectedTheme;
 
-  /// Comma-separated IDs of related entries
-  String? connectionIds;
-
-  /// User-curated manual links (comma-separated syncUUIDs of linked entries)
-  /// Distinct from connectionIds which are AI-detected.
+  /// User-curated manual links (comma-separated syncUUIDs of linked entries).
+  /// Related memories are computed on the fly, never stored.
   String? manualLinkIds;
-
-  /// Legacy sentiment score (-1.0..1.0). Kept only so older stores, backups
-  /// and sync payloads round-trip; the app no longer computes or shows it.
-  double? sentimentScore;
-
-  /// When AI last analyzed this entry
-  @Property(type: PropertyType.date)
-  DateTime? lastAnalyzedAt;
 
   // ============================================================================
   // Memory Capsule Fields (Phase 4.5)
@@ -108,9 +97,8 @@ class Entry {
 
   /// UUID for cross-device sync identification.
   ///
-  /// Indexed (not @Unique: legacy stores may hold duplicates, and a unique
-  /// constraint would make those stores fail to open). Sync merge and manual
-  /// link resolution look entries up by this on every record.
+  /// Indexed: sync merge and manual link resolution look entries up by this
+  /// on every record.
   @Index()
   String? syncUUID;
 
@@ -153,10 +141,7 @@ class Entry {
     this.isDeleted = false,
     this.deletedAt,
     this.detectedTheme,
-    this.connectionIds,
     this.manualLinkIds,
-    this.sentimentScore,
-    this.lastAnalyzedAt,
     this.capsuleUnlockDate,
     this.transcription,
     this.syncUUID,
@@ -183,10 +168,7 @@ class Entry {
     isDeleted: isDeleted,
     deletedAt: deletedAt,
     detectedTheme: detectedTheme,
-    connectionIds: connectionIds,
     manualLinkIds: manualLinkIds,
-    sentimentScore: sentimentScore,
-    lastAnalyzedAt: lastAnalyzedAt,
     capsuleUnlockDate: capsuleUnlockDate,
     transcription: transcription,
     syncUUID: syncUUID,
@@ -313,34 +295,8 @@ class Entry {
   // AI Helper Methods (Phase 4)
   // ============================================================================
 
-  /// Get list of connected entry IDs.
-  ///
-  /// Transient: this is a view over [connectionIds]. When ObjectBox persisted
-  /// it, the stored value was parsed from the *encrypted* string (always
-  /// empty) and its setter ran after [connectionIds] on every load, wiping it.
-  @Transient()
-  List<int> get connectedIds {
-    if (connectionIds == null || connectionIds!.isEmpty) return [];
-    return connectionIds!
-        .split(',')
-        .map((id) => int.tryParse(id.trim()))
-        .whereType<int>()
-        .toList();
-  }
-
-  /// Set connected entry IDs
-  set connectedIds(List<int> ids) {
-    connectionIds = ids.isEmpty ? null : ids.join(',');
-  }
-
-  /// Check if entry has been analyzed by AI
-  bool get hasBeenAnalyzed => lastAnalyzedAt != null;
-
   /// Check if entry has a detected theme
   bool get hasTheme => detectedTheme != null && detectedTheme!.isNotEmpty;
-
-  /// Check if entry has connections to other entries
-  bool get hasConnections => connectionIds != null && connectionIds!.isNotEmpty;
 
   /// Get list of manually linked entry syncUUIDs
   List<String> get manualLinkList =>

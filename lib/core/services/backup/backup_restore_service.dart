@@ -235,17 +235,11 @@ class BackupRestoreService {
     entry.tags = entryMap['tags'] as String?;
     entry.isReleased = (entryMap['isReleased'] as bool?) ?? false;
     entry.detectedTheme = entryMap['detectedTheme'] as String?;
-    entry.sentimentScore = (entryMap['sentimentScore'] as num?)?.toDouble();
-    entry.lastAnalyzedAt = DateTime.tryParse(
-      (entryMap['lastAnalyzedAt'] as String?) ?? '',
-    );
     entry.capsuleUnlockDate = DateTime.tryParse(
       (entryMap['capsuleUnlockDate'] as String?) ?? '',
     );
-    // Fields the exporter writes that were previously dropped on import.
     entry.transcription = entryMap['transcription'] as String?;
     entry.manualLinkIds = entryMap['manualLinkIds'] as String?;
-    entry.connectionIds = entryMap['connectionIds'] as String?;
     final modifiedAt = DateTime.tryParse(
       (entryMap['modifiedAt'] as String?) ?? '',
     );

@@ -151,14 +151,15 @@ void main() {
     expect(store.getEntryBySyncUUID(oldId)!.text, 'last summer');
   });
 
-  test('connectionIds survive a reopen', () async {
+  test('manual links survive a reopen', () async {
     final store = db;
     if (store == null) {
       markTestSkipped('ObjectBox native library not available');
       return;
     }
     final saved = await store.saveEntry(
-      Entry.line(text: 'river walk')..connectionIds = '3,7',
+      Entry.line(text: 'river walk')
+        ..manualLinkIds = '550e8400-e29b-41d4-a716-446655440001',
     );
     store.close();
     final reopened = await ObjectBoxDatabase.openForTesting(
@@ -166,7 +167,10 @@ void main() {
       encryptionService: AtRestEncryptionService(),
     );
     db = reopened;
-    expect(reopened.getEntry(saved.id)!.connectionIds, '3,7');
+    expect(
+      reopened.getEntry(saved.id)!.manualLinkIds,
+      '550e8400-e29b-41d4-a716-446655440001',
+    );
   });
 
   test('saveEntry assigns a v4 syncUUID when missing', () async {

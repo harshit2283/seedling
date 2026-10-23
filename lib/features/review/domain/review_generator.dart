@@ -31,9 +31,6 @@ class YearReviewData {
   /// "Young tree"), sentence case.
   final String treeStateLabel;
 
-  /// Number of entries that have at least one connection.
-  final int connectionCount;
-
   /// Memories kept in each month, January first (12 values once generated).
   /// Counts only: nothing about what the memories say.
   final List<int> monthCounts;
@@ -46,7 +43,6 @@ class YearReviewData {
     this.dominantTheme,
     required this.memorableMoments,
     required this.treeStateLabel,
-    required this.connectionCount,
     this.monthCounts = const [],
   });
 
@@ -150,7 +146,6 @@ class ReviewGenerator {
     final dominantTheme = _findDominantTheme(themeDistribution);
     final memorableMoments = _pickMemorableMoments(entries);
     final treeStateLabel = _treeStateLabelForCount(entries.length);
-    final connectionCount = _countConnections(entries);
 
     return YearReviewData(
       year: year,
@@ -160,7 +155,6 @@ class ReviewGenerator {
       dominantTheme: dominantTheme,
       memorableMoments: memorableMoments,
       treeStateLabel: treeStateLabel,
-      connectionCount: connectionCount,
       monthCounts: [
         for (var m = 1; m <= 12; m++)
           entries.where((e) => e.createdAt.month == m).length,
@@ -304,13 +298,4 @@ class ReviewGenerator {
   /// thresholds defined in [Tree].
   String _treeStateLabelForCount(int count) =>
       treeStageLabel(treeStateForCount(count));
-
-  // ---------------------------------------------------------------------------
-  // Connections
-  // ---------------------------------------------------------------------------
-
-  /// Count entries that have at least one connection recorded.
-  int _countConnections(List<Entry> entries) {
-    return entries.where((e) => e.hasConnections).length;
-  }
 }

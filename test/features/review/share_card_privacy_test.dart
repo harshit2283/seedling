@@ -62,7 +62,6 @@ void main() {
     dominantTheme: MemoryTheme.nature,
     memorableMoments: [photo(1, 4)],
     treeStateLabel: 'Young tree',
-    connectionCount: 3,
     monthCounts: const [4, 0, 9, 12, 8, 15, 20, 10, 6, 14, 12, 10],
   );
 
