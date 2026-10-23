@@ -11,17 +11,12 @@ import CloudKit
 /// stores is already encrypted by Dart; deletions travel as tombstones inside
 /// the logs, so no CloudKit change tokens are needed.
 ///
-/// The legacy `SeedlingEntry` records (default zone, written by earlier
-/// builds) are only read, once, so their data migrates.
-///
 /// Method channel: com.seedling.cloudkit_sync
 public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
 
     // MARK: - Properties
 
     private let privateDB = CKContainer.default().privateCloudDatabase
-    /// Legacy per-entry record type (read-only).
-    private let recordType = "SeedlingEntry"
     private let fileRecordType = "SeedlingFile"
     private let zoneID = CKRecordZone.ID(zoneName: "SeedlingSync", ownerName: CKCurrentUserDefaultName)
 
@@ -62,9 +57,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
 
         case "getAccountStatus":
             getAccountStatus(result: result)
-
-        case "fetchLegacyRecords":
-            fetchAllRecords(result: result)
 
         case "fsList":
             guard let prefix = args["prefix"] as? String else {
@@ -168,87 +160,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
                 result(statusString)
             }
         }
-    }
-
-    // MARK: - Legacy records (read-only migration)
-
-    /// Reads every legacy `SeedlingEntry` record (default zone). A missing
-    /// record type means there is no legacy data. Records that fail to load
-    /// make the whole call fail (Dart retries next pull) instead of being
-    /// dropped silently.
-    private func fetchAllRecords(result: @escaping FlutterResult) {
-        fetchLegacyPage(cursor: nil, accumulated: [], result: result)
-    }
-
-    private func fetchLegacyPage(
-        cursor: CKQueryOperation.Cursor?,
-        accumulated: [[String: Any]],
-        result: @escaping FlutterResult
-    ) {
-        let operation: CKQueryOperation
-        if let cursor = cursor {
-            operation = CKQueryOperation(cursor: cursor)
-        } else {
-            // No sort descriptor: it would need a sortable index in production.
-            let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
-            operation = CKQueryOperation(query: query)
-        }
-        operation.resultsLimit = CKQueryOperation.maximumResults
-        configure(operation, resource: metadataTimeout)
-
-        let lock = NSLock()
-        var records = accumulated
-        var failures = 0
-
-        operation.recordMatchedBlock = { [weak self] _, recordResult in
-            guard let self = self else { return }
-            lock.lock()
-            defer { lock.unlock() }
-            switch recordResult {
-            case .success(let record):
-                records.append(self.recordToDict(record))
-            case .failure(_):
-                failures += 1
-            }
-        }
-
-        operation.queryResultBlock = { [weak self] operationResult in
-            guard let self = self else { return }
-            lock.lock()
-            let page = records
-            let failed = failures
-            lock.unlock()
-            switch operationResult {
-            case .success(let next):
-                if failed > 0 {
-                    DispatchQueue.main.async {
-                        result(FlutterError(
-                            code: "LEGACY_PARTIAL",
-                            message: "\(failed) legacy record(s) could not be loaded.",
-                            details: nil
-                        ))
-                    }
-                } else if let next = next {
-                    self.fetchLegacyPage(cursor: next, accumulated: page, result: result)
-                } else {
-                    DispatchQueue.main.async {
-                        result(["records": page] as [String: Any])
-                    }
-                }
-            case .failure(let error):
-                let code = (error as? CKError)?.code
-                if code == .unknownItem || code == .invalidArguments {
-                    // Record type never existed in this container: no legacy data.
-                    DispatchQueue.main.async {
-                        result(["records": [] as [[String: Any]]] as [String: Any])
-                    }
-                } else {
-                    DispatchQueue.main.async { self.handleCKError(error, result: result) }
-                }
-            }
-        }
-
-        privateDB.add(operation)
     }
 
     // MARK: - File store (custom zone)
@@ -529,80 +440,6 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
         }
     }
 
-    /// Convert a CKRecord to a dictionary for returning to Dart
-    private func recordToDict(_ record: CKRecord) -> [String: Any] {
-        var dict: [String: Any] = [:]
-
-        dict["syncUUID"] = record.recordID.recordName
-
-        // String fields
-        dict["text"] = record["text"] as? String ?? NSNull()
-        dict["title"] = record["title"] as? String ?? NSNull()
-        dict["context"] = record["context"] as? String ?? NSNull()
-        dict["mood"] = record["mood"] as? String ?? NSNull()
-        dict["tags"] = record["tags"] as? String ?? NSNull()
-        dict["detectedTheme"] = record["detectedTheme"] as? String ?? NSNull()
-        dict["transcription"] = record["transcription"] as? String ?? NSNull()
-        dict["mediaPath"] = record["mediaPath"] as? String ?? NSNull()
-        dict["deviceId"] = record["deviceId"] as? String ?? NSNull()
-        // Only present when the record carried it, so older records that never
-        // synced links don't clear local ones.
-        if let links = record["manualLinkIds"] as? String {
-            dict["manualLinkIds"] = links
-        }
-        dict["syncEncryptionSalt"] = record["syncEncryptionSalt"] as? String ?? NSNull()
-        // Absent (not null) when missing: Dart rejects unversioned records.
-        if let version = record["syncEncryptionVersion"] as? Int {
-            dict["syncEncryptionVersion"] = version
-        }
-
-        // Int fields
-        dict["typeIndex"] = record["typeIndex"] as? Int ?? 0
-
-        // Bool/Int fields
-        if let isDeleted = record["isDeleted"] as? Int {
-            dict["isDeleted"] = isDeleted != 0
-        } else {
-            dict["isDeleted"] = false
-        }
-
-        // Double fields
-        dict["sentimentScore"] = record["sentimentScore"] as? Double ?? NSNull()
-
-        // DateTime fields -> milliseconds since epoch for Dart
-        if let date = record["createdAt"] as? Date {
-            dict["createdAt"] = Int64(date.timeIntervalSince1970 * 1000)
-        } else {
-            dict["createdAt"] = NSNull()
-        }
-
-        if let date = record["modifiedAt"] as? Date {
-            dict["modifiedAt"] = Int64(date.timeIntervalSince1970 * 1000)
-        } else {
-            dict["modifiedAt"] = NSNull()
-        }
-
-        if let date = record["deletedAt"] as? Date {
-            dict["deletedAt"] = Int64(date.timeIntervalSince1970 * 1000)
-        } else {
-            dict["deletedAt"] = NSNull()
-        }
-
-        if let date = record["capsuleUnlockDate"] as? Date {
-            dict["capsuleUnlockDate"] = Int64(date.timeIntervalSince1970 * 1000)
-        } else {
-            dict["capsuleUnlockDate"] = NSNull()
-        }
-
-        // CloudKit metadata: record change tag for conflict detection
-        dict["recordChangeTag"] = record.recordChangeTag ?? NSNull()
-
-        // Check for media asset presence
-        dict["hasMediaAsset"] = record["mediaAsset"] is CKAsset
-
-        return dict
-    }
-
     // MARK: - Error Handling
 
     /// Handle CloudKit errors with specific error codes for the Dart layer
@@ -639,22 +476,11 @@ public class CloudKitSyncPlugin: NSObject, FlutterPlugin {
             ))
 
         case .serverRecordChanged:
-            // Conflict: the server has a newer version of this record.
-            // Extract the server record so the Dart layer can perform a merge.
-            if let serverRecord = ckError.userInfo[CKRecordChangedErrorServerRecordKey] as? CKRecord {
-                let serverDict = recordToDict(serverRecord)
-                result(FlutterError(
-                    code: "CONFLICT",
-                    message: "Server record has changed. Merge required.",
-                    details: serverDict
-                ))
-            } else {
-                result(FlutterError(
-                    code: "CONFLICT",
-                    message: "Server record has changed but could not retrieve server version.",
-                    details: nil
-                ))
-            }
+            result(FlutterError(
+                code: "CONFLICT",
+                message: "Server record has changed.",
+                details: nil
+            ))
 
         case .unknownItem:
             result(FlutterError(

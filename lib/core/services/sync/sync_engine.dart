@@ -21,14 +21,6 @@ import 'sync_models.dart';
 /// - Conflicts: last-write-wins for text fields; delete wins
 /// - Push and pull never overlap (they run one at a time, in call order).
 class SyncEngine {
-  /// Bump when the remote layout changes so that every local entry must be
-  /// uploaded again. v2: CloudKit keeps the encryption envelope (salt and
-  /// version) and Drive uses per-device change logs. v3: media files sync
-  /// (encrypted), so existing photo/voice entries must upload their files.
-  /// v4: CloudKit moved to per-device change logs (media ids/keys and
-  /// deletions now round-trip), and records carry AAD + a MAC.
-  static const currentFormatVersion = 4;
-
   final ObjectBoxDatabase _db;
   final SyncBackend _backend;
   final SyncMetadata _metadata;
@@ -93,7 +85,7 @@ class SyncEngine {
     this.callTimeout = const Duration(minutes: 2),
     this.transferTimeout = const Duration(minutes: 10),
     SyncQuarantine? quarantine,
-  }) : _quarantine = quarantine ?? SyncQuarantine(legacyMetadata: metadata),
+  }) : _quarantine = quarantine ?? SyncQuarantine(),
        _db = database,
        _backend = backend,
        _metadata = metadata,
@@ -154,15 +146,11 @@ class SyncEngine {
     _keyVerified = false;
     if (await _crypto.hasPassphrase()) {
       var keyring = await _backend.readKeyring().timeout(callTimeout);
-      if (keyring == null || keyring['check'] == null) {
-        // Never push without a verifiable keyring. A per-user-salt key can
-        // restore it (or add the missing check, same salt only); anything
-        // else needs the passphrase re-entered.
+      if (keyring == null) {
+        // Never push without a verifiable keyring. If it went missing (sync
+        // space wiped), this device's key restores it.
         final own = await _crypto.keyringForCurrentKey();
-        if (own == null ||
-            (keyring != null && keyring['kdfSalt'] != own['kdfSalt'])) {
-          return _keyMismatch();
-        }
+        if (own == null) return _keyMismatch();
         keyring = await _backend.publishKeyring(own).timeout(callTimeout);
       }
       if (!await _crypto.matchesKeyring(keyring)) return _keyMismatch();
@@ -171,8 +159,7 @@ class SyncEngine {
       final previous = _metadata.pushedKeyFingerprint;
       if (previous != null && previous != current) {
         // Anything pushed under the old key is unreadable to the others.
-        await _metadata.setFormatVersion(0);
-        await _queueFullUploadIfNeeded(DateTime.now());
+        await _queueFullUpload(DateTime.now());
       }
       await _metadata.setPushedKeyFingerprint(current);
     }
@@ -195,7 +182,7 @@ class SyncEngine {
     if (enabled) {
       if (!wasEnabled) {
         // Upload everything that exists locally, not just future edits.
-        await _metadata.setFormatVersion(0);
+        await _queueFullUpload(DateTime.now());
       }
       _keyVerified = false;
       await init();
@@ -243,10 +230,7 @@ class SyncEngine {
     _pushDebounce = Timer(const Duration(seconds: 2), () => push());
   }
 
-  /// Queue work that is not triggered by a user edit:
-  /// - remote deletes for entries purged from the local trash;
-  /// - a full upload when this device hasn't uploaded for the current remote
-  ///   layout yet (first enable, or after a format change).
+  /// Queue remote deletes for entries purged from the local trash.
   Future<void> _queueMaintenanceChanges() async {
     final now = DateTime.now();
     final purged = _db.takePurgedEntries();
@@ -259,24 +243,21 @@ class SyncEngine {
           mediaAssetId: p.mediaAssetId,
         ),
     ]);
-
-    await _queueFullUploadIfNeeded(now);
   }
 
-  Future<void> _queueFullUploadIfNeeded(DateTime now) async {
-    if (_metadata.formatVersion < currentFormatVersion) {
-      final queued = _metadata.pendingChanges.map((c) => c.syncUUID).toSet();
-      await _metadata.addPendingChanges([
-        for (final uuid in _db.getAllSyncUUIDs())
-          if (!queued.contains(uuid))
-            SyncChange(
-              syncUUID: uuid,
-              changeType: SyncChangeType.update,
-              timestamp: now,
-            ),
-      ]);
-      await _metadata.setFormatVersion(currentFormatVersion);
-    }
+  /// Queues every local entry for upload (first enable, a new key, or
+  /// folding an idle device's log into ours).
+  Future<void> _queueFullUpload(DateTime now) async {
+    final queued = _metadata.pendingChanges.map((c) => c.syncUUID).toSet();
+    await _metadata.addPendingChanges([
+      for (final uuid in _db.getAllSyncUUIDs())
+        if (!queued.contains(uuid))
+          SyncChange(
+            syncUUID: uuid,
+            changeType: SyncChangeType.update,
+            timestamp: now,
+          ),
+    ]);
   }
 
   /// Runs [body] after every previously requested push/pull has finished, so
@@ -419,7 +400,6 @@ class SyncEngine {
 
       var pulled = 0;
       var conflicts = 0;
-      var ignored = 0;
 
       // Candidates per record: previously quarantined copies (the key may be
       // fixed now) plus everything fetched. The winner is the newest version
@@ -446,16 +426,10 @@ class SyncEngine {
           try {
             decrypted = await _crypto.decryptRecordFields(record);
             break;
-          } on SyncUnversionedRecordException {
-            ignored++;
-          } on SyncPassphraseMissingException catch (e) {
+          } on SyncPassphraseMissingException {
             // No usable key at all (as opposed to one bad record): stop,
             // keep the token, and don't let a push follow.
-            if (e is! SyncPassphraseReentryRequiredException &&
-                e is! SyncKeySaltMismatchException) {
-              rethrow;
-            }
-            failed.add(record);
+            rethrow;
           } on SyncCryptoException {
             // Undecryptable or forged: try older versions, set this aside.
             failed.add(record);
@@ -501,13 +475,6 @@ class SyncEngine {
           await _db.softDeleteEntry(local.id);
           pulled++;
         }
-      }
-
-      if (ignored > 0) {
-        developer.log(
-          'Ignored $ignored unversioned sync record(s)',
-          name: 'SyncEngine',
-        );
       }
 
       // Save new change token
@@ -579,7 +546,6 @@ class SyncEngine {
       'isDeleted': entry.isDeleted,
       'deletedAt': entry.deletedAt?.millisecondsSinceEpoch,
       'detectedTheme': entry.detectedTheme,
-      'sentimentScore': entry.sentimentScore,
       'capsuleUnlockDate': entry.capsuleUnlockDate?.millisecondsSinceEpoch,
       'transcription': entry.transcription,
       'manualLinkIds': entry.manualLinkIds,
@@ -608,7 +574,6 @@ class SyncEngine {
       isDeleted: decrypted['isDeleted'] as bool? ?? false,
       deletedAt: _date(decrypted['deletedAt']),
       detectedTheme: decrypted['detectedTheme'] as String?,
-      sentimentScore: (decrypted['sentimentScore'] as num?)?.toDouble(),
       capsuleUnlockDate: _date(decrypted['capsuleUnlockDate']),
       transcription: decrypted['transcription'] as String?,
       manualLinkIds: decrypted['manualLinkIds'] as String?,
@@ -631,12 +596,8 @@ class SyncEngine {
     entry.mood = decrypted['mood'] as String?;
     entry.tags = decrypted['tags'] as String?;
     entry.detectedTheme = decrypted['detectedTheme'] as String?;
-    entry.sentimentScore = (decrypted['sentimentScore'] as num?)?.toDouble();
     entry.transcription = decrypted['transcription'] as String?;
-    // Records from older builds don't carry links; don't wipe local ones.
-    if (decrypted.containsKey('manualLinkIds')) {
-      entry.manualLinkIds = decrypted['manualLinkIds'] as String?;
-    }
+    entry.manualLinkIds = decrypted['manualLinkIds'] as String?;
     final assetId = decrypted['mediaAssetId'] as String?;
     if (_isValidUuid(assetId)) {
       if (entry.mediaAssetId != assetId) {
@@ -646,7 +607,7 @@ class SyncEngine {
         entry.mediaPath = null;
       }
     } else if (entry.mediaAssetId == null) {
-      // Older builds sync only a path (and no file).
+      // No blob (e.g. skipped as too large): keep the portable path.
       entry.mediaPath = _localMediaPath(
         decrypted['mediaPath'] as String?,
         entry.typeIndex,
@@ -695,8 +656,7 @@ class SyncEngine {
       if (idle.isNotEmpty) {
         // Everything we know (which includes their records) goes into our
         // own log before theirs is removed.
-        await _metadata.setFormatVersion(0);
-        await _queueFullUploadIfNeeded(now);
+        await _queueFullUpload(now);
         final pushed = await push();
         if (pushed.success && _metadata.pendingChanges.isEmpty) {
           await _backend.deleteDeviceLogs(idle).timeout(callTimeout);

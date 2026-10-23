@@ -124,22 +124,6 @@ class SyncMetadata {
     await _savePendingChanges(current);
   }
 
-  /// Quarantine as stored by earlier builds (SharedPreferences). Returned
-  /// once and removed; SyncQuarantine keeps it in a file now.
-  Future<List<Map<String, dynamic>>> takeLegacyQuarantine() async {
-    final raw = _prefs.getString(_key(PrefsKeys.syncQuarantine));
-    if (raw == null) return const [];
-    await _prefs.remove(_key(PrefsKeys.syncQuarantine));
-    try {
-      return [
-        for (final r in jsonDecode(raw) as List<dynamic>)
-          Map<String, dynamic>.from(r as Map),
-      ];
-    } catch (_) {
-      return const [];
-    }
-  }
-
   /// Asset ids reserved for media uploads that haven't completed, by entry
   /// syncUUID. A retry reuses the id (replacing any partial blob) instead of
   /// leaving an orphan behind under a new id.
@@ -228,14 +212,6 @@ class SyncMetadata {
     }
   }
 
-  /// Remote layout version this device has completed a full upload for.
-  int get formatVersion =>
-      _prefs.getInt(_key(PrefsKeys.syncFormatVersion)) ?? 0;
-
-  Future<void> setFormatVersion(int version) async {
-    await _prefs.setInt(_key(PrefsKeys.syncFormatVersion), version);
-  }
-
   Future<void> clearPendingChanges() async {
     await _prefs.remove(_key(PrefsKeys.syncPendingQueue));
   }
@@ -315,8 +291,6 @@ class SyncMetadata {
     await _prefs.remove(_key(PrefsKeys.syncChangeToken));
     await _prefs.remove(_key(PrefsKeys.syncLastSync));
     await _prefs.remove(_key(PrefsKeys.syncPendingQueue));
-    await _prefs.remove(_key(PrefsKeys.syncFormatVersion));
-    await _prefs.remove(_key(PrefsKeys.syncQuarantine));
     await _prefs.remove(_key(PrefsKeys.syncKeyFingerprint));
     await _prefs.remove(_key(PrefsKeys.syncPendingMedia));
     await _prefs.remove(_key(PrefsKeys.syncLastMaintenance));

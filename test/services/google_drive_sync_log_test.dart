@@ -106,32 +106,10 @@ void main() {
     expect((log['records'] as Map).length, 50);
   });
 
-  test('old timestamp tokens fall back to a full fetch', () async {
+  test('an unreadable token falls back to a full fetch', () async {
     await a.saveRecord(_rec(_uuid(1), modifiedAt: 10, text: 'kept'));
     final fetched = await c.fetchChanges(changeToken: '99999999999999');
     expect(fetched!.records.map((r) => r['text']), ['kept']);
-  });
-
-  test('legacy v1 document is still read, once per change', () async {
-    final legacy = {
-      'metadataVersion': 1,
-      'updatedAt': 500,
-      'records': {_uuid(7): _rec(_uuid(7), modifiedAt: 1, text: 'from v1')},
-      'deletions': {_uuid(8): 400},
-      'quarantine': <String, dynamic>{},
-    };
-    await drive.create(
-      DriveSyncLogStore.legacyFileName,
-      utf8.encode(jsonEncode(legacy)),
-    );
-
-    final first = await c.fetchChanges();
-    expect(first!.records.map((r) => r['text']), ['from v1']);
-    expect(first.deletedUUIDs, [_uuid(8)]);
-
-    final second = await c.fetchChanges(changeToken: first.newChangeToken);
-    expect(second!.records, isEmpty);
-    expect(second.deletedUUIDs, isEmpty);
   });
 
   test('media blobs upload once, download, and delete', () async {
@@ -346,22 +324,23 @@ void main() {
       }
     });
 
-    test(
-      'a key check is added to a keyring that lacks one (same salt only)',
-      () async {
-        final salt = base64Encode(List<int>.filled(32, 4));
-        final store = storeFor(_devA);
-        await store.publishKeyring({'kdfSalt': salt});
-        expect((await store.readKeyring())!['check'], isNull);
-        await store.publishKeyring({'kdfSalt': salt, 'check': 'c'});
-        expect((await store.readKeyring())!['check'], 'c');
-        // A different salt never replaces it.
-        await store.publishKeyring({
-          'kdfSalt': base64Encode(List<int>.filled(32, 9)),
-          'check': 'x',
-        });
-        expect((await store.readKeyring())!['kdfSalt'], salt);
-      },
-    );
+    test('a published keyring is never replaced by another salt', () async {
+      final salt = base64Encode(List<int>.filled(32, 4));
+      final store = storeFor(_devA);
+      await store.publishKeyring({'kdfSalt': salt, 'check': 'c'});
+      await store.publishKeyring({
+        'kdfSalt': base64Encode(List<int>.filled(32, 9)),
+        'check': 'x',
+      });
+      expect(await store.readKeyring(), containsPair('kdfSalt', salt));
+    });
+
+    test('a keyring without a key check is not used', () async {
+      final store = storeFor(_devA);
+      await store.publishKeyring({
+        'kdfSalt': base64Encode(List<int>.filled(32, 4)),
+      });
+      expect(await store.readKeyring(), isNull);
+    });
   });
 }

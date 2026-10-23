@@ -19,14 +19,12 @@ void main() {
         ),
       );
       await meta.setChangeToken('old-token');
-      await meta.setFormatVersion(4);
 
       await SyncMetadata.resetForRestoredInstall(prefs);
 
       expect(meta.deviceId, isNot(originalId));
       expect(meta.pendingChanges, isEmpty);
       expect(meta.changeToken, isNull);
-      expect(meta.formatVersion, 0); // re-upload everything
       expect(meta.isEnabled, isTrue); // the user's choice is kept
     },
   );

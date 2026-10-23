@@ -146,27 +146,20 @@ class CloudKitFileStore implements DriveFileStore {
 /// iCloud backend. Uses the same per-device change-log protocol as Google
 /// Drive (see [DriveSyncLogStore]), stored in the private CloudKit database,
 /// so deletes propagate as log tombstones and every record field (media ids
-/// and keys included) round-trips unchanged. Records written by older builds
-/// as `SeedlingEntry` records are read once to migrate them.
+/// and keys included) round-trips unchanged.
 class CloudKitSyncService implements SyncBackend {
   final DriveFileStore? _injectedStore;
   final String? _injectedDeviceId;
-  final Future<List<Map<String, dynamic>>> Function()? _injectedLegacy;
   Future<DriveSyncLogStore>? _logStore;
 
-  CloudKitSyncService()
-    : _injectedStore = null,
-      _injectedDeviceId = null,
-      _injectedLegacy = null;
+  CloudKitSyncService() : _injectedStore = null, _injectedDeviceId = null;
 
   @visibleForTesting
   CloudKitSyncService.withStore(
     DriveFileStore store, {
     required String deviceId,
-    Future<List<Map<String, dynamic>>> Function()? legacyRecords,
   }) : _injectedStore = store,
-       _injectedDeviceId = deviceId,
-       _injectedLegacy = legacyRecords;
+       _injectedDeviceId = deviceId;
 
   Future<DriveSyncLogStore> _logs() => _logStore ??= () async {
     var deviceId = _injectedDeviceId;
@@ -180,40 +173,8 @@ class CloudKitSyncService implements SyncBackend {
     return DriveSyncLogStore(
       _injectedStore ?? CloudKitFileStore(),
       deviceId: deviceId,
-      legacy: _readLegacyOnce,
     );
   }();
-
-  /// Delivers the legacy `SeedlingEntry` records once (marker 1). A failure
-  /// (e.g. the record type was never created) is not fatal: it is retried on
-  /// the next pull and never blocks log changes.
-  Future<int?> _readLegacyOnce(
-    int? seenMarker,
-    List<Map<String, dynamic>> records,
-    Set<String> deletedUUIDs,
-  ) async {
-    if (seenMarker != null) return seenMarker;
-    try {
-      final legacy = _injectedLegacy != null
-          ? await _injectedLegacy()
-          : await _fetchLegacyRecords();
-      records.addAll(legacy);
-      return 1;
-    } on PlatformException catch (e) {
-      const ErrorReporter().report(e, context: 'CloudKitSyncService.legacy');
-      return null;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchLegacyRecords() async {
-    final result = await _channel.invokeMapMethod<String, dynamic>(
-      'fetchLegacyRecords',
-    );
-    return [
-      for (final r in (result?['records'] as List<dynamic>? ?? const []))
-        Map<String, dynamic>.from(r as Map),
-    ];
-  }
 
   @override
   Future<bool> isAvailable() async {

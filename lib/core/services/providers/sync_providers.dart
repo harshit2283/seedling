@@ -164,7 +164,6 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     quarantine: SyncQuarantine(
       directory: getApplicationSupportDirectory,
       namespace: ref.watch(syncProviderTypeProvider).name,
-      legacyMetadata: metadata,
     ),
   );
   ref.onDispose(() => engine.dispose());

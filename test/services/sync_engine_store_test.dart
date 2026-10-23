@@ -64,7 +64,7 @@ class _FakeCrypto extends Fake implements SyncCryptoService {
     Map<String, dynamic> record,
   ) async {
     if (record['syncEncryptionVersion'] == null) {
-      throw const SyncUnversionedRecordException();
+      throw const SyncPayloadCryptoException('Unsupported version');
     }
     if (undecryptable.contains(record['text'])) {
       throw const SyncPayloadCryptoException('Failed to decrypt');
@@ -138,12 +138,7 @@ class _MemoryBackend extends SyncBackend {
   @override
   Future<Map<String, dynamic>> publishKeyring(Map<String, dynamic> k) async {
     // Same rules as DriveSyncLogStore.publishKeyring.
-    final existing = keyring;
-    if (existing == null ||
-        (existing['check'] == null && existing['kdfSalt'] == k['kdfSalt'])) {
-      keyring = k;
-    }
-    return keyring!;
+    return keyring ??= k;
   }
 
   final blobs = <String, List<int>>{};
@@ -242,9 +237,6 @@ void main() {
       await SharedPreferences.getInstance(),
       namespace: 'test',
     );
-    // Pretend this device already did its full upload, so tests only see
-    // the changes they create.
-    await metadata.setFormatVersion(SyncEngine.currentFormatVersion);
     dir = await Directory.systemTemp.createTemp('sync_store');
     try {
       db = await ObjectBoxDatabase.openForTesting(
@@ -379,7 +371,7 @@ void main() {
     expect(metadata.pendingChanges, isEmpty);
   });
 
-  test('unversioned remote records are ignored', () async {
+  test('unversioned remote records are never imported', () async {
     if (skip()) return;
     backend.nextFetch = SyncFetchResult(
       records: [
@@ -448,7 +440,6 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sync_enabled_b', true);
     final metaB = SyncMetadata(prefs, namespace: 'b');
-    await metaB.setFormatVersion(SyncEngine.currentFormatVersion);
     final engineA = SyncEngine(
       database: db!,
       backend: GoogleDriveSyncService.withStore(
@@ -495,7 +486,7 @@ void main() {
 
   test('a key derived with another salt never pushes', () async {
     if (skip()) return;
-    backend.keyring = {'kdfSalt': 'AAAAAAAAAAAAAAAAAAAAAA=='};
+    backend.keyring = {'kdfSalt': 'AAAAAAAAAAAAAAAAAAAAAA==', 'check': 'x'};
     final crypto = _FakeCrypto()..keyMatchesKeyring = false;
     final mismatched = SyncEngine(
       database: db!,
@@ -539,7 +530,6 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('sync_enabled_b', true);
       metaB = SyncMetadata(prefs, namespace: 'b');
-      await metaB.setFormatVersion(SyncEngine.currentFormatVersion);
     });
 
     tearDown(() async {
@@ -894,25 +884,13 @@ void main() {
 
     test('no push without a verifiable keyring', () async {
       if (skip()) return;
-      // A fixed-salt key can't recreate a missing keyring: block.
+      // Without a key there is nothing to recreate a missing keyring from.
       final crypto = _FakeCrypto()..ownKeyring = null;
       final e = engineWith(crypto);
       final entry = await db!.saveEntry(Entry.line(text: 'x'));
       e.queuePush(entry, SyncChangeType.create);
       expect((await e.push()).success, isFalse);
       expect(backend.saved, isEmpty);
-      e.dispose();
-    });
-
-    test('a keyring without a key check gets one (same salt)', () async {
-      if (skip()) return;
-      final crypto = _FakeCrypto();
-      backend.keyring = {'kdfSalt': crypto.ownKeyring!['kdfSalt']};
-      final e = engineWith(crypto);
-      final entry = await db!.saveEntry(Entry.line(text: 'x'));
-      e.queuePush(entry, SyncChangeType.create);
-      expect((await e.push()).success, isTrue);
-      expect(backend.keyring!['check'], 'ok');
       e.dispose();
     });
 
@@ -982,41 +960,35 @@ void main() {
       },
     );
 
-    test(
-      'quarantine lives in a file, migrates from prefs, writes on change',
-      () async {
-        if (skip()) return;
-        final stateDir = await Directory.systemTemp.createTemp('quarantine');
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(
-            'sync_quarantine_test',
-            '[{"syncUUID":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee","x":1}]',
-          );
-          final q = SyncQuarantine(
-            directory: () async => stateDir,
-            namespace: 'test',
-            legacyMetadata: metadata,
-          );
-          expect(await q.records(), hasLength(1));
-          expect(prefs.getString('sync_quarantine_test'), isNull);
-          final file = File('${stateDir.path}/sync_state/quarantine_test.json');
-          expect(file.existsSync(), isTrue);
-          final stamp = file.lastModifiedSync();
-          await Future<void>.delayed(const Duration(milliseconds: 20));
-          await q.replace(await q.records()); // unchanged: no rewrite
-          expect(file.lastModifiedSync(), stamp);
-          // Survives a restart.
-          final reopened = SyncQuarantine(
-            directory: () async => stateDir,
-            namespace: 'test',
-          );
-          expect(await reopened.records(), hasLength(1));
-        } finally {
-          await stateDir.delete(recursive: true);
-        }
-      },
-    );
+    test('quarantine lives in a file and writes only on change', () async {
+      if (skip()) return;
+      final stateDir = await Directory.systemTemp.createTemp('quarantine');
+      try {
+        final q = SyncQuarantine(
+          directory: () async => stateDir,
+          namespace: 'test',
+        );
+        expect(await q.records(), isEmpty);
+        await q.replace([
+          {'syncUUID': 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'x': 1},
+        ]);
+        expect(await q.records(), hasLength(1));
+        final file = File('${stateDir.path}/sync_state/quarantine_test.json');
+        expect(file.existsSync(), isTrue);
+        final stamp = file.lastModifiedSync();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await q.replace(await q.records()); // unchanged: no rewrite
+        expect(file.lastModifiedSync(), stamp);
+        // Survives a restart.
+        final reopened = SyncQuarantine(
+          directory: () async => stateDir,
+          namespace: 'test',
+        );
+        expect(await reopened.records(), hasLength(1));
+      } finally {
+        await stateDir.delete(recursive: true);
+      }
+    });
   });
 
   test('first enable uploads existing entries', () async {

@@ -4,7 +4,6 @@
 library;
 
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -79,47 +78,6 @@ class _CountingPbkdf2 extends Pbkdf2 {
   }
 }
 
-/// Builds a record exactly as the v2 format wrote it: per-record key was
-/// PBKDF2-SHA256(passphrase, record salt, 210k) and the raw passphrase was
-/// kept in secure storage under `seedling_sync_passphrase_v2`.
-Future<Map<String, dynamic>> _legacyV2Record(
-  String passphrase,
-  String text,
-) async {
-  final salt = Uint8List.fromList(List<int>.generate(16, (i) => i + 1));
-  final key = await Pbkdf2(
-    macAlgorithm: Hmac.sha256(),
-    iterations: 210000,
-    bits: 256,
-  ).deriveKey(secretKey: SecretKey(utf8.encode(passphrase)), nonce: salt);
-  final nonce = List<int>.generate(12, (i) => 100 + i);
-  final box = await AesGcm.with256bits().encrypt(
-    utf8.encode(text),
-    secretKey: key,
-    nonce: nonce,
-  );
-  return <String, dynamic>{
-    'text':
-        'syncenc:v1:${base64Encode(nonce)}:${base64Encode(box.cipherText)}:${base64Encode(box.mac.bytes)}',
-    'syncEncryptionVersion': 2,
-    'syncEncryptionSalt': base64Encode(salt),
-  };
-}
-
-/// A keyring that already holds [salt] (no key check), like an older
-/// keyring or a test fixture.
-class _FixedKeyring implements SyncKeyring {
-  final List<int> salt;
-  _FixedKeyring(this.salt);
-
-  @override
-  Future<Map<String, dynamic>?> read() async => {'kdfSalt': base64Encode(salt)};
-
-  @override
-  Future<Map<String, dynamic>> publish(Map<String, dynamic> keyring) async =>
-      (await read())!;
-}
-
 /// An initially empty shared keyring (the account's sync space).
 class _MemKeyring implements SyncKeyring {
   Map<String, dynamic>? stored;
@@ -135,17 +93,18 @@ class _MemKeyring implements SyncKeyring {
 void main() {
   group('SyncCryptoService key storage', () {
     const passphrase = 'correct horse battery staple';
-    const legacyStorageKey = 'seedling_sync_passphrase_v2';
 
     test('never writes the raw passphrase to secure storage', () async {
       final storage = _MockSecureStorage();
       final values = <String, String>{};
       _wireStorage(storage, values);
-      final service = SyncCryptoService(secureStorage: storage);
+      final service = SyncCryptoService(
+        secureStorage: storage,
+        keyring: _MemKeyring(),
+      );
 
       await service.setPassphrase(passphrase);
 
-      expect(values.containsKey(legacyStorageKey), isFalse);
       for (final stored in values.values) {
         expect(stored.contains(passphrase), isFalse);
       }
@@ -156,14 +115,22 @@ void main() {
       final storage = _MockSecureStorage();
       final values = <String, String>{};
       _wireStorage(storage, values);
-      await SyncCryptoService(secureStorage: storage).setPassphrase(passphrase);
+      final keyring = _MemKeyring();
+      await SyncCryptoService(
+        secureStorage: storage,
+        keyring: keyring,
+      ).setPassphrase(passphrase);
 
-      final restarted = SyncCryptoService(secureStorage: storage);
+      final restarted = SyncCryptoService(
+        secureStorage: storage,
+        keyring: keyring,
+      );
       final encrypted = await restarted.encryptRecordFields(<String, dynamic>{
         'text': 'after restart',
       });
       final decrypted = await SyncCryptoService(
         secureStorage: storage,
+        keyring: keyring,
       ).decryptRecordFields(encrypted);
       expect(decrypted['text'], 'after restart');
     });
@@ -173,7 +140,12 @@ void main() {
       final values = <String, String>{};
       _wireStorage(storage, values);
       final pbkdf2 = _CountingPbkdf2();
-      final writer = SyncCryptoService(secureStorage: storage, pbkdf2: pbkdf2);
+      final keyring = _MemKeyring();
+      final writer = SyncCryptoService(
+        secureStorage: storage,
+        pbkdf2: pbkdf2,
+        keyring: keyring,
+      );
       await writer.setPassphrase(passphrase);
 
       // Records from many distinct sync batches (distinct salts).
@@ -187,6 +159,7 @@ void main() {
       final reader = SyncCryptoService(
         secureStorage: storage,
         pbkdf2: pbkdf2Reader,
+        keyring: keyring,
       );
       for (var i = 0; i < records.length; i++) {
         final decrypted = await reader.decryptRecordFields(records[i]);
@@ -196,75 +169,10 @@ void main() {
       expect(pbkdf2.calls, 1);
       expect(pbkdf2Reader.calls, 0);
     });
-
-    test(
-      'migrates a stored legacy passphrase and still reads v2 records',
-      () async {
-        final storage = _MockSecureStorage();
-        final values = <String, String>{legacyStorageKey: passphrase};
-        _wireStorage(storage, values);
-        final legacyRecord = await _legacyV2Record(passphrase, 'old memory');
-
-        final service = SyncCryptoService(secureStorage: storage);
-        expect(await service.hasPassphrase(), isTrue);
-        final decrypted = await service.decryptRecordFields(legacyRecord);
-        expect(decrypted['text'], 'old memory');
-
-        // Raw passphrase is gone from storage, replaced by derived key.
-        expect(values.containsKey(legacyStorageKey), isFalse);
-        for (final stored in values.values) {
-          expect(stored.contains(passphrase), isFalse);
-        }
-
-        // New records still round-trip on the migrated key, and a device
-        // that set the same passphrase directly can read them.
-        final fresh = await service.encryptRecordFields(<String, dynamic>{
-          'text': 'new memory',
-        });
-        final otherStorage = _MockSecureStorage();
-        _wireStorage(otherStorage, <String, String>{});
-        final otherDevice = SyncCryptoService(secureStorage: otherStorage);
-        await otherDevice.setPassphrase(passphrase);
-        expect(
-          (await otherDevice.decryptRecordFields(fresh))['text'],
-          'new memory',
-        );
-        expect(
-          (await otherDevice.decryptRecordFields(legacyRecord))['text'],
-          'old memory',
-        );
-      },
-    );
-
-    test(
-      'v2 records in a later session ask for the passphrase again',
-      () async {
-        final storage = _MockSecureStorage();
-        final values = <String, String>{legacyStorageKey: passphrase};
-        _wireStorage(storage, values);
-        final legacyRecord = await _legacyV2Record(passphrase, 'old memory');
-        await SyncCryptoService(
-          secureStorage: storage,
-        ).encryptRecordFields(<String, dynamic>{'text': 'trigger migration'});
-
-        final nextLaunch = SyncCryptoService(secureStorage: storage);
-        await expectLater(
-          () => nextLaunch.decryptRecordFields(legacyRecord),
-          throwsA(isA<SyncPassphraseReentryRequiredException>()),
-        );
-
-        await nextLaunch.setPassphrase(passphrase);
-        expect(
-          (await nextLaunch.decryptRecordFields(legacyRecord))['text'],
-          'old memory',
-        );
-      },
-    );
   });
 
   group('SyncCryptoService per-user key salt', () {
     const passphrase = 'correct horse battery staple';
-    final accountSalt = List<int>.generate(32, (i) => 200 - i);
 
     test(
       'devices sharing the keyring salt interoperate; others cannot',
@@ -272,9 +180,10 @@ void main() {
         final storageA = _MockSecureStorage();
         final valuesA = <String, String>{};
         _wireStorage(storageA, valuesA);
+        final account = _MemKeyring();
         final deviceA = SyncCryptoService(
           secureStorage: storageA,
-          keyring: _FixedKeyring(accountSalt),
+          keyring: account,
         );
         await deviceA.setPassphrase(passphrase);
 
@@ -282,18 +191,20 @@ void main() {
         _wireStorage(storageB, <String, String>{});
         final deviceB = SyncCryptoService(
           secureStorage: storageB,
-          keyring: _FixedKeyring(accountSalt),
+          keyring: account,
         );
         await deviceB.setPassphrase(passphrase);
 
         final encrypted = await deviceA.encryptRecordFields(<String, dynamic>{
           'text': 'shared',
         });
-        expect(encrypted['syncEncryptionVersion'], 4);
+        expect(encrypted['syncEncryptionVersion'], 1);
         expect(
           (await deviceB.decryptRecordFields(encrypted))['text'],
           'shared',
         );
+        final accountSalt = base64Decode(account.stored!['kdfSalt'] as String);
+        expect(accountSalt, hasLength(32));
         expect(await deviceB.usesKdfSalt(accountSalt), isTrue);
 
         // Same passphrase, different account (different salt): the key, and so
@@ -302,7 +213,7 @@ void main() {
         _wireStorage(storageC, <String, String>{});
         final otherUser = SyncCryptoService(
           secureStorage: storageC,
-          keyring: _FixedKeyring(List<int>.filled(32, 1)),
+          keyring: _MemKeyring(),
         );
         await otherUser.setPassphrase(passphrase);
         await expectLater(
@@ -311,81 +222,10 @@ void main() {
         );
         // The stored key material records the per-user salt, not the app one.
         final material =
-            jsonDecode(valuesA['seedling_sync_key_v3']!)
-                as Map<String, dynamic>;
+            jsonDecode(valuesA['seedling_sync_key']!) as Map<String, dynamic>;
         expect(base64Decode(material['salt'] as String), accountSalt);
       },
     );
-
-    test(
-      'fixed-salt (v3) keys keep working and migrate on next passphrase',
-      () async {
-        final storage = _MockSecureStorage();
-        final values = <String, String>{};
-        _wireStorage(storage, values);
-        // Pre-release build: no keyring, app-wide salt.
-        final old = SyncCryptoService(secureStorage: storage);
-        await old.setPassphrase(passphrase);
-        final v3Record = await old.encryptRecordFields(<String, dynamic>{
-          'text': 'from the fixed-salt days',
-        });
-        expect(v3Record['syncEncryptionVersion'], 3);
-
-        // Upgraded build with a keyring: the stored v3 key still works as-is.
-        final upgraded = SyncCryptoService(
-          secureStorage: storage,
-          keyring: _FixedKeyring(accountSalt),
-        );
-        expect(
-          (await upgraded.decryptRecordFields(v3Record))['text'],
-          'from the fixed-salt days',
-        );
-        expect(await upgraded.usesKdfSalt(accountSalt), isFalse);
-
-        // Re-entering the passphrase moves to the per-user salt (v4) and
-        // keeps the v3 key so old records stay readable, across restarts.
-        await upgraded.setPassphrase(passphrase);
-        final restarted = SyncCryptoService(
-          secureStorage: storage,
-          keyring: _FixedKeyring(accountSalt),
-        );
-        expect(await restarted.usesKdfSalt(accountSalt), isTrue);
-        final v4Record = await restarted.encryptRecordFields(<String, dynamic>{
-          'text': 'per-user salt',
-        });
-        expect(v4Record['syncEncryptionVersion'], 4);
-        expect(
-          (await restarted.decryptRecordFields(v3Record))['text'],
-          'from the fixed-salt days',
-        );
-        expect(
-          (await restarted.decryptRecordFields(v4Record))['text'],
-          'per-user salt',
-        );
-      },
-    );
-
-    test('a v3-only device asks for the passphrase on v4 records', () async {
-      final storage = _MockSecureStorage();
-      _wireStorage(storage, <String, String>{});
-      final v3Device = SyncCryptoService(secureStorage: storage);
-      await v3Device.setPassphrase(passphrase);
-
-      final otherStorage = _MockSecureStorage();
-      _wireStorage(otherStorage, <String, String>{});
-      final v4Device = SyncCryptoService(
-        secureStorage: otherStorage,
-        keyring: _FixedKeyring(accountSalt),
-      );
-      await v4Device.setPassphrase(passphrase);
-      final v4Record = await v4Device.encryptRecordFields(<String, dynamic>{
-        'text': 'x',
-      });
-      await expectLater(
-        () => v3Device.decryptRecordFields(v4Record),
-        throwsA(isA<SyncKeySaltMismatchException>()),
-      );
-    });
   });
 
   group('SyncCryptoService', () {
@@ -397,7 +237,7 @@ void main() {
         _wireStorage(storage, values);
         final service = SyncCryptoService(
           secureStorage: storage,
-          keyring: _FixedKeyring(List<int>.filled(32, 7)),
+          keyring: _MemKeyring(),
         );
         await service.setPassphrase('correct horse battery staple');
 
@@ -440,13 +280,20 @@ void main() {
         final storageA = _MockSecureStorage();
         final valuesA = <String, String>{};
         _wireStorage(storageA, valuesA);
-        final serviceA = SyncCryptoService(secureStorage: storageA);
+        final account = _MemKeyring();
+        final serviceA = SyncCryptoService(
+          secureStorage: storageA,
+          keyring: account,
+        );
         await serviceA.setPassphrase('same passphrase everywhere');
 
         final storageB = _MockSecureStorage();
         final valuesB = <String, String>{};
         _wireStorage(storageB, valuesB);
-        final serviceB = SyncCryptoService(secureStorage: storageB);
+        final serviceB = SyncCryptoService(
+          secureStorage: storageB,
+          keyring: account,
+        );
         await serviceB.setPassphrase('same passphrase everywhere');
 
         final encrypted = await serviceA.encryptRecordFields(<String, dynamic>{
@@ -464,7 +311,10 @@ void main() {
         final storage = _MockSecureStorage();
         final values = <String, String>{};
         _wireStorage(storage, values);
-        final service = SyncCryptoService(secureStorage: storage);
+        final service = SyncCryptoService(
+          secureStorage: storage,
+          keyring: _MemKeyring(),
+        );
         await service.setPassphrase('same passphrase everywhere');
 
         final session = await service.createEncryptionSession();
@@ -485,9 +335,11 @@ void main() {
 
     test('rejects records without an encryption version', () async {
       final storage = _MockSecureStorage();
-      final values = <String, String>{};
-      _wireStorage(storage, values);
-      final service = SyncCryptoService(secureStorage: storage);
+      _wireStorage(storage, <String, String>{});
+      final service = SyncCryptoService(
+        secureStorage: storage,
+        keyring: _MemKeyring(),
+      );
       await service.setPassphrase('correct horse battery staple');
 
       // Unversioned "plaintext" must never be imported as-is.
@@ -496,7 +348,7 @@ void main() {
           'syncUUID': '550e8400-e29b-41d4-a716-446655440098',
           'text': 'injected plaintext',
         }),
-        throwsA(isA<SyncUnversionedRecordException>()),
+        throwsA(isA<SyncPayloadCryptoException>()),
       );
     });
 
@@ -504,7 +356,10 @@ void main() {
       final storage = _MockSecureStorage();
       final values = <String, String>{};
       _wireStorage(storage, values);
-      final service = SyncCryptoService(secureStorage: storage);
+      final service = SyncCryptoService(
+        secureStorage: storage,
+        keyring: _MemKeyring(),
+      );
       await service.setPassphrase('correct horse battery staple');
 
       final session = await service.createEncryptionSession();
@@ -531,7 +386,7 @@ void main() {
       _wireStorage(storage, <String, String>{});
       final service = SyncCryptoService(
         secureStorage: storage,
-        keyring: _FixedKeyring(List<int>.filled(32, 5)),
+        keyring: _MemKeyring(),
       );
       await service.setPassphrase('correct horse battery staple');
       const fileKey = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJA==';
@@ -551,7 +406,10 @@ void main() {
       final storage = _MockSecureStorage();
       final values = <String, String>{};
       _wireStorage(storage, values);
-      final service = SyncCryptoService(secureStorage: storage);
+      final service = SyncCryptoService(
+        secureStorage: storage,
+        keyring: _MemKeyring(),
+      );
 
       await expectLater(
         () => service.encryptRecordFields(<String, dynamic>{'text': 'hello'}),
@@ -637,34 +495,19 @@ void main() {
           ...record(),
           'syncUUID': '550e8400-e29b-41d4-a716-446655440063',
         }, session: session);
-        // Swap text between records, and title into text; re-MACing is not
-        // possible without the key, so strip format/MAC to force the field
-        // check on its own via a legacy-looking record.
+        // Swap text between records; re-MACing is not possible without the
+        // key, and a record without its MAC is rejected outright.
         final swapped = Map<String, dynamic>.from(b)..['text'] = a['text'];
         await expectLater(
           service.decryptRecordFields(swapped),
           throwsA(isA<SyncPayloadCryptoException>()),
         );
-        final downgraded = Map<String, dynamic>.from(a)
-          ..remove('syncMac')
-          ..remove('syncRecordFormat');
+        final downgraded = Map<String, dynamic>.from(a)..remove('syncMac');
         await expectLater(
           service.decryptRecordFields(downgraded),
           throwsA(isA<SyncPayloadCryptoException>()),
         );
       },
     );
-
-    test('a brand-new device can read fixed-salt (v3) records', () async {
-      final oldStorage = _MockSecureStorage();
-      _wireStorage(oldStorage, <String, String>{});
-      final oldDevice = SyncCryptoService(secureStorage: oldStorage);
-      await oldDevice.setPassphrase(passphrase);
-      final v3 = await oldDevice.encryptRecordFields(record());
-      expect(v3['syncEncryptionVersion'], 3);
-
-      final fresh = await device(_MemKeyring());
-      expect((await fresh.decryptRecordFields(v3))['text'], 'a quiet morning');
-    });
   });
 }

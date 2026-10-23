@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../constants/prefs_keys.dart';
@@ -145,10 +143,8 @@ class _DriveApiFileStore implements DriveFileStore {
 /// Google Drive appData-based sync backend used on iOS/Android.
 ///
 /// Each device appends to its own change log (see [DriveSyncLog]); pulls
-/// read every device's log by sequence number. The v1 shared document is
-/// still read so data pushed by older app versions keeps arriving.
+/// read every device's log by sequence number.
 class GoogleDriveSyncService implements SyncBackend {
-  static const _recoveryDirName = 'sync_recovery';
   static const _scopes = <String>[drive.DriveApi.driveAppdataScope];
 
   GoogleSignIn get _googleSignIn => GoogleSignIn.instance;
@@ -227,8 +223,6 @@ class GoogleDriveSyncService implements SyncBackend {
     return DriveSyncLogStore(
       _injectedStore ?? _DriveApiFileStore(_driveApi!),
       deviceId: deviceId,
-      backup: (operation, bytes) =>
-          _backupRawData(operation: operation, data: bytes),
     );
   }
 
@@ -446,37 +440,5 @@ class GoogleDriveSyncService implements SyncBackend {
     if (!await _ensureReady()) return null;
     final logs = await _logs();
     return _withRetry(() => logs.fetch(changeToken));
-  }
-
-  // ---------------------------------------------------------------------------
-  // Internal helpers
-  // ---------------------------------------------------------------------------
-
-  Future<String?> _backupRawData({
-    required String operation,
-    required List<int> data,
-  }) async {
-    if (_injectedStore != null) return null;
-    try {
-      final docsDir = await getApplicationDocumentsDirectory();
-      final recoveryDir = Directory('${docsDir.path}/$_recoveryDirName');
-      if (!await recoveryDir.exists()) {
-        await recoveryDir.create(recursive: true);
-      }
-
-      final file = File(
-        '${recoveryDir.path}/${operation}_${DateTime.now().millisecondsSinceEpoch}.bin',
-      );
-      await file.writeAsBytes(data, flush: true);
-      return file.path;
-    } catch (error, stackTrace) {
-      developer.log(
-        'Failed to write sync recovery backup',
-        name: 'GoogleDriveSyncService',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      return null;
-    }
   }
 }

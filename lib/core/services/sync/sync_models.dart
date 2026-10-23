@@ -87,19 +87,14 @@ enum SyncChangeType { create, update, delete }
 class SyncDocumentCorruptedException implements Exception {
   final String operation;
   final String message;
-  final String? backupPath;
 
   const SyncDocumentCorruptedException({
     required this.operation,
     required this.message,
-    this.backupPath,
   });
 
   @override
-  String toString() {
-    final suffix = backupPath == null ? '' : ' (backup: $backupPath)';
-    return 'SyncDocumentCorruptedException[$operation]: $message$suffix';
-  }
+  String toString() => 'SyncDocumentCorruptedException[$operation]: $message';
 }
 
 /// Thrown when the user tries to sign in with a different Google account

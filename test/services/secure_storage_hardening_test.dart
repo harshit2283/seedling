@@ -83,14 +83,14 @@ void main() {
         final storage = _MockSecureStorage();
         final recorder = _wire(storage, {
           'seedling_local_master_key_v1': 'local-key',
-          'seedling_sync_key_v3': '{"key":"k"}',
+          'seedling_sync_key': '{"key":"k"}',
         });
 
         await SecureStorageAccessibilityMigration(storage: storage).run();
 
         expect(recorder.writes, [
           ('seedling_local_master_key_v1', 'first_unlock_this_device'),
-          ('seedling_sync_key_v3', 'first_unlock_this_device'),
+          ('seedling_sync_key', 'first_unlock_this_device'),
           (
             SecureStorageAccessibilityMigration.markerKey,
             'first_unlock_this_device',
@@ -120,8 +120,7 @@ void main() {
         containsAll(<String>[
           'seedling_local_master_key_v1',
           'clock_guard_max_observed_now_v1',
-          'seedling_sync_passphrase_v2',
-          'seedling_sync_key_v3',
+          'seedling_sync_key',
         ]),
       );
     });

@@ -56,7 +56,7 @@ abstract class DriveFileStore {
 /// up to [to]) or an append-only chunk covering seqs [from]..[to].
 class _LogFile {
   static final _pattern = RegExp(
-    r'^seedling_sync_log_v3_([0-9a-fA-F-]{36})_([0-9a-f]{8})_'
+    r'^seedling_sync_log_([0-9a-fA-F-]{36})_([0-9a-f]{8})_'
     r'(?:b(\d+)|c(\d+)-(\d+))\.json$',
   );
 
@@ -113,7 +113,7 @@ class _LogBody {
     required int to,
   }) => {
     'format': 'seedling-sync-log',
-    'version': 3,
+    'version': 1,
     'deviceId': deviceId,
     'epoch': epoch,
     'from': from,
@@ -130,8 +130,8 @@ class _LogBody {
 
   static _LogBody fromBytes(List<int> bytes) {
     final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-    if (json['format'] != 'seedling-sync-log' || json['version'] != 3) {
-      throw const FormatException('Not a v3 seedling sync log');
+    if (json['format'] != 'seedling-sync-log' || json['version'] != 1) {
+      throw const FormatException('Not a seedling sync log');
     }
     final rawRecords = json['records'] as Map<String, dynamic>? ?? {};
     final rawDeletions = json['deletions'] as Map<String, dynamic>? ?? {};
@@ -157,20 +157,19 @@ class _LogBody {
 }
 
 /// What a device has already read: per device log, the epoch and last seq
-/// seen, plus the legacy marker.
+/// seen.
 class DriveChangeToken {
   final Map<String, ({String epoch, int seq})> seen;
-  final int? legacyUpdatedAt;
 
-  const DriveChangeToken({this.seen = const {}, this.legacyUpdatedAt});
+  const DriveChangeToken({this.seen = const {}});
 
-  /// Tokens from older layouts or garbage parse as "nothing seen": the next
-  /// fetch is a full one, which merging tolerates.
+  /// Garbage parses as "nothing seen": the next fetch is a full one, which
+  /// merging tolerates.
   factory DriveChangeToken.parse(String? raw) {
     if (raw == null || raw.isEmpty) return const DriveChangeToken();
     try {
       final json = jsonDecode(raw);
-      if (json is! Map<String, dynamic> || json['v'] != 3) {
+      if (json is! Map<String, dynamic> || json['v'] != 1) {
         return const DriveChangeToken();
       }
       final logs = json['logs'] as Map<String, dynamic>? ?? {};
@@ -183,7 +182,6 @@ class DriveChangeToken {
                 seq: int.tryParse(value.split(':').last) ?? 0,
               ),
         },
-        legacyUpdatedAt: (json['legacy'] as num?)?.toInt(),
       );
     } on FormatException {
       return const DriveChangeToken();
@@ -191,28 +189,13 @@ class DriveChangeToken {
   }
 
   String encode() => jsonEncode({
-    'v': 3,
+    'v': 1,
     'logs': {
       for (final MapEntry(:key, :value) in seen.entries)
         key: '${value.epoch}:${value.seq}',
     },
-    if (legacyUpdatedAt != null) 'legacy': legacyUpdatedAt,
   });
 }
-
-/// Called with raw bytes that could not be parsed, before giving up on them.
-typedef DriveCorruptionBackup =
-    Future<String?> Function(String operation, List<int> bytes);
-
-/// Reads data left by an older sync layout. Given the marker stored in the
-/// change token last time (null = never), it adds records/deletions and
-/// returns the new marker (null = nothing read, try again next time).
-typedef SyncLegacyReader =
-    Future<int?> Function(
-      int? seenMarker,
-      List<Map<String, dynamic>> records,
-      Set<String> deletedUUIDs,
-    );
 
 /// The sync protocol over a [DriveFileStore].
 ///
@@ -230,16 +213,10 @@ typedef SyncLegacyReader =
 /// wiped, files deleted), it comes back with a new epoch, and readers re-read
 /// it from the start instead of waiting for a seq they have already seen.
 class DriveSyncLogStore {
-  static const logPrefix = 'seedling_sync_log_v3_';
-
-  /// The v1 shared document (released Drive layout). Still read, never
-  /// written, so data from older app versions keeps arriving.
-  static const legacyFileName = 'seedling_sync_db_v1.json';
+  static const logPrefix = 'seedling_sync_log_';
 
   final DriveFileStore _files;
   final String _deviceId;
-  final DriveCorruptionBackup? _backup;
-  final SyncLegacyReader? _legacy;
   final Duration _keyringSettle;
   final int maxChunks;
   final Duration tombstoneTtl;
@@ -258,14 +235,10 @@ class DriveSyncLogStore {
   DriveSyncLogStore(
     this._files, {
     required String deviceId,
-    DriveCorruptionBackup? backup,
-    SyncLegacyReader? legacy,
     Duration keyringSettle = const Duration(seconds: 2),
     this.maxChunks = 16,
     this.tombstoneTtl = const Duration(days: 90),
   }) : _deviceId = deviceId,
-       _backup = backup,
-       _legacy = legacy,
        _keyringSettle = keyringSettle;
 
   String get _ownPrefix => '$logPrefix${_deviceId}_';
@@ -502,8 +475,7 @@ class DriveSyncLogStore {
     }
   }
 
-  /// Everything written since [changeToken], from every device's log (and
-  /// the legacy layout).
+  /// Everything written since [changeToken], from every device's log.
   Future<SyncFetchResult> fetch(String? changeToken) async {
     final token = DriveChangeToken.parse(changeToken);
     final seen = Map<String, ({String epoch, int seq})>.of(token.seen);
@@ -552,19 +524,10 @@ class DriveSyncLogStore {
       }
     }
 
-    final legacyMarker = await (_legacy ?? _readLegacyDocumentChanges)(
-      token.legacyUpdatedAt,
-      records,
-      deletedUUIDs,
-    );
-
     return SyncFetchResult(
       records: records,
       deletedUUIDs: deletedUUIDs.toList(),
-      newChangeToken: DriveChangeToken(
-        seen: seen,
-        legacyUpdatedAt: legacyMarker ?? token.legacyUpdatedAt,
-      ).encode(),
+      newChangeToken: DriveChangeToken(seen: seen).encode(),
     );
   }
 
@@ -606,56 +569,14 @@ class DriveSyncLogStore {
     }
   }
 
-  /// Reads the v1 shared document when it changed since last time. All of
-  /// its records are delivered again (merging is idempotent, so that is
-  /// safe); deletions only when newer than what we saw last, so an old
-  /// tombstone can't re-delete an entry restored since.
-  Future<int?> _readLegacyDocumentChanges(
-    int? seenUpdatedAt,
-    List<Map<String, dynamic>> records,
-    Set<String> deletedUUIDs,
-  ) async {
-    final doc = await readLegacyDocument();
-    if (doc == null) return null;
-    final updatedAt = (doc['updatedAt'] as num?)?.toInt() ?? 0;
-    if (seenUpdatedAt != null && updatedAt == seenUpdatedAt) return updatedAt;
-
-    final rawRecords = doc['records'] as Map<String, dynamic>? ?? {};
-    for (final value in rawRecords.values) {
-      if (value is Map) {
-        records.add(Map<String, dynamic>.from(value.cast<String, dynamic>()));
-      }
-    }
-    final rawDeletions = doc['deletions'] as Map<String, dynamic>? ?? {};
-    for (final MapEntry(:key, :value) in rawDeletions.entries) {
-      final at = value is num ? value.toInt() : 0;
-      if (seenUpdatedAt == null || at > seenUpdatedAt) deletedUUIDs.add(key);
-    }
-    return updatedAt;
-  }
-
-  /// The decoded legacy document, or null when absent/unreadable.
-  Future<Map<String, dynamic>?> readLegacyDocument() async {
-    final file = await _files.findByName(legacyFileName);
-    if (file == null) return null;
-    final bytes = await _files.read(file.id);
-    if (bytes == null || bytes.isEmpty) return null;
-    try {
-      return jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-    } catch (error) {
-      await _backup?.call('legacy_document_corrupt', bytes);
-      return null;
-    }
-  }
-
   /// Keyring files: `{kdfSalt, check}` - the account's random key salt and
   /// an encrypted key-check value that proves a passphrase is right. Several
   /// can exist if devices enabled sync at the same moment (no create-if-
-  /// absent on Drive); every reader picks the same one, the smallest salt
-  /// (preferring a copy that carries a check), so all devices agree.
-  static const keyringPrefix = 'seedling_sync_keyring_v1';
+  /// absent on Drive); every reader picks the same one, the smallest salt,
+  /// so all devices agree.
+  static const keyringPrefix = 'seedling_sync_keyring_';
 
-  String get _ownKeyringName => '${keyringPrefix}_$_deviceId.json';
+  String get _ownKeyringName => '$keyringPrefix$_deviceId.json';
 
   /// The keyring every device uses, or null if none exists yet.
   Future<Map<String, dynamic>?> readKeyring() async {
@@ -666,7 +587,9 @@ class DriveSyncLogStore {
       try {
         final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
         final salt = json['kdfSalt'] as String?;
-        if (salt != null && base64Decode(salt).length >= 16) {
+        if (salt != null &&
+            json['check'] is String &&
+            base64Decode(salt).length >= 16) {
           candidates.add(json);
         }
       } catch (_) {
@@ -674,30 +597,21 @@ class DriveSyncLogStore {
       }
     }
     if (candidates.isEmpty) return null;
-    candidates.sort((a, b) {
-      final bySalt = (a['kdfSalt'] as String).compareTo(b['kdfSalt'] as String);
-      if (bySalt != 0) return bySalt;
-      return (a['check'] == null ? 1 : 0) - (b['check'] == null ? 1 : 0);
-    });
+    candidates.sort(
+      (a, b) => (a['kdfSalt'] as String).compareTo(b['kdfSalt'] as String),
+    );
     return candidates.first;
   }
 
   /// Publishes [keyring] unless one exists, then returns the keyring in
   /// effect. After writing, it re-reads until two reads agree (bounded), so
   /// a device that raced another settles on the winner *before* it derives
-  /// a key and pushes anything. An existing keyring with the same salt but
-  /// no key check gets [keyring]'s check added.
+  /// a key and pushes anything.
   Future<Map<String, dynamic>> publishKeyring(
     Map<String, dynamic> keyring,
   ) async {
     final existing = await readKeyring();
-    if (existing != null) {
-      final addsCheck =
-          existing['check'] == null &&
-          keyring['check'] != null &&
-          existing['kdfSalt'] == keyring['kdfSalt'];
-      if (!addsCheck) return existing;
-    }
+    if (existing != null) return existing;
     final bytes = utf8.encode(
       jsonEncode({'v': 1, 'kdf': 'pbkdf2-sha256', ...keyring}),
     );
@@ -718,7 +632,7 @@ class DriveSyncLogStore {
   }
 
   /// Encrypted media blobs, one file per asset id.
-  static const mediaPrefix = 'seedling_media_v1_';
+  static const mediaPrefix = 'seedling_media_';
 
   static String _blobName(String assetId) {
     // Ids end up in Drive query strings; only allow UUIDs.

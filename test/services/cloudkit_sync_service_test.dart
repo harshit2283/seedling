@@ -36,8 +36,6 @@ class _FakeZone {
       case 'fsDelete':
         files.remove(args['id']! as String); // missing is fine
         return true;
-      case 'fetchLegacyRecords':
-        return {'records': <Object?>[]};
     }
     throw MissingPluginException(call.method);
   }
@@ -93,11 +91,8 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  CloudKitSyncService device(String id) => CloudKitSyncService.withStore(
-    CloudKitFileStore(),
-    deviceId: id,
-    legacyRecords: () async => const [],
-  );
+  CloudKitSyncService device(String id) =>
+      CloudKitSyncService.withStore(CloudKitFileStore(), deviceId: id);
 
   test('deletions propagate to other devices (no resurrection)', () async {
     final a = device('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
@@ -144,23 +139,6 @@ void main() {
       );
     },
   );
-
-  test('legacy SeedlingEntry records are delivered once', () async {
-    var calls = 0;
-    final b = CloudKitSyncService.withStore(
-      CloudKitFileStore(),
-      deviceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      legacyRecords: () async {
-        calls++;
-        return [_rec(_uuid1)];
-      },
-    );
-    final first = await b.fetchChanges();
-    expect(first!.records.single['syncUUID'], _uuid1);
-    final second = await b.fetchChanges(changeToken: first.newChangeToken);
-    expect(second!.records, isEmpty);
-    expect(calls, 1);
-  });
 
   test('file store passes only ids, names and file paths to native', () async {
     final calls = <MethodCall>[];

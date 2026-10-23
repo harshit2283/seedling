@@ -39,11 +39,6 @@ class PrefsKeys {
   static const String syncDeviceId = 'sync_device_id';
   static const String syncLastError = 'sync_last_error';
   static const String syncLastErrorAt = 'sync_last_error_at';
-  // Remote layout version this device has fully uploaded for (re-push all
-  // local entries when it is behind SyncEngine.currentFormatVersion).
-  static const String syncFormatVersion = 'sync_format_version';
-  // Records that failed to decrypt/authenticate, kept for a retry.
-  static const String syncQuarantine = 'sync_quarantine';
   // Fingerprint of the key the last full upload was done with.
   static const String syncKeyFingerprint = 'sync_key_fingerprint';
   // Asset ids reserved for unfinished media uploads (syncUUID -> asset id).

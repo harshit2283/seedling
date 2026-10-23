@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'sync_metadata.dart';
-
 /// Records that could not be decrypted or authenticated (wrong or stale key,
 /// damaged or forged data), kept so they can be retried later without
 /// blocking the rest of a pull.
@@ -15,17 +13,14 @@ class SyncQuarantine {
 
   final Future<Directory> Function()? _directory;
   final String _namespace;
-  final SyncMetadata? _legacy;
   List<Map<String, dynamic>>? _cache;
   String _savedJson = '[]';
 
   SyncQuarantine({
     Future<Directory> Function()? directory,
     String namespace = 'default',
-    SyncMetadata? legacyMetadata,
   }) : _directory = directory,
-       _namespace = namespace,
-       _legacy = legacyMetadata;
+       _namespace = namespace;
 
   /// Records currently set aside (loaded on first use).
   Future<List<Map<String, dynamic>>> records() async {
@@ -44,11 +39,7 @@ class SyncQuarantine {
         loaded = [];
       }
     }
-    // One-time move out of SharedPreferences (earlier builds kept it there).
-    final legacy = await _legacy?.takeLegacyQuarantine() ?? const [];
-    _cache = loaded;
-    if (legacy.isNotEmpty) await replace([...loaded, ...legacy]);
-    return _cache!;
+    return _cache = loaded;
   }
 
   int get count => _cache?.length ?? 0;
