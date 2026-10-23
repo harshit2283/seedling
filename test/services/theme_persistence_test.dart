@@ -1,17 +1,8 @@
-// Theme persistence: themes are detected once at save time, counted cheaply
-// afterwards, and backfilled for older entries. The backfill tests run
-// against a real ObjectBox store and skip without the native library.
-import 'dart:io';
-
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// Theme persistence: themes are detected once at save time and counted
+// cheaply afterwards.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:seedling/core/constants/prefs_keys.dart';
 import 'package:seedling/core/services/ai/models/memory_theme.dart';
-import 'package:seedling/core/services/ai/theme_backfill_service.dart';
 import 'package:seedling/core/services/ai/theme_detector_service.dart';
-import 'package:seedling/core/services/security/at_rest_encryption_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
 import 'package:seedling/data/models/entry.dart';
 
 /// Detector that records how often keyword detection actually runs.
@@ -22,18 +13,6 @@ class _CountingDetector extends ThemeDetectorService {
   ThemeAnalysis analyze(ThemeInput input) {
     detections++;
     return super.analyze(input);
-  }
-}
-
-Future<ObjectBoxDatabase?> _tryOpen(Directory dir) async {
-  try {
-    return await ObjectBoxDatabase.openForTesting(
-      directory: dir.path,
-      encryptionService: AtRestEncryptionService(),
-    );
-  } on ArgumentError catch (e) {
-    if ('$e'.contains('dynamic library')) return null;
-    rethrow;
   }
 }
 
@@ -101,122 +80,6 @@ void main() {
       expect(distribution[MemoryTheme.family], 1);
       expect(distribution[MemoryTheme.moments], 1);
       expect(counting.detections, 2);
-    });
-
-    test('classify (isolate payload) matches detectTheme', () {
-      final entry = Entry.line(text: 'Hiked the forest trail up the mountain');
-      final result = ThemeBackfillService.classify([
-        (7, ThemeInput.fromEntry(entry)),
-      ]);
-      expect(result[7], detector.detectTheme(entry).name);
-    });
-  });
-
-  group('ThemeBackfillService (real store)', () {
-    late Directory dir;
-    ObjectBoxDatabase? db;
-
-    setUp(() async {
-      FlutterSecureStorage.setMockInitialValues({});
-      SharedPreferences.setMockInitialValues({});
-      dir = await Directory.systemTemp.createTemp('obx_theme_backfill');
-      db = await _tryOpen(dir);
-    });
-
-    tearDown(() async {
-      db?.close();
-      await dir.delete(recursive: true);
-    });
-
-    test('themes old entries once, keeps modifiedAt, sets flag', () async {
-      final store = db;
-      if (store == null) {
-        markTestSkipped('ObjectBox native library not available');
-        return;
-      }
-      final family = await store.saveEntry(
-        Entry.line(
-          text:
-              'Dinner with my mom and dad, my sister and brother, at home with family',
-        ),
-      );
-      final empty = await store.saveEntry(Entry.fragment(text: null));
-      // A label from an imported journal that is not one of our themes.
-      final kept = await store.saveEntry(
-        Entry.line(text: 'mom')..detectedTheme = 'Holidays',
-      );
-      final modifiedBefore = store.getEntry(family.id)!.modifiedAt;
-
-      final prefs = await SharedPreferences.getInstance();
-      final service = ThemeBackfillService(store, prefs);
-      expect(await service.run(), 1);
-
-      expect(store.getEntry(family.id)!.detectedTheme, 'family');
-      expect(store.getEntry(family.id)!.modifiedAt, modifiedBefore);
-      expect(store.getEntry(empty.id)!.detectedTheme, isNull);
-      expect(store.getEntry(kept.id)!.detectedTheme, 'Holidays');
-      expect(
-        prefs.getInt(PrefsKeys.themeBackfillVersion),
-        ThemeBackfillService.currentVersion,
-      );
-
-      // Second launch: nothing to do.
-      await store.saveEntry(Entry.line(text: 'mom and dad'));
-      expect(await service.run(), 0);
-    });
-
-    test('version upgrade re-themes auto-assigned themes once', () async {
-      final store = db;
-      if (store == null) {
-        markTestSkipped('ObjectBox native library not available');
-        return;
-      }
-      // Themed by the v1 keyword detector, which fell back to moments.
-      final stale = await store.saveEntry(
-        Entry.line(text: 'coffee with mum on the porch')
-          ..detectedTheme = MemoryTheme.moments.name,
-      );
-      final current = await store.saveEntry(
-        Entry.line(text: 'first frost on the car')
-          ..detectedTheme = MemoryTheme.nature.name,
-      );
-      final modifiedBefore = store.getEntry(stale.id)!.modifiedAt;
-
-      SharedPreferences.setMockInitialValues({
-        PrefsKeys.themeBackfillVersion: 1,
-      });
-      final prefs = await SharedPreferences.getInstance();
-      final service = ThemeBackfillService(store, prefs);
-      expect(service.isDone, isFalse);
-      expect(await service.run(), 1, reason: 'only changed themes are saved');
-
-      expect(store.getEntry(stale.id)!.detectedTheme, 'family');
-      expect(store.getEntry(stale.id)!.modifiedAt, modifiedBefore);
-      expect(store.getEntry(current.id)!.detectedTheme, 'nature');
-      expect(prefs.getInt(PrefsKeys.themeBackfillVersion), 2);
-      expect(await service.run(), 0);
-    });
-
-    test('large collections classify in an isolate', () async {
-      final store = db;
-      if (store == null) {
-        markTestSkipped('ObjectBox native library not available');
-        return;
-      }
-      await store.saveEntries([
-        for (var i = 0; i < ThemeBackfillService.isolateThreshold + 50; i++)
-          Entry.line(
-            text:
-                'hiking the forest by the lake and river, sunny sky, birds $i',
-          ),
-      ]);
-      final prefs = await SharedPreferences.getInstance();
-      final updated = await ThemeBackfillService(store, prefs).run();
-      expect(updated, ThemeBackfillService.isolateThreshold + 50);
-      expect(
-        store.getAllEntries().every((e) => e.detectedTheme == 'nature'),
-        isTrue,
-      );
     });
   });
 }

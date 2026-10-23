@@ -6,7 +6,7 @@ import 'stop_words.dart';
 import 'theme_lexicon.dart';
 
 /// The text fields of an entry that theme detection reads, as plain data so
-/// they can cross into a background isolate (see ThemeBackfillService).
+/// they can cross into a background isolate.
 class ThemeInput {
   const ThemeInput({
     this.text,
@@ -243,7 +243,7 @@ class ThemeDetectorService {
   }
 
   /// The theme of [entry]: the persisted one when present, otherwise
-  /// detected on the fly (entries not yet backfilled).
+  /// detected on the fly.
   MemoryTheme themeOf(Entry entry) {
     if (entry.hasTheme) {
       final stored = MemoryThemeExtension.fromString(entry.detectedTheme);

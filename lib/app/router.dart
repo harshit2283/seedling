@@ -197,8 +197,7 @@ GoRouter createAppRouter(SharedPreferences prefs) {
   );
 }
 
-/// Legacy global router for backward compatibility during migration.
-/// New code should use createAppRouter() instead.
+/// The app's router, created once in main() with createAppRouter().
 late final GoRouter appRouter;
 
 /// Builds a page with platform-appropriate transitions

@@ -120,7 +120,7 @@ class BackupRestoreService {
         entryMap,
         restoredMediaPath: restoredMediaPath,
       );
-      // Older backups carry no theme: store one so counts stay cheap.
+      // Imported journals carry no theme: store one so counts stay cheap.
       if (!entry.hasTheme) _themeDetector.assignTheme(entry);
       await _database.saveEntry(entry);
       createdEntries.add(entry.copy());

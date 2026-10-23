@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 
 /// Removes media files that no entry references.
 ///
-/// Older builds left files behind when a draft photo/voice memo was removed,
-/// replaced or discarded. This sweep reclaims that space without ever
+/// A crash or kill mid-capture can leave a draft photo/voice memo behind.
+/// This sweep reclaims that space without ever
 /// touching a file an entry (including a soft-deleted one in the 30-day
 /// trash) still points at.
 ///
