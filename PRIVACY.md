@@ -101,10 +101,8 @@ Files larger than 50 MB are not synced.
 What sync does **not** encrypt end-to-end:
 
 - **Record metadata** such as memory type, creation and modification
-  dates, capsule unlock dates, deletion state and date, a legacy sentiment
-  score (only on memories from older versions; Seedling no longer computes
-  one),
-  the local media file name, a random media file id, and a random device
+  dates, capsule unlock dates, deletion state and date, the local media
+  file name, a random media file id, and a random device
   ID are stored unencrypted alongside the encrypted fields, so sync can
   work. They are authenticated (tampering is detected) but readable by the
   storage provider.
@@ -169,8 +167,8 @@ children, because it collects no information at all.
 
 Being honest about where the code doesn't yet match the ideal:
 
-1. Some sync metadata (dates, type, sentiment score, media file name and
-   id) is not encrypted, and encrypted media sizes are visible to the
+1. Some sync metadata (dates, type, media file name and id) is not
+   encrypted, and encrypted media sizes are visible to the
    storage provider.
 2. Media files over 50 MB are not synced.
 

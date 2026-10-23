@@ -29,11 +29,12 @@ store. It uses exactly these record types and fields (from the Swift source):
 | Record type | Zone | Fields | Used by |
 | --- | --- | --- | --- |
 | `SeedlingFile` | custom zone `SeedlingSync` (private DB) | `name`: String, `data`: Asset | `fsList`, `fsRead`, `fsWrite`, `fsDelete` (change logs, keyring, media blobs) |
-| `SeedlingEntry` (legacy, read-only) | default zone (private DB) | `text`, `title`, `context`, `mood`, `tags`, `detectedTheme`, `transcription`, `mediaPath`, `deviceId`, `manualLinkIds`, `syncEncryptionSalt`: String; `syncEncryptionVersion`, `typeIndex`, `isDeleted`: Int(64); `sentimentScore`: Double; `createdAt`, `modifiedAt`, `deletedAt`, `capsuleUnlockDate`: Date/Time; `mediaAsset`: Asset | `fetchLegacyRecords` (one-time migration from older builds) |
 
 File names (`name`, also used as the record name) are
-`seedling_sync_log_v2_<deviceId>.json`, `seedling_sync_keyring_v1…`,
-`seedling_media_v1_<uuid>.bin` and, on Drive only, `seedling_sync_db_v1.json`.
+`seedling_sync_log_<deviceId>_<epoch>_b<seq>.json` /
+`…_c<from>-<to>.json`, `seedling_sync_keyring_<deviceId>.json` and
+`seedling_media_<uuid>.bin`. There is no other record type: the app never
+shipped, so no older layout is read.
 
 ### 1.1 Production schema is deployed
 
@@ -44,15 +45,11 @@ File names (`name`, also used as the record name) are
    CloudKit creates it.
 3. No index is required for `SeedlingFile` (`fsList` uses a zone-changes
    fetch and `fsRead`/`fsDelete` fetch by record ID).
-4. If any build that wrote `SeedlingEntry` ever shipped, `SeedlingEntry` must
-   stay in the schema with `recordName` **Queryable** and `modifiedAt`
-   **Sortable** (the legacy query is `NSPredicate(value: true)` sorted by
-   `modifiedAt`).
-5. **Deploy Schema Changes…** to Production. Confirm the Production schema
+4. **Deploy Schema Changes…** to Production. Confirm the Production schema
    lists the same types and fields.
 
-**Expected:** Production has `SeedlingFile {name: String, data: Asset}` (and
-`SeedlingEntry` with the indexes above if it existed before). A Release build
+**Expected:** Production has `SeedlingFile {name: String, data: Asset}`. A
+Release build
 never logs "Cannot create new type … in production schema".
 
 ### 1.2 First enable on device A
@@ -66,8 +63,8 @@ never logs "Cannot create new type … in production schema".
    `SeedlingFile`.
 
 **Expected:** a zone `SeedlingSync` exists; it holds one
-`seedling_sync_log_v2_<deviceId>.json`, one keyring file, and one
-`seedling_media_v1_<uuid>.bin` per photo/voice memo. Downloading any file
+`seedling_sync_log_<deviceId>_…` file, one keyring file, and one
+`seedling_media_<uuid>.bin` per photo/voice memo. Downloading any file
 shows ciphertext (no readable memory text). No records appear in the default
 zone.
 
@@ -90,7 +87,7 @@ background and play/display correctly.
 
 **Expected:** each change appears on the other device after its next sync.
 The deleted photo does not come back. The offline edit arrives. The permanent
-delete removes the memory on B and its `seedling_media_v1_…` file disappears
+delete removes the memory on B and its `seedling_media_…` file disappears
 from the zone.
 
 ### 1.5 Changed passphrase and quarantine notice
@@ -110,32 +107,23 @@ and the memory arrives. The notice also appears on iOS (it is no longer an
 Android-only Drive badge) and has no "Clear" button: set-aside changes are
 retried on every pull.
 
-### 1.6 Legacy migration
-
-Only if a build that wrote `SeedlingEntry` records shipped: install that old
-build on a device, sync, upgrade to the new build, sync.
-
-**Expected:** old memories appear once, nothing duplicates, and later edits go
-to the `SeedlingSync` zone only.
-
 ---
 
-## 2. Keychain accessibility migration (iOS)
+## 2. Keychain accessibility (iOS)
 
-`SecureStorageAccessibilityMigration` re-writes every secret with
-`first_unlock_this_device`.
+Every secret is written with `first_unlock_this_device`
+(`createSeedlingSecureStorage()`); there is no migration.
 
-1. Install the **previous** App Store / TestFlight build. Add memories, turn on
-   app lock, set a sync passphrase, create a capsule.
-2. Upgrade in place to the new build. Launch.
-3. Force-quit, relaunch, unlock with Face ID.
-4. Restart the phone; before unlocking it, wait for a scheduled reminder or
+1. Fresh install. Add memories, turn on app lock, set a sync passphrase,
+   create a capsule.
+2. Force-quit, relaunch, unlock with Face ID.
+3. Restart the phone; before unlocking it, wait for a scheduled reminder or
    widget refresh; then unlock and open the app.
 
-**Expected:** after the upgrade every memory is readable (no blank or
-ciphertext text), the capsule stays sealed, sync continues without asking for
-the passphrase, and nothing crashes after a restart. Share diagnostics
-(Settings → About) contains no keychain errors.
+**Expected:** every memory is readable (no blank or ciphertext text), the
+capsule stays sealed, sync continues without asking for the passphrase, and
+nothing crashes after a restart. Share diagnostics (Settings → About)
+contains no keychain errors.
 
 ## 3. Backup exclusion
 

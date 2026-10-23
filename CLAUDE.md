@@ -93,7 +93,7 @@ lib/
         ├── error_reporter.dart  # Single error sink: debugPrint in debug, DiagnosticsLog always
         ├── diagnostics_log.dart # On-device, redacted, rotating JSONL log (Settings > About > Share)
         ├── ai/               # theme_detector_service + theme_lexicon, connection_finder_service,
-        │                     #   theme_backfill_service, ritual_detection_service, models/
+        │                     #   ritual_detection_service, models/
         ├── sync/             # sync_engine, sync_crypto_service, sync_media_crypto, sync_metadata,
         │                     #   drive_sync_log (per-device log protocol), cloudkit/google_drive backends
         ├── export/           # export_service, markdown_export/format, journal_import (Day One,
@@ -127,7 +127,7 @@ lib/
 ### Native Plugins
 | Platform | File | Purpose |
 |----------|------|---------|
-| iOS | `ios/Runner/CloudKitSyncPlugin.swift` | CloudKit as a file store: `SeedlingFile {name, data: CKAsset}` records in private zone `SeedlingSync`; reads legacy `SeedlingEntry` once |
+| iOS | `ios/Runner/CloudKitSyncPlugin.swift` | CloudKit as a file store: `SeedlingFile {name, data: CKAsset}` records in private zone `SeedlingSync` |
 | iOS | `ios/Runner/SpeechTranscriptionPlugin.swift` | Voice memo transcription; `requiresOnDeviceRecognition = true` |
 | iOS | `ios/Runner/MediaFileProtectionPlugin.swift` | File protection class + backup exclusion for DB and media |
 | iOS | `ios/Runner/AppIntentsPlugin.swift` | Siri / Shortcuts App Intents |
@@ -221,11 +221,10 @@ app unlock.
 |-------|---------|
 | isDeleted, deletedAt | Soft delete (30-day trash) |
 | capsuleUnlockDate | Capsule; `isCapsule`, `isLocked`, `isUnlocked` getters |
-| detectedTheme | Persisted at save; backfilled once by `ThemeBackfillService` |
-| connectionIds / manualLinkIds | Detected vs user-made links (manual links sync) |
+| detectedTheme | Persisted at save, edit and import |
+| manualLinkIds | User-made links (syncUUIDs; they sync). Related memories are computed, never stored |
 | syncUUID, modifiedAt | Sync identity and last-write-wins clock |
 | mediaAssetId, mediaKey | Remote encrypted media blob and its per-file key (key encrypted at rest) |
-| sentimentScore | Legacy only: round-trips for old stores/backups/sync, never computed or shown |
 
 Written fields (text, title, context, mood, tags, transcription, theme, links,
 mediaKey) and ritual names are encrypted at rest with a Keychain/Keystore key.
@@ -342,7 +341,7 @@ if (Platform.isIOS) {
 - Test database behaviour against a real store with `ObjectBoxDatabase.openForTesting(directory:, encryptionService:)`; it needs `libobjectbox` on the loader path and skips itself otherwise
 - Keep voice transcription strictly on-device: iOS requires on-device recognition and Android reports unavailable. Never fall back to a server recognizer
 - Keep notification copy generic (no memory text, titles or dates) and Android `NotificationVisibility.private`
-- Add every SharedPreferences key to `PrefsKeys`, and every secure-storage key to `SecureStorageAccessibilityMigration.knownKeys`
+- Add every SharedPreferences key to `PrefsKeys`, and create secure storage only via `createSeedlingSecureStorage()` (device-only keychain accessibility)
 - Update `PRIVACY.md` whenever what leaves the device changes
 
 ### Don't
@@ -387,7 +386,7 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 - **Phase 3 (Complete):** Polish - Edit/delete, filters, export, gentle prompts
 - **Phase 4 (Complete):** On-device themes and related memories, rituals (suggest-only)
 - **Phase 4.5 (Complete):** Widgets & Capsules - Home widgets, share extension, dark mode, haptics, memory capsules
-- **Phase 5 (Implemented):** Illustrated tree, two-second capture, resurfacing, release ceremony, calm mode, encrypted backup and import, E2E-encrypted sync (v4) incl. media, Year in Review, diagnostics
+- **Phase 5 (Implemented):** Illustrated tree, two-second capture, resurfacing, release ceremony, calm mode, encrypted backup and import, E2E-encrypted sync incl. media, Year in Review, diagnostics
 - **Open source:** MIT, free, nothing locked; Support Seedling page
 
 ## Feature notes
@@ -414,7 +413,7 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 ### Themes and related memories (on-device, pure Dart)
 - Full write-up and evaluation: `docs/engineering/themes.md`
 - **Themes:** 11 categories (family, friends, work, nature, gratitude, reflection, travel, creativity, health, food, moments). `ThemeDetectorService.analyze()` is a weighted-lexicon classifier (`theme_lexicon.dart`: inflections, spelling/accent folding, typos, phrases, blockers, negation, field weights) returning primary, secondary and confidence; `moments` only when nothing reaches enough evidence
-- Detected at save and persisted; `ThemeBackfillService` re-themes older entries once (versioned)
+- Detected at save (and on edit/import) and persisted; never re-themed in the background
 - `test/services/ai/theme_eval_test.dart` enforces held-out macro-F1 and accuracy ≥ 0.78 on `test/fixtures/theme_eval.json`. Never tune on the held-out split
 - **Related memories:** `ConnectionFinderService` ranks by TF-IDF cosine over the user's own collection plus shared people/places; theme and time only re-rank. Evaluated by `connection_eval_test.dart`
 - Theme Insights (Settings) shows distribution; no sentiment anywhere
@@ -431,17 +430,19 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 - iOS App Groups need manual setup: add `group.com.seedling.seedling` to both Runner and SeedlingWidgetExtension (Signing & Capabilities)
 - Share intake: text/URL → Line, image → Photo, only after the person confirms. Android copies shared files to `cache/shared_intake/` under random names (never the sender's display name)
 
-### Cloud sync (opt-in, format v4)
+### Cloud sync (opt-in, format v1)
 - Off by default; requires `cloudSyncEnabledProvider` and a passphrase. Nothing touches the network before the opt-in (`networkAllowed`)
 - **Keys:** PBKDF2 with a random per-user salt kept in a **keyring** file in the user's sync space, plus an encrypted **key check** so a wrong passphrase is rejected before anything is stored. Concurrent keyrings settle on the smallest salt. Only a derived key is stored (Keychain, device-only)
-- **Records:** written fields AES-256-GCM with AAD binding `syncUUID|field|version`; each record carries an HMAC-SHA256 over all keys, metadata included
-- **Transport:** each device appends to its own change log (`seedling_sync_log_v2_<deviceId>.json`) with sequence numbers; deletes are log tombstones. Same protocol on Drive (appDataFolder) and CloudKit (custom zone `SeedlingSync`, `SeedlingFile` records)
-- **Media:** end-to-end encrypted per file (random key, 64 KiB authenticated chunks), uploaded as `seedling_media_v1_<uuid>.bin`, downloaded in the background after the record arrives; files > 50 MB are skipped
-- **Quarantine:** records that fail decryption/authentication are set aside in `SyncMetadata`, retried on every pull, and shown in Settings as a calm notice (`syncQuarantineCountProvider`, `SyncQuarantineNotice`), not as an error
+- **Records:** `syncEncryptionVersion: 1`; written fields AES-256-GCM with AAD binding `syncUUID|field|version`; each record carries an HMAC-SHA256 (`syncMac`) over all keys, metadata included. Anything else (other versions, no MAC) is set aside, never imported
+- **Transport:** each device appends to its own change log (`seedling_sync_log_<deviceId>_<epoch>_b<seq>|c<from>-<to>.json`); keyring files `seedling_sync_keyring_<deviceId>.json` with sequence numbers; deletes are log tombstones. Same protocol on Drive (appDataFolder) and CloudKit (custom zone `SeedlingSync`, `SeedlingFile` records)
+- **Media:** end-to-end encrypted per file (random key, 64 KiB authenticated chunks), uploaded as `seedling_media_<uuid>.bin`, downloaded in the background after the record arrives; files > 50 MB are skipped
+- **Quarantine:** records that fail decryption/authentication are set aside in a local file (`SyncQuarantine`), retried on every pull, and shown in Settings as a calm notice (`syncQuarantineCountProvider`, `SyncQuarantineNotice`), not as an error
 - Last-write-wins on `modifiedAt` (local wins ties); push/pull serialized; every backend call has a timeout; `init()` never throws
+- A full upload is queued on first enable, when the key changes, and before an idle device's log is retired
+- No migrations: the app never shipped, so every format (sync, keyring, backup, Markdown, ObjectBox model) is version 1 and older layouts are not read
 
 ### Export, backup and import
-- Export as JSON, ZIP, Markdown (open format, Obsidian-friendly, sealed capsules filed separately) or encrypted backup (600k PBKDF2); temp files are deleted after sharing. Sizes are checked against what restore accepts before reading media
+- Export as JSON, ZIP, Markdown (open format, Obsidian-friendly, sealed capsules filed separately) or encrypted backup (format 1: exactly PBKDF2-SHA256 600k, HMAC signature required); temp files are deleted after sharing. Sizes are checked against what restore accepts before reading media
 - Import: encrypted backup, Seedling ZIP, Day One JSON export, Seedling Markdown. Parsed off the UI isolate, previewed (new / already here / media), merged without overwriting or duplicating
 - Device backups don't include memories; Settings > Privacy says so ("Keeping a copy")
 
@@ -459,7 +460,7 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 
 ## Testing
 
-Run `flutter test` (about 710 tests). Each test file runs on its own; there is no aggregator file, so don't add one (it double-counts).
+Run `flutter test` (about 820 tests). Each test file runs on its own; there is no aggregator file, so don't add one (it double-counts).
 
 Coverage includes entry models, tree boundaries and blueprint determinism,
 capture inference and the capture sheet, theme and connection evaluation

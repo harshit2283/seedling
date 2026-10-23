@@ -105,17 +105,9 @@ share, or if inference takes more than 1 ms per entry.
    are generated automatically.
 2. Run the eval in verbose mode and read the train misses. Do not read the
    held-out texts while tuning.
-3. Bump `ThemeBackfillService.currentVersion` if stored themes should
-   change for existing users.
-
-## Backfill
-
-`ThemeBackfillService` runs once per `currentVersion`, off the UI isolate
-for collections of 200 or more. Version 2 re-themes every entry whose stored
-theme is one of ours, since all themes are auto-assigned. Labels we don't
-recognise, such as those from an imported journal, are kept. Only changed
-entries are written, with `preserveModifiedAt` so sync does not treat them
-as edits.
+3. Stored themes are not re-classified in the background: themes are set
+   when a memory is saved, edited or imported (the app has not shipped, so
+   there are no older entries to re-theme).
 
 ## Related memories
 

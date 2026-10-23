@@ -24,4 +24,5 @@ Things CI cannot check (native code, OS integration, assistive tech) are in
 1. No analyzer warnings/errors in modified modules.
 2. New/changed logic has tests.
 3. iOS and Android manual checks are documented for platform-sensitive changes.
-4. Migration notes are included for schema or sync changes.
+4. Schema or sync format changes edit version 1 in place (no migrations until
+   the first release).
