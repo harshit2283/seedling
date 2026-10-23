@@ -3,7 +3,8 @@ name: Quality Gates
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
+  workflow_dispatch:
 
 # One run per branch/PR: a new push cancels the run it replaces.
 concurrency:
@@ -47,3 +48,36 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+  # The Swift and Kotlin code (CloudKit sync, transcription, widgets, file
+  # protection) is not exercised by `flutter test`. These jobs at least prove
+  # it compiles on every push. Free for public repositories.
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - run: flutter pub get
+      - name: Build debug APK (compiles Kotlin plugins)
+        run: flutter build apk --debug
+
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - run: flutter pub get
+      - name: Build for the iOS simulator (compiles Swift plugins + widget)
+        run: flutter build ios --simulator --debug --no-codesign
