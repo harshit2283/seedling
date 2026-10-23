@@ -55,18 +55,12 @@ class EncryptedBackupPreview {
   final int mediaCount;
   final int version;
   final DateTime? exportedAt;
-  final bool integrityVerified;
-  final String? kdf;
-  final int? iterations;
 
   const EncryptedBackupPreview({
     required this.entryCount,
     required this.mediaCount,
     required this.version,
     this.exportedAt,
-    this.integrityVerified = false,
-    this.kdf,
-    this.iterations,
   });
 }
 

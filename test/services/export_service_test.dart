@@ -253,6 +253,24 @@ void main() {
     }
   });
 
+  test('loadEncryptedBackup rejects a backup without its signature', () async {
+    final service = ExportService(kdfIterations: 100000);
+    final result = await service.exportEncryptedBackup(
+      [Entry.line(text: 'unsigned')],
+      '',
+      passphrase: 'a strong passphrase',
+    );
+    final file = File(result.filePath!);
+    final payload = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>
+      ..remove('signature');
+    file.writeAsStringSync(jsonEncode(payload));
+    await expectLater(
+      service.loadEncryptedBackup(file.path, passphrase: 'a strong passphrase'),
+      throwsA(isA<FormatException>()),
+    );
+    file.deleteSync();
+  });
+
   test('exportToZip includes media whose stored path went stale', () async {
     final mediaRoot = await Directory.systemTemp.createTemp('export_media');
     try {

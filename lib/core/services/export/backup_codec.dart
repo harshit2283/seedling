@@ -14,16 +14,12 @@ import 'safe_zip.dart';
 abstract final class BackupCodec {
   static const int formatVersion = 1;
 
-  /// PBKDF2-HMAC-SHA256 iterations for new backups (OWASP 2023 guidance).
+  /// PBKDF2-HMAC-SHA256 iterations (OWASP 2023 guidance). Backups are
+  /// written and accepted with exactly this count, so a crafted file can't
+  /// make "Unlock" run a weaker or an endless KDF.
   static const int pbkdf2Iterations = 600000;
 
-  /// Oldest backups were written with 120k; anything below this is rejected.
-  static const int minPbkdf2Iterations = 100000;
-
-  /// Upper bound accepted on import: a crafted file asking for billions of
-  /// iterations would otherwise hang the app on "Unlock".
-  static const int maxPbkdf2Iterations = 2000000;
-
+  static const String kdf = 'pbkdf2-sha256';
   static const String signatureAlgorithm = 'hmac-sha256';
   static const int maxEncryptedBackupBytes = 300 * 1024 * 1024;
 
@@ -54,7 +50,7 @@ Future<void> writeEncryptedBackupFile({
 
   final payload = <String, dynamic>{
     'version': BackupCodec.formatVersion,
-    'kdf': 'pbkdf2-sha256',
+    'kdf': BackupCodec.kdf,
     'iterations': iterations,
     'salt': base64Encode(salt),
     'nonce': base64Encode(secretBox.nonce),
@@ -69,12 +65,14 @@ Future<void> writeEncryptedBackupFile({
 /// Reads, decrypts and unpacks an encrypted backup. Run inside an isolate.
 ///
 /// Throws [SecretBoxAuthenticationError] for a wrong passphrase and
-/// [FormatException] for malformed, oversized or unsafe input. The iteration
-/// count is bounded *before* the KDF runs.
+/// [FormatException] for malformed, oversized or unsafe input. The KDF
+/// parameters must be exactly [iterations] (the current ones), checked
+/// *before* the KDF runs.
 Future<LoadedEncryptedBackup> readEncryptedBackupFile(
   String filePath,
-  String passphrase,
-) async {
+  String passphrase, {
+  int iterations = BackupCodec.pbkdf2Iterations,
+}) async {
   final file = File(filePath);
   if (!await file.exists()) {
     throw const FormatException('Backup file not found');
@@ -92,10 +90,8 @@ Future<LoadedEncryptedBackup> readEncryptedBackupFile(
   if (version != BackupCodec.formatVersion) {
     throw const FormatException('Unsupported backup version');
   }
-  final iterations = payload['iterations'];
-  if (iterations is! int ||
-      iterations < BackupCodec.minPbkdf2Iterations ||
-      iterations > BackupCodec.maxPbkdf2Iterations) {
+  if (payload['kdf'] != BackupCodec.kdf ||
+      payload['iterations'] != iterations) {
     throw const FormatException('Invalid backup metadata');
   }
 
@@ -112,7 +108,7 @@ Future<LoadedEncryptedBackup> readEncryptedBackupFile(
     SecretBox(ciphertext, nonce: nonce, mac: Mac(macBytes)),
     secretKey: key,
   );
-  final integrityVerified = await _verifyPayloadSignature(payload, key);
+  await _verifyPayloadSignature(payload, key);
 
   final archive = readSeedlingArchive(
     SafeZipReader.fromBytes(
@@ -127,13 +123,9 @@ Future<LoadedEncryptedBackup> readEncryptedBackupFile(
       mediaCount: archive.mediaFiles.length,
       version: version as int,
       exportedAt: DateTime.tryParse(archive.exportedAt ?? ''),
-      integrityVerified: integrityVerified,
-      kdf: payload['kdf'] as String?,
-      iterations: iterations,
     ),
     entries: archive.entries,
     mediaFiles: archive.mediaFiles,
-    warnings: [if (!integrityVerified) 'integrity_not_verified'],
   );
 }
 
@@ -264,22 +256,16 @@ Future<String> _computePayloadSignature(
   return base64Encode(mac.bytes);
 }
 
-Future<bool> _verifyPayloadSignature(
+/// Throws unless [payload] carries a valid signature.
+Future<void> _verifyPayloadSignature(
   Map<String, dynamic> payload,
   SecretKey key,
 ) async {
-  final signature = payload['signature'] as String?;
-  final sigAlg = payload['sigAlg'] as String?;
-  if (signature == null || signature.isEmpty) {
-    // Backward-compatible with older backups before signatures were added.
-    return false;
-  }
-  if (sigAlg != BackupCodec.signatureAlgorithm) {
+  if (payload['sigAlg'] != BackupCodec.signatureAlgorithm) {
     throw const FormatException('Unsupported backup integrity algorithm');
   }
   final expected = await _computePayloadSignature(payload, key);
-  if (expected != signature) {
+  if (payload['signature'] != expected) {
     throw const FormatException('Backup integrity check failed');
   }
-  return true;
 }

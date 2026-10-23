@@ -678,8 +678,6 @@ class _DataSectionState extends ConsumerState<DataSection> {
 
   String _formatWarning(String warningCode) {
     switch (warningCode) {
-      case 'integrity_not_verified':
-        return 'legacy backup integrity not verified';
       case 'missing_media':
         return 'some media files were missing';
       case 'unsupported_media':
@@ -823,14 +821,10 @@ class _DataSectionState extends ConsumerState<DataSection> {
         ? 'Unknown'
         : '${DateFormat.yMMMd(DateLabels.settingsOf(context).locale).format(preview.exportedAt!)} • '
               '${DateLabels.timeOf(context, preview.exportedAt!)}';
-    final integrityText = preview.integrityVerified
-        ? 'Integrity verified'
-        : 'Legacy backup (integrity signature unavailable)';
     final summary =
         '${preview.entryCount} memories\n'
         '${preview.mediaCount} media files\n'
-        'Exported: $exportDate\n'
-        '$integrityText';
+        'Exported: $exportDate';
 
     if (PlatformUtils.isIOS) {
       return showCupertinoDialog<BackupImportMode>(

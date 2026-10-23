@@ -485,7 +485,7 @@ class ExportService {
     String filePath, {
     required String passphrase,
   }) {
-    return _runLoadEncrypted(filePath, passphrase);
+    return _runLoadEncrypted(filePath, passphrase, _kdfIterations);
   }
 
   /// Load a plain ZIP archive (with HTML + JSON) and return parsed payload.
@@ -497,8 +497,12 @@ class ExportService {
   static Future<LoadedEncryptedBackup> _runLoadEncrypted(
     String filePath,
     String passphrase,
+    int iterations,
   ) {
-    return Isolate.run(() => readEncryptedBackupFile(filePath, passphrase));
+    return Isolate.run(
+      () =>
+          readEncryptedBackupFile(filePath, passphrase, iterations: iterations),
+    );
   }
 
   static Future<LoadedEncryptedBackup> _runLoadZip(String filePath) {
