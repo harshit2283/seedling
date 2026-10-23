@@ -230,7 +230,10 @@ void main() {
       final aFiles = drive
           .namesWithPrefix('${DriveSyncLogStore.logPrefix}$_devA')
           .toList();
-      expect(aFiles.where((n) => n.contains('_b')), hasLength(1));
+      // Match the suffix, not '_b' anywhere: the random hex epoch can start
+      // with 'b' (`..._bc120433_c7-7.json`).
+      final base = RegExp(r'_[0-9a-f]{8}_b\d+\.json$');
+      expect(aFiles.where(base.hasMatch), hasLength(1));
       expect(aFiles.length, lessThanOrEqualTo(3));
 
       final fresh = await storeFor(_devB).fetch(null);
