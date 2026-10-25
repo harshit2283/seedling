@@ -14,6 +14,13 @@
 - Needed only for optional Google Drive backup/sign-in
 - Uses OAuth client configuration, not a static Drive API key in app code
 
+### Local database key
+
+- Not a project secret: each install generates its own random 256-bit key
+  and keeps it in the device's Keychain / Keystore
+  (`seedling_database_key_v1`, device-only)
+- Nothing to configure, and nothing to commit or share
+
 ## Release Signing Secrets
 
 ### iOS

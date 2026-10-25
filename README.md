@@ -56,8 +56,9 @@ are welcome._
 Seedling is local-first. The full policy is in [PRIVACY.md](PRIVACY.md).
 
 **On your device, always**
-- All memories and media. Written fields are encrypted at rest with a key
-  in the Keychain / Keystore; iOS media files use system file protection.
+- All memories and media. The database is one SQLite file encrypted as a
+  whole (SQLCipher) with a random key kept in the Keychain / Keystore; iOS
+  media files use system file protection.
 - All analysis: themes and related memories, in Seedling's own code, with no
   model downloads.
 - Voice transcription (iOS only, on-device recognition required; Android
@@ -99,15 +100,18 @@ flutter test          # or: make check
 flutter run -d iphone # or: flutter run -d android
 ```
 
-After changing an ObjectBox model in `lib/data/models/`:
+After changing the database schema in
+`lib/data/datasources/local/schema.dart` (drift tables), regenerate
+`schema.g.dart` and commit it:
 
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build
 ```
 
-A few tests run against a real ObjectBox store and are skipped unless the
-native `libobjectbox` library is on the loader path (for example via
-`LD_LIBRARY_PATH` on Linux).
+Database tests open real SQLCipher files: `package:sqlite3` downloads its
+SQLCipher build (sha256-pinned) on first build, also for `flutter test`, and
+links the system OpenSSL on Linux (`libcrypto.so.3`). Nothing else to
+install.
 
 You don't need Apple or Google credentials to build and run locally. CloudKit
 sync, signed widgets, Google Drive, and store publishing need private
@@ -123,8 +127,8 @@ lib/
 ├── main.dart            # Opens DB, media, prefs, reminders; runs the app
 ├── app/                 # App shell, GoRouter routes, AppLockGate, theme
 ├── data/
-│   ├── models/          # ObjectBox entities: Entry, Tree, Ritual
-│   └── datasources/local/objectbox_database.dart  # CRUD, soft delete, capsules
+│   ├── models/          # Plain Dart models: Entry, Tree, Ritual
+│   └── datasources/local/  # schema.dart (drift tables, FTS5), seedling_database.dart (CRUD, soft delete, capsules, search)
 ├── core/
 │   ├── constants/       # PrefsKeys, SupportLinks
 │   ├── platform/        # Platform detection, adaptive icons
@@ -133,7 +137,7 @@ lib/
 │       ├── providers/   # Riverpod providers, split by domain
 │       ├── ai/          # Lexicon theme detection, related memories, rituals (pure Dart)
 │       ├── sync/        # Sync engine, crypto, per-device change logs, CloudKit + Drive
-│       ├── security/    # At-rest encryption, app lock, clock guard
+│       ├── security/    # Database key, app lock, clock guard, iOS file protection
 │       ├── backup/      # Backup reminders, BackupRestoreService
 │       ├── export/      # JSON / ZIP / Markdown / encrypted export; Day One + Markdown import
 │       ├── media/       # Capture, compression, storage, playback
@@ -142,7 +146,8 @@ lib/
                          # review, onboarding, settings, support
 ```
 
-- **State:** Riverpod 3. **Routing:** GoRouter. **Storage:** ObjectBox.
+- **State:** Riverpod 3. **Routing:** GoRouter. **Storage:** SQLite via
+  drift, encrypted with SQLCipher (`package:sqlite3`), FTS5 search.
 - **Native code:** `ios/Runner/` has Swift plugins for CloudKit sync, on-device
   speech, media file protection and backup exclusion, and App Intents;
   `android/app/src/main/kotlin/` has the widget provider and a transcription

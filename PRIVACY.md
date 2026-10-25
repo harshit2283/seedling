@@ -22,9 +22,13 @@ source, so every statement here can be checked against the code at
 Everything you create (text, photos, voice memos, titles, moods, tags,
 capsules, rituals) is stored in the app's private storage on your device.
 
-- The written parts of each memory (text, title, context, mood, tags,
-  transcription, themes, and links) are encrypted at rest with a key kept in the
-  device's secure storage (iOS Keychain / Android Keystore).
+- Memories live in one SQLite database file that is encrypted as a whole
+  with SQLCipher (AES-256, with every page authenticated): text, titles,
+  context, moods, tags, transcriptions, themes, links, rituals, dates, and
+  the search index alike. The key is 256 random bits created on the device
+  and kept in its secure storage (iOS Keychain / Android Keystore, "this
+  device only"); it never leaves the device and is not in any export. The
+  app refuses to open the database rather than ever write it unencrypted.
 - On iOS, media files use the system's file protection, so they are
   unreadable until you first unlock your phone after a restart.
 - Optional app lock uses your device's own Face ID, Touch ID, fingerprint,
@@ -171,6 +175,9 @@ Being honest about where the code doesn't yet match the ideal:
    encrypted, and encrypted media sizes are visible to the
    storage provider.
 2. Media files over 50 MB are not synced.
+3. Photos and voice memos on the device are separate files, protected by the
+   operating system (iOS file protection; Android's per-app storage and
+   device encryption), not by the database encryption.
 
 These are tracked as open work.
 

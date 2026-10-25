@@ -13,13 +13,17 @@ pure Dart (`lib/core/services/ai/`), and the unused `MLTextAnalyzerPlugin`
 (with its `com.google.mlkit` and coroutines Gradle dependencies) was removed.
 The app no longer downloads a Google language model at startup.
 
+ObjectBox is no longer a dependency either: the local database is SQLite
+through `drift`, encrypted with SQLCipher (both open source). What remains
+for storage is *how* SQLCipher gets into the APK (see the table).
+
 ## Dependency audit (Android)
 
 | Dependency | Used for | F-Droid status | Notes |
 | --- | --- | --- | --- |
 | `google_sign_in` (pulls `play-services-auth`, `credentials-play-services-auth`) | Google Drive sync sign-in | **Blocker**: proprietary GMS | Only imported by `lib/core/services/sync/google_drive_sync_service.dart` |
 | `googleapis`, `extension_google_sign_in_as_googleapis_auth` | Drive REST calls | Pure Dart and open source, but useless without sign-in | Remove alongside `google_sign_in` |
-| `objectbox` / `objectbox_flutter_libs` | The local database | **Likely blocker**: the Dart bindings are open source, but the native core library ships as a prebuilt binary that, to our knowledge, is not open source | Confirm current licensing with ObjectBox and F-Droid before planning around it |
+| `drift`, `sqlite3` (SQLCipher community edition, OpenSSL on Android) | The local, encrypted database | Open source (MIT; SQLite public domain; SQLCipher BSD-style; OpenSSL Apache-2.0). **Build-process blocker**: `package:sqlite3`'s build hook downloads *prebuilt* SQLCipher libraries from its GitHub releases (sha256-pinned, SLSA-attested), and F-Droid builds everything from source | Use the hook's `source: source` mode in the `foss` recipe to compile from the amalgamation (see step 3) |
 | `audioplayers_android`, `receive_sharing_intent` | Playback, share intake | OK | Vendored under `third_party/flutter_packages/` |
 | `local_auth`, `flutter_secure_storage`, `flutter_local_notifications`, `home_widget`, `image_picker`, `record`, `permission_handler`, `share_plus`, `file_picker`, `flutter_image_compress`, `package_info_plus`, `path_provider`, `shared_preferences` | Various | Expected OK (AndroidX / AOSP only) | Re-check transitive deps with the F-Droid scanner (`fdroid scanner`) once a build exists |
 | Flutter SDK | Framework | OK | F-Droid builds Flutter apps using a pinned Flutter srclib |
@@ -58,15 +62,19 @@ of its own.
    - Android then has no cloud sync in the `foss` build; local export and
      encrypted backup still work. A future WebDAV or Syncthing-friendly
      folder sync could fill the gap without proprietary code.
-3. **Storage.** Resolve ObjectBox first; it decides whether F-Droid is
-   possible at all:
-   - If the native core is acceptable to F-Droid (or becomes open source),
-     nothing changes.
-   - If not, the honest options are a storage abstraction with a
-     SQLite-based implementation (for example `drift` + SQLCipher) for
-     `foss`, which is a substantial migration, or publishing the `foss` APK
-     through **IzzyOnDroid** or GitHub Releases instead. Check IzzyOnDroid's
-     current inclusion policy first.
+3. **Storage: build SQLCipher from source.** In the `foss` recipe, set the
+   `sqlite3` hook to `source: source` (`hooks.user_defines.sqlite3` in
+   `pubspec.yaml`, via the generated `pubspec_overrides.yaml` or a recipe
+   patch) and point it at a vendored amalgamation:
+   - SQLCipher's amalgamation needs a crypto provider built for Android
+     (OpenSSL or BoringSSL from source, passed with `additional_includes` /
+     `additional_libraries`), or
+   - the SQLite3 Multiple Ciphers amalgamation, which carries its own
+     ciphers (no OpenSSL) and reads SQLCipher-format files with
+     `PRAGMA cipher = 'sqlcipher'`, so the database stays the same format.
+   Either way `SeedlingDatabase` must still see a non-empty
+   `PRAGMA cipher_version` (it refuses to open otherwise); with SQLite3MC
+   that check needs adapting.
 4. **CI.** Add a `foss` job to `.github/workflows/quality.yml` that builds
    the flavor and fails if `com.google.android.gms`, `com.google.mlkit`, or
    `com.google.firebase` show up in `./gradlew :app:dependencies --configuration fossReleaseRuntimeClasspath`.
@@ -76,6 +84,6 @@ of its own.
 
 ## Order of work
 
-1. Ask about ObjectBox licensing (blocks everything else).
-2. Gradle flavors, Drive stubs + `SEEDLING_FOSS` gating.
+1. Gradle flavors, Drive stubs + `SEEDLING_FOSS` gating.
+2. SQLCipher (or SQLite3MC) from source for the `foss` build.
 3. CI guard, metadata, `fdroiddata` submission.

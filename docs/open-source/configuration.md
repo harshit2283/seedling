@@ -4,9 +4,11 @@ Seedling is designed to run locally without private credentials.
 
 ## Works Out Of The Box
 
-- local database
+- local database (SQLite + SQLCipher, bundled by `package:sqlite3`; the
+  first build downloads its pinned SQLCipher library from the package's
+  GitHub releases, no account or key needed)
 - media capture and playback
-- local encryption features
+- local encryption features (the database key is generated on the device)
 - exports and imports
 - widgets
 

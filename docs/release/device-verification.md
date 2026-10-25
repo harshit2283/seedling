@@ -139,7 +139,7 @@ not with the old memories and not with a crash or a "can't decrypt" state.
 Settings → Privacy shows "Keeping a copy". If sync was on, the restored
 install gets a new sync device id and pulls everything again once the
 passphrase is re-entered. In Settings → General → iPhone Storage → Seedling,
-the backed-up size is small (no `objectbox/` or `media/`).
+the backed-up size is small (no `database/` or `media/`).
 
 ### Android
 
@@ -306,3 +306,35 @@ gone afterwards.
 
 Repeat with a Seedling Markdown export that has been opened and re-saved in
 Obsidian: memories round-trip with their media.
+
+## 13. Encrypted database (SQLCipher)
+
+The database is `<Documents>/database/seedling.db` (+ `-wal`, `-shm`),
+encrypted as a whole by SQLCipher, which `package:sqlite3`'s build hook
+links on each platform (`hooks.user_defines.sqlite3.source: sqlcipher` in
+`pubspec.yaml`). Host tests prove the Dart side; only a device proves the
+native library made it into the app.
+
+1. Fresh install of a Release build on iOS and on Android. Add a memory with
+   a distinctive word (for example `zebrafinch`).
+2. Settings → About → Share diagnostics: no `DatabaseOpenException` and no
+   `SQLCipher is not linked` entry.
+3. Copy the file off the device: iOS via Xcode → Devices → Download
+   Container (a debug or development-signed build); Android via
+   `adb exec-out run-as com.twotwoeightthreelabs.seedling cat app_flutter/database/seedling.db > seedling.db`
+   (debuggable build). Run `strings seedling.db | grep -i -e zebrafinch -e "SQLite format"`
+   and `sqlite3 seedling.db .tables`.
+4. Force-quit and relaunch; restart the phone and open the app after unlock.
+5. iOS: confirm the build log / app bundle contains the SQLCipher library
+   (`Frameworks/` holds the `sqlite3` native asset; `otool -L Runner` or the
+   framework's symbols include `sqlcipher_`), and that no other SQLite
+   (for example a pod linking the system `libsqlite3`) is loaded first.
+   Android: `unzip -l app-release.apk | grep -i sqlite` shows the bundled
+   library for every ABI, and the APK carries OpenSSL's `libcrypto` for the
+   SQLCipher build.
+
+**Expected:** the app opens normally and memories are readable after each
+relaunch and restart. The copied file contains neither the word nor the
+`SQLite format 3` header, and the `sqlite3` CLI reports "file is not a
+database". The Keychain / Keystore holds the item `seedling_database_key_v1`
+(device-only); nothing else about the database is in preferences.

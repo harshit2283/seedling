@@ -25,7 +25,7 @@ flutter run -d iphone
 # Run on Android emulator
 flutter run -d android
 
-# Run tests (real-store tests need libobjectbox on LD_LIBRARY_PATH, else they skip)
+# Run tests (database tests use real SQLCipher files; package:sqlite3 bundles it)
 flutter test
 
 # Analyze code
@@ -34,8 +34,8 @@ flutter analyze
 # No hard-coded light-only colors in lib/features (also enforced by a test)
 bash scripts/check_palette.sh
 
-# Regenerate ObjectBox models after changes
-dart run build_runner build --delete-conflicting-outputs
+# Regenerate drift code after schema changes (commit schema.g.dart; CI checks it)
+dart run build_runner build
 
 # Regenerate tree goldens (Linux only, pinned Flutter 3.47.7)
 flutter test --update-goldens test/features/tree_illustration_golden_test.dart
@@ -50,7 +50,7 @@ with `docs/release/device-verification.md`.
 ### Directory Structure
 ```
 lib/
-├── main.dart                 # Opens DB, media, prefs, diagnostics log; hardens iOS dirs; runs app
+├── main.dart                 # Opens DB (concurrently), media, prefs, diagnostics log; hardens iOS dirs; runs app
 ├── app/
 │   ├── app.dart              # Root MaterialApp/CupertinoApp shell, lifecycle, widget-URI allowlist
 │   ├── app_lock_gate.dart    # AppLockGate: app stays mounted but Offstage + ExcludeFocus while locked
@@ -81,8 +81,10 @@ lib/
 │   │                          # deleted_entries, rituals, theme_insights screens
 │   └── support/              # Support Seedling page + one-time invitation
 ├── data/
-│   ├── models/               # entry.dart, ritual.dart, tree.dart (ObjectBox), sync_id.dart
-│   └── datasources/local/objectbox_database.dart  # CRUD, batch save, soft/hard delete, capsules
+│   ├── models/               # entry.dart, ritual.dart, tree.dart (plain Dart), sync_id.dart
+│   └── datasources/local/
+│       ├── schema.dart       # drift tables (schema v1), indexes, FTS5 + triggers; schema.g.dart generated
+│       └── seedling_database.dart  # SeedlingDatabase: SQLCipher open, CRUD, batch save, soft/hard delete, capsules, search
 └── core/
     ├── constants/            # prefs_keys.dart (every prefs key), support_links.dart
     ├── platform/             # platform_utils.dart, adaptive_icons.dart
@@ -99,7 +101,7 @@ lib/
         ├── export/           # export_service, markdown_export/format, journal_import (Day One,
         │                     #   Markdown), safe_zip (SafeZipReader), backup_codec, export_cleanup
         ├── backup/           # backup_restore_service (merge/replace + sync queue), backup_reminder_service
-        ├── security/         # at_rest_encryption, app_lock, clock_guard, secure_storage, ios_data_protection
+        ├── security/         # database_key_store, app_lock, clock_guard, secure_storage, ios_data_protection
         ├── media/            # capture, compression, file storage, playback, draft_media_tracker
         ├── storage/          # storage_usage_service, media_orphan_sweeper
         ├── notifications/    # gentle_reminder_service (reminders + weekly resurfacing nudge)
@@ -110,7 +112,7 @@ lib/
 ```
 
 ### Tech Stack
-- **Database:** ObjectBox 5.1 (local, reactive)
+- **Database:** SQLite via drift 2.35 (schema, migrations, change notifications) and `sqlite3` 3.7 with its bundled SQLCipher (`hooks.user_defines.sqlite3.source: sqlcipher` in pubspec); whole-file encryption, WAL, FTS5
 - **State Management:** Riverpod 3.2
 - **Routing:** GoRouter 17 (Flutter deep linking disabled; see Key Patterns)
 - **Media:** image_picker, record, audioplayers, flutter_image_compress
@@ -147,6 +149,17 @@ None of the Swift/Kotlin is compiled in CI. Anything touching it goes through
 final db = ref.read(databaseProvider);
 await db.saveEntry(entry);
 ```
+`SeedlingDatabase` (`lib/data/datasources/local/seedling_database.dart`):
+reads are synchronous on one connection and return fresh `Entry` objects
+(dates local, ms precision); each write is one transaction plus one drift
+change notification, and `watch*` streams re-read once per event-loop turn.
+The file is `<Documents>/database/seedling.db`, encrypted with a random
+256-bit key from `DatabaseKeyStore` (device-only keychain) applied as a raw
+`PRAGMA key`. Opening fails closed without SQLCipher (`PRAGMA cipher_version`)
+or with a wrong key; a file whose key is gone is renamed
+`*.unreadable-<time>`, never overwritten. `syncUUID` is UNIQUE. Schema
+changes: edit `schema.dart`, bump `schemaVersion` with a migration (none
+exist yet: version 1), regenerate.
 
 **Creating Entries:**
 ```dart
@@ -224,10 +237,11 @@ app unlock.
 | detectedTheme | Persisted at save, edit and import |
 | manualLinkIds | User-made links (syncUUIDs; they sync). Related memories are computed, never stored |
 | syncUUID, modifiedAt | Sync identity and last-write-wins clock |
-| mediaAssetId, mediaKey | Remote encrypted media blob and its per-file key (key encrypted at rest) |
+| mediaAssetId, mediaKey | Remote encrypted media blob and its per-file key (inside the encrypted database) |
 
-Written fields (text, title, context, mood, tags, transcription, theme, links,
-mediaKey) and ritual names are encrypted at rest with a Keychain/Keystore key.
+Everything in the database (all fields, rituals, the FTS index) is encrypted
+at rest as one SQLCipher file; there is no field-level encryption. Media files
+are not encrypted by the app (OS file protection on iOS, app sandbox on Android).
 
 ### Media Storage Structure
 ```
@@ -238,7 +252,7 @@ mediaKey) and ritual names are encrypted at rest with a Keychain/Keystore key.
 ```
 `DraftMediaTracker` deletes media a draft drops; `MediaOrphanSweeper` removes
 unreferenced files older than 24h once per launch (never an open draft's).
-On iOS, `objectbox/` and `media/` are excluded from device backups.
+On iOS, `database/` and `media/` are file-protected and excluded from device backups.
 
 ### Tree States
 Trees represent a calendar year. Growth is based on **count**, not frequency (no pressure for daily entries).
@@ -338,7 +352,7 @@ if (Platform.isIOS) {
 - Put restore/import logic in `BackupRestoreService`, and queue what it creates/deletes for sync (`queueForSync`)
 - Read every archive through `SafeZipReader` (`lib/core/services/export/safe_zip.dart`): counts and declared sizes are checked before inflating, zip-slip/symlinks refused
 - Report errors through `ErrorReporter.report` (never `debugPrint` in release paths); it feeds the redacted `DiagnosticsLog`
-- Test database behaviour against a real store with `ObjectBoxDatabase.openForTesting(directory:, encryptionService:)`; it needs `libobjectbox` on the loader path and skips itself otherwise
+- Test database behaviour against a real database with `SeedlingDatabase.openForTesting(directory:, key:)` (temp-file SQLCipher database; omit `directory` for in-memory)
 - Keep voice transcription strictly on-device: iOS requires on-device recognition and Android reports unavailable. Never fall back to a server recognizer
 - Keep notification copy generic (no memory text, titles or dates) and Android `NotificationVisibility.private`
 - Add every SharedPreferences key to `PrefsKeys`, and create secure storage only via `createSeedlingSecureStorage()` (device-only keychain accessibility)
@@ -392,7 +406,7 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 ## Feature notes
 
 ### Memories list and detail (Phase 3)
-- Search (`CupertinoSearchTextField` on iOS), type and theme filter chips (44pt), newest/oldest sort
+- Search (`CupertinoSearchTextField` on iOS) through the FTS5 trigram index (`searchEntryIds`: substring, case- and accent-insensitive; under 3 characters it matches in memory), type and theme filter chips (44pt), newest/oldest sort
 - Detail view with edit mode, related and linked memories, transcription (iOS), soft delete
 - Memory reader (`/memories/reader`): swipe through memories on both platforms; chrome stays up for screen readers
 - Recently Deleted at Settings > Recently Deleted (restore or delete permanently)
@@ -439,7 +453,7 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 - **Quarantine:** records that fail decryption/authentication are set aside in a local file (`SyncQuarantine`), retried on every pull, and shown in Settings as a calm notice (`syncQuarantineCountProvider`, `SyncQuarantineNotice`), not as an error
 - Last-write-wins on `modifiedAt` (local wins ties); push/pull serialized; every backend call has a timeout; `init()` never throws
 - A full upload is queued on first enable, when the key changes, and before an idle device's log is retired
-- No migrations: the app never shipped, so every format (sync, keyring, backup, Markdown, ObjectBox model) is version 1 and older layouts are not read
+- No migrations: the app never shipped, so every format (sync, keyring, backup, Markdown, database schema) is version 1 and older layouts are not read
 
 ### Export, backup and import
 - Export as JSON, ZIP, Markdown (open format, Obsidian-friendly, sealed capsules filed separately) or encrypted backup (format 1: exactly PBKDF2-SHA256 600k, HMAC signature required); temp files are deleted after sharing. Sizes are checked against what restore accepts before reading media
@@ -460,13 +474,14 @@ Every long-lived object created by a `State` must be released in `dispose()`. Fa
 
 ## Testing
 
-Run `flutter test` (about 820 tests). Each test file runs on its own; there is no aggregator file, so don't add one (it double-counts).
+Run `flutter test` (about 825 tests). Each test file runs on its own; there is no aggregator file, so don't add one (it double-counts).
 
 Coverage includes entry models, tree boundaries and blueprint determinism,
 capture inference and the capture sheet, theme and connection evaluation
 sets, sync engine/crypto/media crypto/Drive and CloudKit log protocol, backup
-restore, export/import (Markdown, Day One, SafeZipReader), real ObjectBox
-store behaviour (`test/data/`), palette usage and contrast, calm mode, Reduce
+restore, export/import (Markdown, Day One, SafeZipReader), real SQLCipher
+database behaviour and encryption (`test/data/`: wrong key refused, no
+plaintext on disk, FTS), palette usage and contrast, calm mode, Reduce
 Motion, accessibility targets, and tree goldens (no text, 0.5% tolerance,
 Linux only).
 
@@ -476,9 +491,9 @@ screen readers, large exports, real Day One files) are listed in
 
 ## Troubleshooting
 
-**ObjectBox generation fails:**
+**Drift code out of date (`schema.g.dart`):**
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build
 ```
 
 **CocoaPods issues on iOS:**
@@ -492,8 +507,10 @@ Ensure `ios/Podfile` has: `platform :ios, '15.0'`
 **Permission denied on camera/mic:**
 Check that Info.plist has NSCameraUsageDescription, NSMicrophoneUsageDescription, NSPhotoLibraryUsageDescription
 
-**Real-store tests skipped:**
-Put `libobjectbox.so` on `LD_LIBRARY_PATH` (CI downloads objectbox-c 5.1.0).
+**Database tests fail with "SQLCipher is not linked" / a load error:**
+`package:sqlite3`'s build hook downloads SQLCipher from its GitHub releases on
+the first build (needs network once) and, on Linux, links `libcrypto.so.3`
+(OpenSSL 3). Check `hooks:` in `pubspec.yaml` still says `source: sqlcipher`.
 
 **Golden test fails locally on macOS/Windows:**
 Goldens are compared on Linux only. Regenerate on Linux with Flutter 3.47.7.
