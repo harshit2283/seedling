@@ -187,19 +187,35 @@ final _typeAndThemeFilteredProvider = Provider<List<Entry>>((ref) {
   return filtered;
 });
 
+/// Ids of the memories whose words contain [query], from the database's
+/// full-text index (inside the encrypted file). Null when the index can't
+/// answer (queries under three characters); the text is then matched in
+/// memory. Refreshed whenever entries change.
+final memorySearchMatchesProvider = Provider.autoDispose
+    .family<Set<int>?, String>((ref, query) {
+      ref.watch(allEntriesStreamProvider);
+      return ref.watch(databaseProvider).searchEntryIds(query);
+    });
+
 /// Provider for filtered and sorted entries.
 ///
 /// Composed of [_typeAndThemeFilteredProvider] (heavier, recomputed only when
-/// type/theme/sort filters change) plus a cheap text filter applied on top.
+/// type/theme/sort filters change) plus the text filter applied on top: a
+/// full-text index lookup, or an in-memory match for very short queries.
 final filteredEntriesProvider = Provider<List<Entry>>((ref) {
   final query = ref.watch(memoriesFilterProvider.select((s) => s.searchQuery));
   final base = ref.watch(_typeAndThemeFilteredProvider);
 
   if (query.isEmpty) return base;
 
+  final matches = ref.watch(memorySearchMatchesProvider(query));
   final lowered = query.toLowerCase();
   return base.where((e) {
-    if (e.searchableLower.contains(lowered)) return true;
+    if (matches != null
+        ? matches.contains(e.id)
+        : e.searchableLower.contains(lowered)) {
+      return true;
+    }
     if (e.typeName.toLowerCase().contains(lowered)) return true;
     if (e.hasTheme) {
       final theme = MemoryThemeExtension.fromString(e.detectedTheme);

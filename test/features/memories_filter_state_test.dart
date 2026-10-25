@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/providers.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/memories/presentation/memories_filter_state.dart';
 
@@ -34,6 +35,8 @@ void main() {
         overrides: [
           pagedEntriesProvider.overrideWith((ref) => [normal, capsule]),
           entriesProvider.overrideWith((ref) => [normal, capsule]),
+          // No index: fall back to matching in memory.
+          memorySearchMatchesProvider.overrideWith((ref, query) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -68,6 +71,37 @@ void main() {
       expect(filtered, isNot(contains(photo)));
       expect(filterableEntryTypes, isNot(contains(EntryType.fragment)));
       expect(filterableEntryTypes, contains(EntryType.line));
+    });
+
+    test('search uses the full-text index of the database', () async {
+      final db = await SeedlingDatabase.openForTesting();
+      addTearDown(db.close);
+      final cafe = await db.saveEntry(
+        Entry.line(text: 'Breakfast at the Café'),
+      );
+      final other = await db.saveEntry(Entry.line(text: 'A walk at dusk'));
+      final voice = await db.saveEntry(
+        Entry.voice(mediaPath: 'voices/v.m4a')
+          ..transcription = 'the cafe on the corner',
+      );
+      final entries = [cafe, other, voice];
+
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          pagedEntriesProvider.overrideWith((ref) => entries),
+          entriesProvider.overrideWith((ref) => entries),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Accent-insensitive, and transcriptions count.
+      container.read(memoriesFilterProvider.notifier).setSearchQuery('CAFE');
+      expect(container.read(filteredEntriesProvider), [cafe, voice]);
+
+      // Under three characters the in-memory match takes over.
+      container.read(memoriesFilterProvider.notifier).setSearchQuery('du');
+      expect(container.read(filteredEntriesProvider), [other]);
     });
   });
 }
