@@ -88,6 +88,8 @@ class BackupRestoreService {
 
     final createdEntries = <Entry>[];
     final deletedEntries = <Entry>[];
+    // Media of staged entries an imported one took the place of.
+    final replacedMediaPaths = <String>[];
     var importedEntries = 0;
     var importedMediaFiles = 0;
     var skippedDuplicates = 0;
@@ -122,6 +124,24 @@ class BackupRestoreService {
       );
       // Imported journals carry no theme: store one so counts stay cheap.
       if (!entry.hasTheme) _themeDetector.assignTheme(entry);
+      // Replace mode: the backup may hold memories that are still here,
+      // staged in the trash above. A syncUUID names one memory, so the
+      // imported copy takes over that row instead of duplicating it.
+      final syncUUID = entry.syncUUID;
+      if (mode == BackupImportMode.replace &&
+          syncUUID != null &&
+          syncUUID.isNotEmpty) {
+        final staged = _database.getEntryBySyncUUID(syncUUID);
+        if (staged != null) {
+          entry.id = staged.id;
+          final oldMedia = staged.mediaPath;
+          if (oldMedia != null &&
+              oldMedia.isNotEmpty &&
+              oldMedia != entry.mediaPath) {
+            replacedMediaPaths.add(oldMedia);
+          }
+        }
+      }
       await _database.saveEntry(entry);
       createdEntries.add(entry.copy());
       known.add(entryMap);
@@ -137,6 +157,13 @@ class BackupRestoreService {
       final deleted = _database.getDeletedEntries();
       for (final entry in deleted) {
         if (await _database.deleteEntry(entry.id)) deletedEntries.add(entry);
+      }
+      for (final path in replacedMediaPaths) {
+        try {
+          await _fileStorage.deleteFile(path);
+        } catch (_) {
+          // Best effort: the orphan sweeper removes it on a later launch.
+        }
       }
     }
 

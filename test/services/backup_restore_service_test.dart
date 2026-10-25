@@ -374,4 +374,37 @@ void main() {
     expect(result.warnings, contains('media_pending_download'));
     expect(result.warnings, isNot(contains('missing_media')));
   });
+
+  test('replace mode over the same memories takes their rows over '
+      '(syncUUID is unique)', () async {
+    final db = await SeedlingDatabase.openForTesting();
+    addTearDown(db.close);
+    when(() => fileStorage.deleteFile(any())).thenAnswer((_) async => true);
+    final existing = await db.saveEntry(
+      Entry.photo(mediaPath: '/media/photos/old.jpg', text: 'beach')
+        ..createdAt = DateTime.utc(2025, 5, 1, 10)
+        ..syncUUID = 'uuid-photo',
+    );
+    await db.saveEntry(
+      Entry.line(text: 'not in the backup')
+        ..createdAt = DateTime.utc(2025, 6, 1),
+    );
+
+    final result = await BackupRestoreService(
+      database: db,
+      fileStorage: fileStorage,
+    ).restore(backupWithPhoto(), mode: BackupImportMode.replace);
+
+    expect(result.success, isTrue);
+    final live = db.getAllEntries();
+    expect(live.map((e) => e.text), ['beach']);
+    expect(live.single.id, existing.id);
+    expect(live.single.mediaPath, isNot('/media/photos/old.jpg'));
+    expect(db.getDeletedEntries(), isEmpty);
+    expect(db.getTreeForYear(2025)!.entryCount, 1);
+    // The replaced photo's old file goes; the memory not in the backup is
+    // deleted, and only it is reported as deleted.
+    verify(() => fileStorage.deleteFile('/media/photos/old.jpg')).called(1);
+    expect(result.deletedEntries.map((e) => e.text), ['not in the backup']);
+  });
 }
