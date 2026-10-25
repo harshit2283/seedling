@@ -1,4 +1,3 @@
-import 'package:objectbox/objectbox.dart';
 import 'package:uuid/uuid.dart';
 
 /// Status of a ritual in the user's life
@@ -29,9 +28,7 @@ extension RitualStatusExt on RitualStatus {
 }
 
 /// A confirmed recurring ritual that the user wants to track
-@Entity()
 class Ritual {
-  @Id()
   int id = 0;
 
   /// UUID for cross-device sync
@@ -43,7 +40,7 @@ class Ritual {
   /// Signature from RitualDetectionService for matching new entries
   late String signature;
 
-  /// Status stored as int for ObjectBox
+  /// Status, stored as its enum index
   int statusIndex = RitualStatus.active.index;
 
   /// Get the status enum
@@ -59,21 +56,17 @@ class Ritual {
   int? preferredHour;
 
   /// When this ritual was created/confirmed
-  @Property(type: PropertyType.date)
   late DateTime createdAt;
 
   /// When the ritual was last observed (entry matched)
-  @Property(type: PropertyType.date)
   DateTime? lastObservedAt;
 
   /// When the ritual is next expected
-  @Property(type: PropertyType.date)
   DateTime? nextDueAt;
 
   /// Total number of times this ritual has been observed
   late int occurrenceCount;
 
-  /// Default constructor for ObjectBox
   Ritual({
     this.id = 0,
     String? uuid,

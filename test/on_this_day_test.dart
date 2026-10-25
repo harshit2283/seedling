@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/data/models/entry.dart';
 
-/// Mirrors the filtering logic from ObjectBoxDatabase.getEntriesOnThisDay()
-/// so we can unit-test without a live ObjectBox store.
+/// Mirrors the filtering logic from SeedlingDatabase.getEntriesOnThisDay()
+/// so we can unit-test without a live database.
 List<Entry> filterOnThisDay(List<Entry> allEntries, DateTime today) {
   final currentYear = today.year;
   return allEntries.where((entry) {

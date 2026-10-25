@@ -12,13 +12,13 @@ import 'package:seedling/core/constants/prefs_keys.dart';
 import 'package:seedling/core/services/notifications/gentle_reminder_service.dart';
 import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/storage/storage_usage_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/settings/presentation/settings_screen.dart';
 import 'package:seedling/features/settings/presentation/sync_settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _MockDb extends Mock implements ObjectBoxDatabase {}
+class _MockDb extends Mock implements SeedlingDatabase {}
 
 void main() {
   late _MockDb db;

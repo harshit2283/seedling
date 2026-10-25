@@ -105,10 +105,6 @@ PODS:
   - Mantle (2.2.0):
     - Mantle/extobjc (= 2.2.0)
   - Mantle/extobjc (2.2.0)
-  - ObjectBox (5.1.1)
-  - objectbox_flutter_libs (0.0.1):
-    - Flutter
-    - ObjectBox (= 5.1.1)
   - permission_handler_apple (9.3.0):
     - Flutter
   - PromisesObjC (2.4.0)
@@ -140,7 +136,6 @@ DEPENDENCIES:
   - home_widget (from `.symlinks/plugins/home_widget/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - local_auth_darwin (from `.symlinks/plugins/local_auth_darwin/darwin`)
-  - objectbox_flutter_libs (from `.symlinks/plugins/objectbox_flutter_libs/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - receive_sharing_intent (from `.symlinks/plugins/receive_sharing_intent/ios`)
   - record_ios (from `.symlinks/plugins/record_ios/ios`)
@@ -159,7 +154,6 @@ SPEC REPOS:
     - GTMSessionFetcher
     - libwebp
     - Mantle
-    - ObjectBox
     - PromisesObjC
     - SDWebImage
     - SDWebImageWebPCoder
@@ -186,8 +180,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/image_picker_ios/ios"
   local_auth_darwin:
     :path: ".symlinks/plugins/local_auth_darwin/darwin"
-  objectbox_flutter_libs:
-    :path: ".symlinks/plugins/objectbox_flutter_libs/ios"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   receive_sharing_intent:
@@ -220,8 +212,6 @@ SPEC CHECKSUMS:
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
   local_auth_darwin: c3ee6cce0a8d56be34c8ccb66ba31f7f180aaebb
   Mantle: c5aa8794a29a022dfbbfc9799af95f477a69b62d
-  ObjectBox: 26871f7cce80a8bd2e610bf944aeaded730f6925
-  objectbox_flutter_libs: 28e7bd5ae78e831f141679c8a6e31632453b959f
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   receive_sharing_intent: 222384f00ffe7e952bbfabaa9e3967cb87e5fe00

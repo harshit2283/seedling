@@ -6,21 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/core/services/providers.dart';
-import 'package:seedling/core/services/security/at_rest_encryption_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
-
-Future<ObjectBoxDatabase?> _tryOpen(Directory dir) async {
-  try {
-    return await ObjectBoxDatabase.openForTesting(
-      directory: dir.path,
-      encryptionService: AtRestEncryptionService(),
-    );
-  } on ArgumentError catch (e) {
-    if ('$e'.contains('dynamic library')) return null;
-    rethrow;
-  }
-}
 
 /// Four Sunday-morning entries a week apart: a clear recurring pattern.
 List<Entry> _weeklyPattern() {
@@ -38,25 +25,21 @@ void main() {
 
   group('detection never creates a ritual on its own', () {
     late Directory dir;
-    ObjectBoxDatabase? db;
+    late SeedlingDatabase db;
 
     setUp(() async {
       FlutterSecureStorage.setMockInitialValues({});
       dir = await Directory.systemTemp.createTemp('obx_ritual_opt_in');
-      db = await _tryOpen(dir);
+      db = await SeedlingDatabase.openForTesting(directory: dir.path);
     });
 
     tearDown(() async {
-      db?.close();
+      db.close();
       await dir.delete(recursive: true);
     });
 
     test('a detected pattern stays a suggestion until confirmed', () async {
       final store = db;
-      if (store == null) {
-        markTestSkipped('ObjectBox native library not available');
-        return;
-      }
       final container = ProviderContainer(
         overrides: [databaseProvider.overrideWithValue(store)],
       );

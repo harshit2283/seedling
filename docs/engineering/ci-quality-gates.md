@@ -5,8 +5,8 @@ Every pull request must pass all gates:
 2. Static analysis: `flutter analyze`
 3. Palette check: `bash scripts/check_palette.sh` (no hard-coded light-only
    colors in `lib/features`; use `context.palette`)
-4. Automated tests: `flutter test`, with `libobjectbox` on `LD_LIBRARY_PATH`
-   so the real-store tests run instead of skipping
+4. Automated tests: `flutter test`. Database tests open real SQLCipher files
+   (package:sqlite3 bundles SQLCipher, also for host tests); nothing to install
 
 CI (`.github/workflows/quality.yml`) pins Flutter **3.47.7** and caches the
 SDK; a newer push to the same branch or PR cancels the older run. Bump the

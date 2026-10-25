@@ -1,4 +1,4 @@
-import '../../../data/datasources/local/objectbox_database.dart';
+import '../../../data/datasources/local/seedling_database.dart';
 import '../../../data/models/entry.dart';
 import '../../../data/models/ritual.dart';
 import '../ai/ritual_detection_service.dart';
@@ -7,7 +7,7 @@ import '../ai/models/ritual_candidate.dart';
 /// Service for managing the full ritual lifecycle:
 /// confirmation, tracking, due-date computation, status transitions.
 class RitualService {
-  final ObjectBoxDatabase _db;
+  final SeedlingDatabase _db;
   final RitualDetectionService _detector;
 
   RitualService(this._db, this._detector);

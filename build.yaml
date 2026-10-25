@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      # Only the schema has drift tables; scanning the rest of lib/ and test/
+      # just slows `dart run build_runner build` down.
+      drift_dev:
+        generate_for:
+          - lib/data/datasources/local/schema.dart
+        options:
+          sql:
+            dialect: sqlite
+            options:
+              version: "3.45"
+              modules:
+                - fts5

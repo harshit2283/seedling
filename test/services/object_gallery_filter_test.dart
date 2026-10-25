@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedling/data/models/entry.dart';
 
-/// Mirrors the filtering logic from ObjectBoxDatabase.getObjectEntries()
-/// so we can unit-test without a live ObjectBox store.
+/// Mirrors the filtering logic from SeedlingDatabase.getObjectEntries()
+/// so we can unit-test without a live database.
 List<Entry> filterObjectEntries(List<Entry> allEntries) {
   return allEntries
       .where((e) => e.type == EntryType.object && !e.isDeleted)

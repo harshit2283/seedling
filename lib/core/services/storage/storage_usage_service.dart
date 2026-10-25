@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:seedling/core/services/media/file_storage_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 
 /// Breakdown of storage usage by category
 class StorageUsage {
@@ -39,15 +39,15 @@ class StorageUsage {
 
 /// Service for calculating storage usage.
 ///
-/// Measures the same directories the app writes to: the ObjectBox store
-/// ([ObjectBoxDatabase.defaultStoreDirectory]) and the media folders under
+/// Measures the same directories the app writes to: the database directory
+/// ([SeedlingDatabase.defaultStoreDirectory]: the file plus its WAL) and the media folders under
 /// [FileStorageService.canonicalMediaDirectory].
 class StorageUsageService {
   StorageUsageService({
     Future<String> Function()? storeDirectory,
     Future<Directory> Function()? mediaDirectory,
   }) : _storeDirectory =
-           storeDirectory ?? ObjectBoxDatabase.defaultStoreDirectory,
+           storeDirectory ?? SeedlingDatabase.defaultStoreDirectory,
        _mediaDirectory =
            mediaDirectory ?? FileStorageService.canonicalMediaDirectory;
 

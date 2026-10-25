@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
-import '../../../data/datasources/local/objectbox_database.dart';
+import '../../../data/datasources/local/seedling_database.dart';
 import '../../../data/models/entry.dart';
 import '../../../data/models/sync_id.dart';
 import 'sync_backend.dart';
@@ -13,7 +13,7 @@ import 'sync_metadata.dart';
 import 'sync_quarantine.dart';
 import 'sync_models.dart';
 
-/// Core sync engine: coordinates push/pull between ObjectBox and cloud backend.
+/// Core sync engine: coordinates push/pull between the local database and cloud backend.
 ///
 /// Strategy:
 /// - Push: debounced 2s after each local mutation
@@ -21,7 +21,7 @@ import 'sync_models.dart';
 /// - Conflicts: last-write-wins for text fields; delete wins
 /// - Push and pull never overlap (they run one at a time, in call order).
 class SyncEngine {
-  final ObjectBoxDatabase _db;
+  final SeedlingDatabase _db;
   final SyncBackend _backend;
   final SyncMetadata _metadata;
   final SyncCryptoService _crypto;
@@ -73,7 +73,7 @@ class SyncEngine {
   Future<void> _lockTail = Future<void>.value();
 
   SyncEngine({
-    required ObjectBoxDatabase database,
+    required SeedlingDatabase database,
     required SyncBackend backend,
     required SyncMetadata metadata,
     required SyncCryptoService cryptoService,

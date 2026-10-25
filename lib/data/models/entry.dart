@@ -1,5 +1,3 @@
-import 'package:objectbox/objectbox.dart';
-
 /// Entry types for different memory capture methods
 enum EntryType {
   line, // Text - a line that stayed with you
@@ -16,17 +14,13 @@ enum EntryType {
 /// Core philosophy: All fields optional except id/createdAt
 /// This supports "fragments without explanation" - not every
 /// memory needs context or meaning attached to it.
-@Entity()
 class Entry {
-  @Id()
   int id = 0;
 
   /// When this memory was captured
-  @Property(type: PropertyType.date)
-  @Index()
   DateTime createdAt;
 
-  /// Type of entry - stored as int index for ObjectBox
+  /// Type of entry, stored as its enum index
   int typeIndex;
 
   /// Get the EntryType enum value
@@ -57,11 +51,9 @@ class Entry {
   bool isReleased;
 
   /// Soft delete flag - entry is hidden but recoverable for 30 days
-  @Index()
   bool isDeleted;
 
   /// When the entry was soft deleted (null if not deleted)
-  @Property(type: PropertyType.date)
   DateTime? deletedAt;
 
   // ============================================================================
@@ -80,8 +72,6 @@ class Entry {
   // ============================================================================
 
   /// When this capsule should unlock (null for non-capsule entries)
-  @Property(type: PropertyType.date)
-  @Index()
   DateTime? capsuleUnlockDate;
 
   // ============================================================================
@@ -99,12 +89,9 @@ class Entry {
   ///
   /// Indexed: sync merge and manual link resolution look entries up by this
   /// on every record.
-  @Index()
   String? syncUUID;
 
   /// When this entry was last modified (for sync conflict resolution)
-  @Property(type: PropertyType.date)
-  @Index()
   DateTime? modifiedAt;
 
   /// Device identifier that last modified this entry
@@ -115,18 +102,12 @@ class Entry {
   /// still has to be downloaded.
   String? mediaAssetId;
 
-  /// Base64 per-file key for the media blob. Encrypted at rest like the
-  /// memory text; synced only inside the encrypted record.
+  /// Base64 per-file key for the media blob. Stored in the encrypted
+  /// database with everything else; synced only inside the encrypted record.
   String? mediaKey;
 
-  /// True when one or more encrypted fields could not be decrypted at read-time.
-  @Transient()
-  bool decryptionFailed = false;
-
-  @Transient()
   String? _searchCache;
 
-  /// Default constructor required by ObjectBox
   Entry({
     this.id = 0,
     DateTime? createdAt,
@@ -151,9 +132,7 @@ class Entry {
     this.mediaKey,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  /// A field-for-field copy (persisted fields plus [decryptionFailed]).
-  /// The database uses this so the objects it caches are never the ones
-  /// callers hold and mutate.
+  /// A field-for-field copy of the persisted fields.
   Entry copy() => Entry(
     id: id,
     createdAt: createdAt,
@@ -176,7 +155,7 @@ class Entry {
     deviceId: deviceId,
     mediaAssetId: mediaAssetId,
     mediaKey: mediaKey,
-  )..decryptionFailed = decryptionFailed;
+  );
 
   /// Create a LINE entry - text that stayed with you
   factory Entry.line({String? text, String? context, String? mood}) {
@@ -329,7 +308,7 @@ class Entry {
   }
 
   /// Drop the memoised searchable string so the next read recomputes from the
-  /// current text/title/transcription fields. Called after decrypt/edit.
+  /// current text/title/transcription fields. Called after an edit.
   void invalidateSearchCache() {
     _searchCache = null;
   }

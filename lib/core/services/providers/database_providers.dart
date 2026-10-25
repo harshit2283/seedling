@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/prefs_keys.dart';
-import '../../../data/datasources/local/objectbox_database.dart';
+import '../../../data/datasources/local/seedling_database.dart';
 import '../../../data/models/entry.dart';
 import '../../../data/models/tree.dart';
 
@@ -21,9 +21,9 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 // Database & Entry Providers
 // ============================================================================
 
-/// Provider for the ObjectBox database singleton
+/// Provider for the local (SQLCipher) database singleton
 /// Must be overridden at app startup after initialization
-final databaseProvider = Provider<ObjectBoxDatabase>((ref) {
+final databaseProvider = Provider<SeedlingDatabase>((ref) {
   throw UnimplementedError(
     'databaseProvider must be overridden with the initialized database',
   );

@@ -13,12 +13,12 @@ import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/ritual/ritual_service.dart';
 import 'package:seedling/core/services/storage/media_orphan_sweeper.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/capture/presentation/quick_capture_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _MockDb extends Mock implements ObjectBoxDatabase {}
+class _MockDb extends Mock implements SeedlingDatabase {}
 
 class _MockSync extends Mock implements SyncEngine {}
 

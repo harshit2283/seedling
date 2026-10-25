@@ -13,7 +13,7 @@ import 'package:seedling/core/services/export/export_service.dart';
 import 'package:seedling/core/services/export/journal_import.dart';
 import 'package:seedling/core/services/export/safe_zip.dart';
 import 'package:seedling/core/services/media/file_storage_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 
 class _MockPathProvider extends Mock
@@ -26,7 +26,7 @@ class _MockPathProvider extends Mock
   Future<String?> getTemporaryPath() async => path;
 }
 
-class _MockDb extends Mock implements ObjectBoxDatabase {}
+class _MockDb extends Mock implements SeedlingDatabase {}
 
 class _MockFileStorage extends Mock implements FileStorageService {}
 

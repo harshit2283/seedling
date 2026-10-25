@@ -44,11 +44,11 @@ void main() {
     });
 
     test(
-      'isLocked depends only on capsuleUnlockDate, not on encrypted fields',
+      'isLocked depends only on capsuleUnlockDate, not on written fields',
       () {
         // This test validates that the query optimization is safe:
-        // isLocked checks capsuleUnlockDate (not encrypted) so we can
-        // filter at the query level without decrypting entries.
+        // isLocked checks only capsuleUnlockDate, so the database can
+        // filter sealed capsules in SQL.
         final entry = Entry.fragment(); // fragment allows null text
         entry.capsuleUnlockDate = DateTime.now().add(const Duration(days: 10));
 
@@ -101,7 +101,7 @@ void main() {
       final entry = Entry();
       entry.capsuleUnlockDate = originalDate;
 
-      // Simulate ObjectBox storage: PropertyType.date stores as milliseconds
+      // The database stores dates as milliseconds since the epoch
       final millis = entry.capsuleUnlockDate!.millisecondsSinceEpoch;
       final restored = DateTime.fromMillisecondsSinceEpoch(millis);
 

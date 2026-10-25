@@ -1,5 +1,3 @@
-import 'package:objectbox/objectbox.dart';
-
 /// Growth stages for the tree visualization
 /// Each stage has meaning in the metaphor of memory-keeping
 enum TreeState {
@@ -16,9 +14,7 @@ enum TreeState {
 /// Core philosophy: Growth is measured by count, not frequency
 /// No gamification - the tree grows naturally as you capture
 /// memories without pressure for daily streaks.
-@Entity()
 class Tree {
-  @Id()
   int id = 0;
 
   /// The year this tree represents
@@ -28,7 +24,6 @@ class Tree {
   int entryCount;
 
   /// When this tree was created (first entry of the year)
-  @Property(type: PropertyType.date)
   DateTime createdAt;
 
   /// Cached state index for quick lookup

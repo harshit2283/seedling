@@ -6,12 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/ritual/ritual_service.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/memories/presentation/entry_detail_screen.dart';
 import 'package:seedling/features/memories/presentation/widgets/season_sprig.dart';
 
-class MockObjectBoxDatabase extends Mock implements ObjectBoxDatabase {}
+class MockSeedlingDatabase extends Mock implements SeedlingDatabase {}
 
 class MockSyncEngine extends Mock implements SyncEngine {}
 
@@ -20,7 +20,7 @@ class MockRitualService extends Mock implements RitualService {}
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late MockObjectBoxDatabase mockDb;
+  late MockSeedlingDatabase mockDb;
   late MockSyncEngine mockSyncEngine;
   late MockRitualService mockRitualService;
   late SharedPreferences prefs;
@@ -31,7 +31,7 @@ void main() {
   });
 
   setUp(() async {
-    mockDb = MockObjectBoxDatabase();
+    mockDb = MockSeedlingDatabase();
     mockSyncEngine = MockSyncEngine();
     mockRitualService = MockRitualService();
 

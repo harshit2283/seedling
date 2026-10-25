@@ -6,11 +6,11 @@ import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/ritual/ritual_service.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/capture/domain/capture_intent.dart';
 
-class _MockDatabase extends Mock implements ObjectBoxDatabase {}
+class _MockDatabase extends Mock implements SeedlingDatabase {}
 
 class _MockSyncEngine extends Mock implements SyncEngine {}
 

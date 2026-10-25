@@ -5,11 +5,11 @@ import 'package:seedling/core/services/sync/sync_crypto_service.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_metadata.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _MockObjectBoxDatabase extends Mock implements ObjectBoxDatabase {}
+class _MockSeedlingDatabase extends Mock implements SeedlingDatabase {}
 
 class _MockSyncBackend extends Mock implements SyncBackend {}
 
@@ -33,12 +33,12 @@ void main() {
   });
 
   group('SyncEngine', () {
-    late _MockObjectBoxDatabase database;
+    late _MockSeedlingDatabase database;
     late _MockSyncBackend backend;
     late _MockSyncCryptoService crypto;
 
     setUp(() {
-      database = _MockObjectBoxDatabase();
+      database = _MockSeedlingDatabase();
       backend = _MockSyncBackend();
       crypto = _MockSyncCryptoService();
       when(() => backend.readKeyring()).thenAnswer((_) async => null);

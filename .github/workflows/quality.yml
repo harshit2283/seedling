@@ -39,13 +39,14 @@ jobs:
       - name: Palette check
         run: bash scripts/check_palette.sh
 
-      - name: Install ObjectBox native library (for real-store tests)
+      - name: Generated database code is up to date
         run: |
-          mkdir -p "$RUNNER_TEMP/objectbox"
-          curl -sSL https://github.com/objectbox/objectbox-c/releases/download/v5.1.0/objectbox-linux-x64.tar.gz \
-            | tar -xz -C "$RUNNER_TEMP/objectbox"
-          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/objectbox/lib" >> "$GITHUB_ENV"
+          dart run build_runner build
+          git diff --exit-code -- lib/data/datasources/local/schema.g.dart
 
+      # Database tests run on a real SQLCipher file: package:sqlite3's build
+      # hook fetches its SQLCipher build (checked against pinned sha256
+      # hashes) and links the runner's OpenSSL (libcrypto.so.3).
       - name: Run tests
         run: flutter test
 

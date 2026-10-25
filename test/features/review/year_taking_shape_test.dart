@@ -6,12 +6,12 @@ import 'package:mocktail/mocktail.dart';
 import 'package:seedling/app/theme/seedling_theme.dart';
 import 'package:seedling/core/platform/platform_utils.dart';
 import 'package:seedling/core/services/providers.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/features/review/presentation/year_in_review_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _MockDb extends Mock implements ObjectBoxDatabase {}
+class _MockDb extends Mock implements SeedlingDatabase {}
 
 void main() {
   late _MockDb db;

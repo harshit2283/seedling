@@ -6,10 +6,10 @@ import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
 import 'package:seedling/core/services/ritual/ritual_service.dart';
 import 'package:seedling/core/services/entry_type_usage_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 
-class MockObjectBoxDatabase extends Mock implements ObjectBoxDatabase {}
+class MockSeedlingDatabase extends Mock implements SeedlingDatabase {}
 
 class MockSyncEngine extends Mock implements SyncEngine {}
 
@@ -25,14 +25,14 @@ void main() {
   });
 
   group('EntryCreatorNotifier sync integration', () {
-    late MockObjectBoxDatabase mockDb;
+    late MockSeedlingDatabase mockDb;
     late MockSyncEngine mockSyncEngine;
     late MockRitualService mockRitualService;
     late MockEntryTypeUsageService mockUsageService;
     late ProviderContainer container;
 
     setUp(() {
-      mockDb = MockObjectBoxDatabase();
+      mockDb = MockSeedlingDatabase();
       mockSyncEngine = MockSyncEngine();
       mockRitualService = MockRitualService();
       mockUsageService = MockEntryTypeUsageService();

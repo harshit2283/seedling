@@ -9,7 +9,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:seedling/core/services/media/file_storage_service.dart';
 import 'package:seedling/core/services/providers.dart';
 import 'package:seedling/core/services/storage/storage_usage_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 
 class _Paths extends Mock
@@ -38,7 +38,7 @@ class _CountingService extends StorageUsageService {
   }
 }
 
-class _MockDb extends Mock implements ObjectBoxDatabase {}
+class _MockDb extends Mock implements SeedlingDatabase {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -70,8 +70,8 @@ void main() {
     expect(await File(savedPhoto).exists(), isTrue);
     expect(await File(savedVoice).exists(), isTrue);
 
-    // The database lives where ObjectBoxDatabase opens it.
-    final store = Directory(await ObjectBoxDatabase.defaultStoreDirectory())
+    // The database lives where SeedlingDatabase opens it.
+    final store = Directory(await SeedlingDatabase.defaultStoreDirectory())
       ..createSync(recursive: true);
     File('${store.path}/data.mdb').writeAsBytesSync(List.filled(4096, 0));
 

@@ -51,21 +51,18 @@ void main() {
       await IosDataProtection(
         channel: channel,
         isIOS: true,
-      ).hardenDirectory('/data/objectbox');
+      ).hardenDirectory('/data/database');
 
       expect(calls.map((c) => c.method), ['protectPath', 'excludeFromBackup']);
-      expect(calls[0].arguments, {
-        'path': '/data/objectbox',
-        'recursive': true,
-      });
-      expect(calls[1].arguments, {'path': '/data/objectbox'});
+      expect(calls[0].arguments, {'path': '/data/database', 'recursive': true});
+      expect(calls[1].arguments, {'path': '/data/database'});
     });
 
     test('is a no-op off iOS', () async {
       await IosDataProtection(
         channel: channel,
         isIOS: false,
-      ).hardenDirectory('/data/objectbox');
+      ).hardenDirectory('/data/database');
       expect(calls, isEmpty);
     });
 

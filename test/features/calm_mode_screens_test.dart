@@ -5,7 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:seedling/core/constants/prefs_keys.dart';
 import 'package:seedling/core/services/ai/models/memory_theme.dart';
 import 'package:seedling/core/services/providers.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/data/models/tree.dart';
 import 'package:seedling/features/memories/presentation/memories_screen.dart';
@@ -14,7 +14,7 @@ import 'package:seedling/features/review/presentation/year_in_review_screen.dart
 import 'package:seedling/features/tree/presentation/forest_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _MockDb extends Mock implements ObjectBoxDatabase {}
+class _MockDb extends Mock implements SeedlingDatabase {}
 
 /// Calm mode: the tree still grows, it just stops keeping score. Every
 /// screen that shows counts or growth stages has to respect it.

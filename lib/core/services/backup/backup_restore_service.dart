@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../../../data/datasources/local/objectbox_database.dart';
+import '../../../data/datasources/local/seedling_database.dart';
 import '../../../data/models/entry.dart';
 import '../ai/theme_detector_service.dart';
 import '../export/export_service.dart';
@@ -17,12 +17,12 @@ enum BackupImportMode { merge, replace }
 /// restore) can be unit-tested.
 class BackupRestoreService {
   BackupRestoreService({
-    required ObjectBoxDatabase database,
+    required SeedlingDatabase database,
     required FileStorageService fileStorage,
   }) : _database = database,
        _fileStorage = fileStorage;
 
-  final ObjectBoxDatabase _database;
+  final SeedlingDatabase _database;
   static final _themeDetector = ThemeDetectorService();
   final FileStorageService _fileStorage;
 

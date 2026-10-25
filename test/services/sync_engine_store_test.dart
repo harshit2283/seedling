@@ -1,11 +1,9 @@
-// SyncEngine against a real ObjectBox store and an in-memory backend.
-// Needs the native ObjectBox library; skipped otherwise.
+// SyncEngine against a real (SQLCipher) database and an in-memory backend.
 import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:seedling/core/services/security/at_rest_encryption_service.dart';
 import 'package:seedling/core/services/sync/google_drive_sync_service.dart';
 import 'package:seedling/core/services/sync/sync_backend.dart';
 import 'package:seedling/core/services/sync/sync_crypto_service.dart';
@@ -13,7 +11,7 @@ import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_metadata.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
 import 'package:seedling/core/services/sync/sync_quarantine.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -225,7 +223,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory dir;
-  ObjectBoxDatabase? db;
+  SeedlingDatabase? db;
   late SyncMetadata metadata;
   late _MemoryBackend backend;
   late SyncEngine engine;
@@ -238,15 +236,7 @@ void main() {
       namespace: 'test',
     );
     dir = await Directory.systemTemp.createTemp('sync_store');
-    try {
-      db = await ObjectBoxDatabase.openForTesting(
-        directory: dir.path,
-        encryptionService: AtRestEncryptionService(),
-      );
-    } on ArgumentError catch (e) {
-      if (!'$e'.contains('dynamic library')) rethrow;
-      db = null;
-    }
+    db = await SeedlingDatabase.openForTesting(directory: dir.path);
     backend = _MemoryBackend();
     if (db != null) {
       engine = SyncEngine(
@@ -265,14 +255,7 @@ void main() {
     await dir.delete(recursive: true);
   });
 
-  bool skip() {
-    if (db != null) return false;
-    markTestSkipped('ObjectBox native library not available');
-    return true;
-  }
-
   test('an edit queued while a push is in flight is not dropped', () async {
-    if (skip()) return;
     final entry = await db!.saveEntry(Entry.line(text: 'v1'));
     engine.queuePush(entry, SyncChangeType.create);
 
@@ -305,7 +288,6 @@ void main() {
   });
 
   test('merging remote deletes and restores keeps tree counts right', () async {
-    if (skip()) return;
     final local = await db!.saveEntry(Entry.line(text: 'here'));
     final base = db!.currentTree!.entryCount;
     final t = DateTime.now().add(const Duration(minutes: 1));
@@ -358,7 +340,6 @@ void main() {
   });
 
   test('purged trash is deleted remotely too', () async {
-    if (skip()) return;
     final old = await db!.saveEntries([
       Entry.line(text: 'long gone')
         ..isDeleted = true
@@ -372,7 +353,6 @@ void main() {
   });
 
   test('unversioned remote records are never imported', () async {
-    if (skip()) return;
     backend.nextFetch = SyncFetchResult(
       records: [
         _record(
@@ -393,7 +373,6 @@ void main() {
   });
 
   test('remote media paths are confined to the media folder', () async {
-    if (skip()) return;
     backend.nextFetch = SyncFetchResult(
       records: [
         _record(
@@ -420,7 +399,6 @@ void main() {
   });
 
   test('pushed media paths never carry absolute device paths', () async {
-    if (skip()) return;
     final entry = await db!.saveEntry(
       Entry.photo(mediaPath: '/somewhere/else/IMG_1.jpg'),
     );
@@ -430,13 +408,9 @@ void main() {
   });
 
   test('two devices converge through Google Drive logs', () async {
-    if (skip()) return;
     final drive = MemoryFileStore();
     final dirB = await Directory.systemTemp.createTemp('sync_store_b');
-    final dbB = await ObjectBoxDatabase.openForTesting(
-      directory: dirB.path,
-      encryptionService: AtRestEncryptionService(),
-    );
+    final dbB = await SeedlingDatabase.openForTesting(directory: dirB.path);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sync_enabled_b', true);
     final metaB = SyncMetadata(prefs, namespace: 'b');
@@ -485,7 +459,6 @@ void main() {
   });
 
   test('a key derived with another salt never pushes', () async {
-    if (skip()) return;
     backend.keyring = {'kdfSalt': 'AAAAAAAAAAAAAAAAAAAAAA==', 'check': 'x'};
     final crypto = _FakeCrypto()..keyMatchesKeyring = false;
     final mismatched = SyncEngine(
@@ -513,27 +486,22 @@ void main() {
     late Directory mediaA;
     late Directory mediaB;
     late Directory dirB;
-    late ObjectBoxDatabase dbB;
+    late SeedlingDatabase dbB;
     late SyncMetadata metaB;
     var allowed = true;
 
     setUp(() async {
-      if (db == null) return;
       allowed = true;
       mediaA = await Directory.systemTemp.createTemp('media_a');
       mediaB = await Directory.systemTemp.createTemp('media_b');
       dirB = await Directory.systemTemp.createTemp('sync_store_b');
-      dbB = await ObjectBoxDatabase.openForTesting(
-        directory: dirB.path,
-        encryptionService: AtRestEncryptionService(),
-      );
+      dbB = await SeedlingDatabase.openForTesting(directory: dirB.path);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('sync_enabled_b', true);
       metaB = SyncMetadata(prefs, namespace: 'b');
     });
 
     tearDown(() async {
-      if (db == null) return;
       dbB.close();
       for (final d in [mediaA, mediaB, dirB]) {
         await d.delete(recursive: true);
@@ -541,7 +509,7 @@ void main() {
     });
 
     SyncEngine engineFor(
-      ObjectBoxDatabase database,
+      SeedlingDatabase database,
       SyncMetadata meta,
       Directory media,
     ) => SyncEngine(
@@ -553,7 +521,7 @@ void main() {
       networkAllowed: () => allowed,
     );
 
-    Future<Entry> photoOn(ObjectBoxDatabase database, Directory media) async {
+    Future<Entry> photoOn(SeedlingDatabase database, Directory media) async {
       final file = File('${media.path}/photos/IMG_1.jpg')
         ..createSync(recursive: true)
         ..writeAsBytesSync(List<int>.generate(200000, (i) => i % 251));
@@ -561,7 +529,6 @@ void main() {
     }
 
     test('a new photo is uploaded encrypted and downloaded on pull', () async {
-      if (skip()) return;
       final a = engineFor(db!, metadata, mediaA);
       final b = engineFor(dbB, metaB, mediaB);
       final photo = await photoOn(db!, mediaA);
@@ -600,7 +567,6 @@ void main() {
     });
 
     test('a missing blob stays pending and resumes later', () async {
-      if (skip()) return;
       final a = engineFor(db!, metadata, mediaA);
       final b = engineFor(dbB, metaB, mediaB);
       final photo = await photoOn(db!, mediaA);
@@ -626,7 +592,6 @@ void main() {
     });
 
     test('a tampered blob is rejected and nothing is stored', () async {
-      if (skip()) return;
       final a = engineFor(db!, metadata, mediaA);
       final b = engineFor(dbB, metaB, mediaB);
       final photo = await photoOn(db!, mediaA);
@@ -652,7 +617,6 @@ void main() {
     });
 
     test('deleting a memory removes its blob (also via purge)', () async {
-      if (skip()) return;
       final a = engineFor(db!, metadata, mediaA);
       final photo = await photoOn(db!, mediaA);
       a.queuePush(photo, SyncChangeType.create);
@@ -685,7 +649,6 @@ void main() {
     });
 
     test('no media (or records) move before the cloud-sync opt-in', () async {
-      if (skip()) return;
       allowed = false;
       final a = engineFor(db!, metadata, mediaA);
       final photo = await photoOn(db!, mediaA);
@@ -700,7 +663,6 @@ void main() {
     });
 
     test('files over 50 MB are skipped with a warning', () async {
-      if (skip()) return;
       final a = engineFor(db!, metadata, mediaA);
       final big = File('${mediaA.path}/voices/long.m4a')
         ..createSync(recursive: true);
@@ -720,7 +682,6 @@ void main() {
   });
 
   test('undecryptable records are quarantined; the rest still merge', () async {
-    if (skip()) return;
     final crypto = _FakeCrypto()..undecryptable.add('forged');
     final e = SyncEngine(
       database: db!,
@@ -763,7 +724,6 @@ void main() {
   });
 
   test('a failed pull blocks pushing until a pull succeeds', () async {
-    if (skip()) return;
     final entry = await db!.saveEntry(Entry.line(text: 'local edit'));
     engine.queuePush(entry, SyncChangeType.create);
     backend.fetchError = const SyncPassphraseMissingException();
@@ -778,7 +738,6 @@ void main() {
   });
 
   test('init never throws: keyring errors end up in lastError', () async {
-    if (skip()) return;
     backend.keyringError = StateError('Google Drive not connected');
     await engine.init();
     expect(engine.currentState, SyncState.error);
@@ -786,7 +745,6 @@ void main() {
   });
 
   test('a hung backend call times out instead of stalling the queue', () async {
-    if (skip()) return;
     final e = SyncEngine(
       database: db!,
       backend: backend,
@@ -805,7 +763,6 @@ void main() {
   });
 
   test('a new key re-uploads everything under it', () async {
-    if (skip()) return;
     final crypto = _FakeCrypto();
     final e = SyncEngine(
       database: db!,
@@ -837,7 +794,6 @@ void main() {
     test(
       'a re-uploaded copy replaces a quarantined one (same modifiedAt)',
       () async {
-        if (skip()) return;
         final crypto = _FakeCrypto()..undecryptable.add('under the old key');
         final e = engineWith(crypto);
         const uuid = '77777777-8888-4999-8aaa-bbbbbbbbbbbb';
@@ -866,7 +822,6 @@ void main() {
     );
 
     test('a forged far-future copy cannot hide the genuine one', () async {
-      if (skip()) return;
       final crypto = _FakeCrypto()..undecryptable.add('forged');
       final e = engineWith(crypto);
       const uuid = '88888888-9999-4aaa-8bbb-cccccccccccc';
@@ -883,7 +838,6 @@ void main() {
     });
 
     test('no push without a verifiable keyring', () async {
-      if (skip()) return;
       // Without a key there is nothing to recreate a missing keyring from.
       final crypto = _FakeCrypto()..ownKeyring = null;
       final e = engineWith(crypto);
@@ -895,7 +849,6 @@ void main() {
     });
 
     test('a not-connected pull is not a successful pull', () async {
-      if (skip()) return;
       backend.returnNullFetch = true;
       final result = await engine.pull();
       expect(result.success, isFalse);
@@ -905,7 +858,6 @@ void main() {
     });
 
     test('an interrupted media upload is retried under the same id', () async {
-      if (skip()) return;
       final media = await Directory.systemTemp.createTemp('media_r3');
       try {
         final file = File('${media.path}/photos/p.jpg')
@@ -937,7 +889,6 @@ void main() {
     test(
       'housekeeping: orphan blobs and idle logs after a full re-upload',
       () async {
-        if (skip()) return;
         final e = engineWith(_FakeCrypto());
         final a = await db!.saveEntry(
           Entry.line(text: 'a')
@@ -961,7 +912,6 @@ void main() {
     );
 
     test('quarantine lives in a file and writes only on change', () async {
-      if (skip()) return;
       final stateDir = await Directory.systemTemp.createTemp('quarantine');
       try {
         final q = SyncQuarantine(
@@ -992,7 +942,6 @@ void main() {
   });
 
   test('first enable uploads existing entries', () async {
-    if (skip()) return;
     await metadata.setEnabled(false);
     final a = await db!.saveEntry(Entry.line(text: 'before sync'));
     await engine.setEnabled(true);

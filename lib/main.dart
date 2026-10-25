@@ -21,7 +21,7 @@ import 'core/services/sync/sync_metadata.dart';
 import 'core/services/storage/media_orphan_sweeper.dart';
 import 'core/services/share/share_receiver_service.dart';
 import 'core/services/widget/widget_data_service.dart';
-import 'data/datasources/local/objectbox_database.dart';
+import 'data/datasources/local/seedling_database.dart';
 
 void main() async {
   // All uncaught errors go to the ErrorReporter: printed in debug, and kept
@@ -43,6 +43,12 @@ void main() async {
 Future<void> _runApp() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Start opening the encrypted database now (keychain read, SQLCipher key,
+  // schema check) and let it overlap the rest of startup.
+  final databaseOpening = SeedlingDatabase.create(
+    errorReporter: const ErrorReporter(),
+  );
+
   // Local, rotating error log (Settings > About > Share diagnostics).
   try {
     DiagnosticsLog.instance = await DiagnosticsLog.open();
@@ -61,13 +67,11 @@ Future<void> _runApp() async {
   // Setting edgeToEdge mode allows the app to draw behind system bars
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  // Initialize database
-  final database = await ObjectBoxDatabase.create();
-  database.attachErrorReporter(const ErrorReporter());
-
   // Initialize file storage service for media
   final fileStorageService = FileStorageService();
   await fileStorageService.init();
+
+  final database = await databaseOpening;
   database.attachFileStorage(fileStorageService);
 
   // Keep the database and media out of iCloud/iTunes backups (iOS).
@@ -148,7 +152,7 @@ Future<void> _runApp() async {
 /// e.g. photos left behind by a crash mid-capture. Delayed so it never
 /// competes with first-frame work.
 Future<void> _sweepOrphanMedia(
-  ObjectBoxDatabase database,
+  SeedlingDatabase database,
   FileStorageService fileStorage,
 ) async {
   try {

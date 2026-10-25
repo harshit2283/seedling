@@ -5,12 +5,12 @@ import 'package:mocktail/mocktail.dart';
 import 'package:seedling/core/services/backup/backup_restore_service.dart';
 import 'package:seedling/core/services/export/export_service.dart';
 import 'package:seedling/core/services/media/file_storage_service.dart';
-import 'package:seedling/data/datasources/local/objectbox_database.dart';
+import 'package:seedling/data/datasources/local/seedling_database.dart';
 import 'package:seedling/data/models/entry.dart';
 import 'package:seedling/core/services/sync/sync_engine.dart';
 import 'package:seedling/core/services/sync/sync_models.dart';
 
-class _MockObjectBoxDatabase extends Mock implements ObjectBoxDatabase {}
+class _MockSeedlingDatabase extends Mock implements SeedlingDatabase {}
 
 class _MockFileStorageService extends Mock implements FileStorageService {}
 
@@ -22,13 +22,13 @@ void main() {
   });
 
   late Directory tempDir;
-  late _MockObjectBoxDatabase database;
+  late _MockSeedlingDatabase database;
   late _MockFileStorageService fileStorage;
   late List<Entry> saved;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('restore_test');
-    database = _MockObjectBoxDatabase();
+    database = _MockSeedlingDatabase();
     fileStorage = _MockFileStorageService();
     saved = [];
 
