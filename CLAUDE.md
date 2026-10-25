@@ -42,8 +42,9 @@ flutter test --update-goldens test/features/tree_illustration_golden_test.dart
 ```
 
 CI (`.github/workflows/quality.yml`) runs format, analyze, the palette check
-and tests on Flutter 3.47.7. Native code and OS integration are checked by hand
-with `docs/release/device-verification.md`.
+and tests on Flutter 3.47.7, and compiles the native code: a debug APK on
+Linux (Kotlin) and an iOS simulator build on macOS (Swift, widget). Runtime
+behaviour on devices is checked by hand with `docs/release/device-verification.md`.
 
 ## Architecture
 
@@ -138,8 +139,8 @@ lib/
 | Android | `.../SeedlingWidgetProvider.kt` | Home screen widget (calm mode hides counts) |
 | Android | `.../MainActivity.kt` | Screen-protection (`FLAG_SECURE`) channel |
 
-None of the Swift/Kotlin is compiled in CI. Anything touching it goes through
-`docs/release/device-verification.md`.
+CI compiles all of it (build-android, build-ios) but never runs it. Anything
+touching it also goes through `docs/release/device-verification.md`.
 
 ### Key Patterns
 
